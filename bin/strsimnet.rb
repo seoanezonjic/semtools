@@ -15,6 +15,7 @@
 #########################################################
 ROOT_FOLDER = File.dirname(__FILE__)
 $: << File.expand_path(File.join(ROOT_FOLDER, '..', 'lib'))
+$: << File.expand_path(File.join(ROOT_FOLDER, '..', 'lib', 'semtools'))
 
 require 'optparse'
 require 'text'
