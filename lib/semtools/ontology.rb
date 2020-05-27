@@ -215,7 +215,7 @@ class Ontology
 		term_data = @ont_data[term]
 		term_data[2].each do |par_hpo_code, par_hpo_name|
 			parents << par_hpo_code
-			parents.concat(get_parents(par_hpo_code))
+			parents = parents | get_parents(par_hpo_code)
 		end
 		return parents
 	end
@@ -316,6 +316,32 @@ class Ontology
 	    @freq_ic_profile << (profile.map{|code| @freq_ic[code]}.inject(0){|sum, val| sum +val}).fdiv(pf_len)
 	  end
 	  return @onto_ic_profile, @freq_ic_profile
+	end
+
+	def get_profile_sizes
+		profile_sizes = []
+		@profiles.each do |profile|
+			profile_sizes << profile.length
+		end
+		return profile_sizes
+	end
+
+	def compute_redundant_parental_terms_per_profile
+		parental_hpos_per_profile = []
+		@profiles.each do |profile|
+			temp = []
+			profile.each do |term|
+				temp << [ term, get_parents(term)]
+			end
+			parental_matches = []
+			while temp.length > 1
+				term, parents = temp.shift
+				common = parents & temp.map{|p| p.first}
+				parental_matches.concat(common)
+			end
+			parental_hpos_per_profile << parental_matches.uniq.length
+		end
+		return parental_hpos_per_profile
 	end
 
 	private
