@@ -8,6 +8,7 @@ class Ontology
 		@term_parent_child_relations = {}
 		@name2code_dictionary = {}
 		@profiles = []
+		@items_relations = {}
 		@onto_ic = {}
 		@freq_ic = {}
 		@onto_ic_profile = []
@@ -105,6 +106,10 @@ class Ontology
 				@ont_data[altid] = attributes
 			end
 		end 
+	end
+
+	def load_items(items_relations)
+		@items_relations = items_relations
 	end
 
 	def get_child_parent_relations
@@ -374,6 +379,40 @@ class Ontology
 			end
 		end
 		return level
+	end
+
+	def compute_relations_to_items(external_item_list, mode, thresold)
+		results = []
+		penalized_terms = {}
+		terms_levels = get_terms_levels(@items_relations.keys)
+		levels = terms_levels.keys.sort
+		levels.reverse_each do |level|
+			terms_levels[level].each do |term|
+				associated_items = @items_relations[term]
+				if mode == :elim 
+					items_to_remove = penalized_terms[term]
+					items_to_remove = [] if items_to_remove.nil?
+					pval = get_fisher_exact_test(
+						external_item_list - items_to_remove, 
+						associated_items - items_to_remove, 
+						((associated_items | external_item_list) - items_to_remove).length
+						)
+					if pval <= thresold
+						parents = get_parents(term) # Save the items for each parent term to remove them later in the fisher test
+						parents.each do |prnt|
+							query = penalized_terms[prnt]
+							if query.nil?
+								penalized_terms[prnt] = @items_relations[term].clone # We need a new array to store the following iterations
+							else
+								query.concat(@items_relations[term])
+							end
+						end
+					end
+				end
+				results << [term, pval]
+			end
+		end
+		return results
 	end
 	
 
