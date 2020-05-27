@@ -21,14 +21,14 @@ class Ontology
 		end
 	end
 
-	def load_data(obo_path)
-		load_hpo_file(obo_path)
+	def load_data(obo_path, full = true)
+		load_ontology_file(obo_path, full)
 		get_child_parent_relations
 		create_hpo_dictionary
 		extract_ontology_levels_info
 	end
 
-	def load_hpo_file(hpo_file)
+	def load_ontology_file(hpo_file, full = true)
 		hpo_obsolete = {}
 		id = nil
 		name = nil
@@ -44,8 +44,10 @@ class Ontology
 			if allowed_tags.include?(tag)
 				if tag == 'id'
 					if is_obsolete
-						new_ids.each do |new_id|
-							hpo_obsolete[id] = [new_id, name]
+						if full
+							new_ids.each do |new_id|
+								hpo_obsolete[id] = [new_id, name]
+							end
 						end
 					else
 						add_record2storage(id, name, is_a, syn, alt_ids) if !name.nil?
@@ -91,7 +93,7 @@ class Ontology
 				end
 			end
 			info_for_obsolete = @ont_data[new_id]
-			@ont_data[obsoleteID] = info_for_obsolete
+			@ont_data[obsoleteID] = info_for_obsolete if !info_for_obsolete.nil?
 		end
 	end
 
@@ -344,6 +346,37 @@ class Ontology
 		return parental_hpos_per_profile
 	end
 
+	def get_terms_levels(terms)
+		levels = {}
+		terms.each do |term|
+			level = get_term_level(term)
+			next if level.nil?
+			query = levels[level]
+			if query.nil?
+				levels[level] = [term]
+			else
+				query << term
+			end
+		end
+		return levels
+	end
+
+	def get_term_level(term)
+		level = nil
+		term_data = @ont_data[term] 
+		if !term_data.nil?
+			parents = term_data[2]
+			level = 1
+			while !parents.empty?
+				record = @ont_data[parents.first]
+				parents = record[2]
+				level += 1
+			end
+		end
+		return level
+	end
+	
+
 	private
 
 	def search_for_parentals(parental_id, counter, hpo_id)
@@ -361,4 +394,7 @@ class Ontology
 	    end
 	  end
 	end
+
+	
+
 end
