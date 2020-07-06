@@ -9,7 +9,9 @@
 #########################################################
 
 ROOT_FOLDER = File.dirname(__FILE__)
-$: << File.expand_path(File.join(ROOT_FOLDER, '../lib'))
+$: << File.expand_path(File.join(ROOT_FOLDER, '..', 'lib', 'semtools'))
+#$: << File.expand_path(File.join(ROOT_FOLDER, '../lib'))
+AUX_FOLDER = File.join(ROOT_FOLDER, 'aux_files')
 
 # require 'test/unit'
 require 'minitest/autorun'
@@ -29,11 +31,11 @@ class TestOBOFunctionalities < Minitest::Test
 
 	def setup
 		# Files
-		@File_Header = ROOT_FOLDER + "/aux_files/only_header_sample.obo"
-		@File_Hierarchical = ROOT_FOLDER + "/aux_files/hierarchical_sample.obo"
-		@File_Circular = ROOT_FOLDER + "/aux_files/circular_sample.obo"
-		@File_Atomic = ROOT_FOLDER + "/aux_files/sparse_sample.obo"
-		@File_Sparse = ROOT_FOLDER + "/aux_files/sparse2_sample.obo"
+		@File_Header = File.join(AUX_FOLDER, "only_header_sample.obo")
+		@File_Hierarchical = File.join(AUX_FOLDER, "hierarchical_sample.obo")
+		@File_Circular = File.join(AUX_FOLDER, "circular_sample.obo")
+		@File_Atomic = File.join(AUX_FOLDER, "sparse_sample.obo")
+		@File_Sparse = File.join(AUX_FOLDER, "sparse2_sample.obo")
 
 		## OBO INFO
 		@Load_Header = {"Header"=>{"format-version"=>"1.2", "data-version"=>"test/a/b/c/"}, "Term"=>{}, "Typedef"=>{}, "Instance"=>{}}
