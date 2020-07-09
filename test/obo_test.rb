@@ -186,7 +186,7 @@ class TestOBOFunctionalities < Minitest::Test
 
 		## Check info
 		# File
-		assert_equal(@Empty_file,@empty.file)
+		assert_equal({},@empty.file)
 		assert_equal(@File_Header,@header.file)
 		assert_equal(@File_Hierarchical,@hierarchical.file)
 		assert_equal(@File_Circular,@circular.file)

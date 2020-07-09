@@ -41,7 +41,7 @@ class OBO_Handler
 		@alternatives = {}
 		@obsoletes = {}
 		@structureType = nil
-		@ics = {@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}}
+		@ics = Hash[@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}]
 		@meta = {}
 		@special_tags = @@basic_tags.clone
 		@max_freqs = {:struct_freq => -1.0, :custom_freq => -1.0, :max_depth => -1.0}
