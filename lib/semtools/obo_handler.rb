@@ -26,24 +26,23 @@ class OBO_Handler
 	# => @meta :: meta_information about handled terms like [ancestors, descendants, struct_freq, custom_freq]
 	# => @max_freqs :: maximum freqs found for structural and custom freqs
 
-	@@basic_tags = {:ancestors => [:is_a], :obsolete => [:is_obsolete], :alternative => [:alt_id,:replaced_by,:consider]}
-	@@allowed_calcs = {:ics => [:resnick,:resnick_custom,:seco,:zhou,:sanchez], :sims => [:resnick,:lin,:jiang_conrath]}
+	@@basic_tags = {ancestors: [:is_a], obsolete: [:is_obsolete], alternative: [:alt_id,:replaced_by,:consider]}
+	@@allowed_calcs = {ics: [:resnick,:resnick_custom,:seco,:zhou,:sanchez], sims: [:resnick,:lin,:jiang_conrath]}
 
 	#############################################
 	# CONSTRUCTOR
 	#############################################
 	def initialize(file: nil, load: false, expand_base: false)
 		# Initialize object variables
-		@file = file.nil? ? {:file => nil, :name => nil} : {:file => file, :name => File.basename(file,File.extname(file))}
+		@file = file.nil? ? {} : {file: file, name: File.basename(file,File.extname(file))}
 		@header = nil
-		@stanzas = {:terms => {}, :typedefs => {}, :instances => {}}
+		@stanzas = {terms: {}, typedefs: {}, instances: {}}
 		@ancestors = {}
 		@alternatives = {}
 		@obsoletes = {}
 		@structureType = nil
-		@ics = {}
+		@ics = {@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}}
 		@meta = {}
-		@@allowed_calcs[:ics].each do |ictype| @ics[ictype] = {} end
 		@special_tags = @@basic_tags.clone
 		@max_freqs = {:struct_freq => -1.0, :custom_freq => -1.0, :max_depth => -1.0}
 
