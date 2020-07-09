@@ -1,6 +1,31 @@
+# @author Pedro Seoane Zonjic 
+# @author Fernando Moreno Jabato
+
+#########################################################
+# AUTHOR NOTES
+#########################################################
+
 class Ontology
 	attr_reader :term_level, :excluded_codes
+	
+	#############################################
+	# FIELDS
+	#############################################
+		# @exclude_codes :: array with identifiers to be avoided
+		# @ont_data :: hash with
+		# @term_level :: 
+		# @term_parent_child_relations :: 
+		# @name2code_dictionary :: 
+		# @profiles :: 
+		# @items_relations :: 
+		# @onto_ic :: 
+		# @freq_ic :: 
+		# @onto_ic_profile :: 
+		# @freq_ic_profile :: 
 
+	#############################################
+	# CONSTRUCTOR
+	#############################################
 	def initialize()
 		@excluded_codes = []
 		@ont_data = {}
@@ -15,6 +40,18 @@ class Ontology
 	  	@freq_ic_profile = []
 	end
 
+	#############################################
+	# CLASS METHODS
+	#############################################
+
+	#############################################
+	# METHODS
+	#############################################
+
+	# Used to load a one column file with identifiers to be excluded. Loads exclude_nodes variable
+	# Params:
+	# +exclude_codes_file+:: one column file with identifiers to be avoided
+	# Returns void
 	def load_black_list(excluded_codes_file)
 		File.open(excluded_codes_file).each do |line|
 			line.chomp!
@@ -22,6 +59,11 @@ class Ontology
 		end
 	end
 
+	# Execute a pipeline which loads an OBO file and execute childs/parent finder, dictionary generator and ontology levels study
+	# Params:
+	# +obo_path+:: file to be loaded
+	# +full+::
+	# Returns void
 	def load_data(obo_path, full = true)
 		load_ontology_file(obo_path, full)
 		get_child_parent_relations
@@ -29,7 +71,13 @@ class Ontology
 		extract_ontology_levels_info
 	end
 
+	# Load OBO ontology file and stores ifno into object variables
+	# Params:
+	# +hpo_file+:: file to be loaded
+	# +full+:: 
+	# Returns void
 	def load_ontology_file(hpo_file, full = true)
+		# Initiate useful variables
 		hpo_obsolete = {}
 		id = nil
 		name = nil
@@ -38,7 +86,9 @@ class Ontology
 		is_a = []
 		is_obsolete = false
 		new_ids = []
+		# Prepare relevant flags
 		allowed_tags = %w[id name is_a synonym alt_id is_obsolete replaced_by consider]
+		# Load info
 		File.open(hpo_file).each do |line|
 			line.chomp!
 			tag, info = line.split(': ')
@@ -78,7 +128,9 @@ class Ontology
 				end
 			end
 		end
+		# Store info
 		add_record2storage(id, name, is_a, syn, alt_ids)
+		# Update obsoletes info
 		new_ids.each do |new_id|
 			hpo_obsolete[id] = [new_id, name] if is_obsolete
 		end
@@ -98,6 +150,10 @@ class Ontology
 		end
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def add_record2storage(id, name, is_a, syn, alt_ids)
 		if !@excluded_codes.include?(id)
 			attributes = [id, name, is_a - @excluded_codes, syn]
@@ -108,10 +164,18 @@ class Ontology
 		end 
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def load_items(items_relations)
 		@items_relations = items_relations
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def get_child_parent_relations
 	# for getting hpo childs
 		@ont_data.each do |hpo_code, hpo_data|
@@ -129,6 +193,10 @@ class Ontology
 		end
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def extract_ontology_levels_info
 	  @ont_data.each do |hpo_id, hpo_data|
 	    parental_terms = hpo_data[2]
@@ -140,6 +208,10 @@ class Ontology
 	  end
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def get_ontology_levels_from_profiles(uniq=true)
 	  profile_terms = @profiles.flatten
 	  profile_terms.uniq! if uniq
@@ -162,6 +234,10 @@ class Ontology
 	  return cohort_hpo_levels
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def create_hpo_dictionary
 		@ont_data.each do |hpo, metadata|
 			hpo_code, hpo_name, hpo_parents, hpo_synonyms = metadata 
@@ -173,6 +249,10 @@ class Ontology
 		end
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def translate_names2codes(hpos) 
 	  hpo_codes = []
 	  rejected_hpos = []
@@ -187,6 +267,10 @@ class Ontology
 	  return hpo_codes, rejected_hpos
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def translate_codes2names(terms)
 		term_names = []
 		rejected_codes = []
@@ -202,6 +286,10 @@ class Ontology
 	    return term_names, rejected_codes
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def check_codes(hpos)
 	  checked_codes = []
 	  rejected_hpos = []
@@ -217,6 +305,10 @@ class Ontology
 	  return checked_codes, rejected_hpos
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def get_parents(term)
 		parents = []
 		term_data = @ont_data[term]
@@ -227,6 +319,10 @@ class Ontology
 		return parents
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def get_term_names_from_profiles(profs = [])
 	  profs = @profiles if profs.empty?
 	  profiles_with_names = []
@@ -245,6 +341,10 @@ class Ontology
 	  return profiles_with_names
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def get_term_frequency_from_profiles(names=true)
 	  stats = Hash.new(0)
 	  @profiles.each do |profile|
@@ -262,6 +362,10 @@ class Ontology
 	  return freqs
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def get_more_specific_childs_table(hpo_codes)
 	  more_specific_hpo = []
 	  hpo_codes.each do |hpo_code|
@@ -274,15 +378,27 @@ class Ontology
       return more_specific_hpo
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def load_profiles(profiles)
 		@profiles.concat(profiles)
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def get_profile_mean_length
 		prof_lengths = @profiles.map{|p| p.length}
   		return prof_lengths.inject(0){|sum, n| sum + n}.fdiv(@profiles.length).round(4)
   	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
   	def get_profile_length_at_percentile(perc=50)
   	  percentile = (100 - perc).fdiv(100)
   	  prof_lengths = @profiles.map{|p| p.length}.sort
@@ -298,15 +414,19 @@ class Ontology
 	  return percentile_length
   	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def get_ic_by_onto_and_freq(hpo_file)
-	  obof = OBO_Handler.new(hpo_file, true) # Load ontology
+	  obof = OBO_Handler.new(file: hpo_file, load: true) # Load ontology
 	  obof.expand_base
 	  @profiles.each do |profile|
-	    obof.add_observed_terms(profile)
+	    obof.add_observed_terms(terms: profile, to_Sym: true)
 	  end
 	  hpos = @profiles.flatten.uniq
-	  onto_ic_values = hpos.map{|code| obof.get_IC(code)}
-	  freq_ic_values = hpos.map{|code| obof.get_IC(code, false)}
+	  onto_ic_values = hpos.map{|code| obof.get_IC(term: code)}
+	  freq_ic_values = hpos.map{|code| obof.get_IC(term: code, type: :resnick_custom)}
 	  hpos.each_with_index do |code, i|
 	    @onto_ic[code] = onto_ic_values[i]
 	  end 
@@ -316,6 +436,10 @@ class Ontology
 	  return @onto_ic, @freq_ic
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def get_ic_profile_by_onto_and_freq
 	  @profiles.each do |profile|
 	    pf_len = profile.length
@@ -325,6 +449,10 @@ class Ontology
 	  return @onto_ic_profile, @freq_ic_profile
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def get_profile_sizes
 		profile_sizes = []
 		@profiles.each do |profile|
@@ -333,6 +461,10 @@ class Ontology
 		return profile_sizes
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def compute_redundant_parental_terms_per_profile
 		parental_hpos_per_profile = []
 		@profiles.each do |profile|
@@ -351,6 +483,10 @@ class Ontology
 		return parental_hpos_per_profile
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def get_terms_levels(terms)
 		levels = {}
 		terms.each do |term|
@@ -366,6 +502,10 @@ class Ontology
 		return levels
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def get_term_level(term)
 		level = nil
 		term_data = @ont_data[term] 
@@ -381,6 +521,10 @@ class Ontology
 		return level
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def compute_relations_to_items(external_item_list, mode, thresold)
 		results = []
 		penalized_terms = {}
@@ -415,9 +559,15 @@ class Ontology
 		return results
 	end
 	
-
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> 
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> PRIVATE METHODS
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> 
 	private
 
+	#
+	# Params:
+	# ++::
+	# Returns
 	def search_for_parentals(parental_id, counter, hpo_id)
 	  hpo_data = @ont_data[parental_id] 
 	  if !hpo_data.nil?
