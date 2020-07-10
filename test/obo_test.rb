@@ -8,10 +8,10 @@
 # Load necessary packages
 #########################################################
 
-ROOT_FOLDER = File.dirname(__FILE__)
-$: << File.expand_path(File.join(ROOT_FOLDER, '..', 'lib', 'semtools'))
-#$: << File.expand_path(File.join(ROOT_FOLDER, '../lib'))
-AUX_FOLDER = File.join(ROOT_FOLDER, 'aux_files')
+BASE_FOLDER = File.dirname(__FILE__)
+$: << File.expand_path(File.join(BASE_FOLDER, '..', 'lib', 'semtools'))
+#$: << File.expand_path(File.join(BASE_FOLDER, '../lib'))
+AUX_FOLDER = File.join(BASE_FOLDER, 'aux_files')
 
 # require 'test/unit'
 require 'minitest/autorun'
@@ -38,11 +38,11 @@ class TestOBOFunctionalities < Minitest::Test
 		@File_Sparse = {file: File.join(AUX_FOLDER, "sparse2_sample.obo"), name: "sparse2_sample"}
 
 		## OBO INFO
-		@Load_Header = [{:file=>"test/aux_files/only_header_sample.obo", :name=>"only_header_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{}, :typedefs=>{}, :instances=>{}}]
-		@Load_Hierarchical = [{:file=>"test/aux_files/hierarchical_sample.obo", :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>"Parental", :name=>"All", :comment=>"none"}, :Child1=>{:id=>"Child1", :name=>"Child1", :is_a=>"Parental ! Parental"}, :Child2=>{:id=>"Child2", :name=>"Child2", :alt_id=>"Child3", :is_a=>"Parental ! Parental"}}, :typedefs=>{}, :instances=>{}}]
-		@Load_Circular = [{:file=>"test/aux_files/circular_sample.obo", :name=>"circular_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>"A", :name=>"All", :is_a=>"C ! C"}, :B=>{:id=>"B", :name=>"B", :is_a=>"A ! A"}, :C=>{:id=>"C", :name=>"C", :is_a=>"B ! B"}}, :typedefs=>{}, :instances=>{}}]
-		@Load_Atomic = [{:file=>"test/aux_files/sparse_sample.obo", :name=>"sparse_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>"Parental", :name=>"All", :comment=>"none"}, :Child1=>{:id=>"Child1", :name=>"Child1"}, :Child2=>{:id=>"Child2", :name=>"Child2"}}, :typedefs=>{}, :instances=>{}}]
-		@Load_Sparse = [{:file=>"test/aux_files/sparse2_sample.obo", :name=>"sparse2_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>"A", :name=>"All"}, :B=>{:id=>"B", :name=>"B", :is_a=>"A ! A"}, :C=>{:id=>"C", :name=>"C", :is_a=>"A ! A"}, :D=>{:id=>"D", :name=>"Sparsed"}}, :typedefs=>{}, :instances=>{}}]
+		@Load_Header = [{:file=>File.join(AUX_FOLDER, "only_header_sample.obo"), :name=>"only_header_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{}, :typedefs=>{}, :instances=>{}}]
+		@Load_Hierarchical = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>"Parental", :name=>"All", :comment=>"none"}, :Child1=>{:id=>"Child1", :name=>"Child1", :is_a=>"Parental ! Parental"}, :Child2=>{:id=>"Child2", :name=>"Child2", :alt_id=>"Child3", :is_a=>"Parental ! Parental"}}, :typedefs=>{}, :instances=>{}}]
+		@Load_Circular = [{:file=>File.join(AUX_FOLDER, "circular_sample.obo"), :name=>"circular_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>"A", :name=>"All", :is_a=>"C ! C"}, :B=>{:id=>"B", :name=>"B", :is_a=>"A ! A"}, :C=>{:id=>"C", :name=>"C", :is_a=>"B ! B"}}, :typedefs=>{}, :instances=>{}}]
+		@Load_Atomic = [{:file=>File.join(AUX_FOLDER, "sparse_sample.obo"), :name=>"sparse_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>"Parental", :name=>"All", :comment=>"none"}, :Child1=>{:id=>"Child1", :name=>"Child1"}, :Child2=>{:id=>"Child2", :name=>"Child2"}}, :typedefs=>{}, :instances=>{}}]
+		@Load_Sparse = [{:file=>File.join(AUX_FOLDER, "sparse2_sample.obo"), :name=>"sparse2_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>"A", :name=>"All"}, :B=>{:id=>"B", :name=>"B", :is_a=>"A ! A"}, :C=>{:id=>"C", :name=>"C", :is_a=>"A ! A"}, :D=>{:id=>"D", :name=>"Sparsed"}}, :typedefs=>{}, :instances=>{}}]
 
 		# Parentals
 		@Parentals_Hierachical = [:hierarchical, {:Child1=>[:Parental], :Child2=>[:Parental]}]
@@ -114,7 +114,7 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_nil(OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: nil)) # Nil target
 		assert_nil(OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: "")) # No/Empty target
 		assert_nil(OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: 8)) # Target not a string
-		assert_raises ArgumentError do OBO_Handler.expand_by_tag(@Load_Hierarchical[2][:terms],:is_a," ! ",split_info_indx=-1) end # Erroneous info_indx
+		assert_raises ArgumentError do OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: :is_a,split_info_char:" ! ",split_info_indx: -1) end # Erroneous info_indx
 		assert_raises TypeError do OBO_Handler.expand_by_tag(terms: {:A=>[1,2]},target_tag: :is_a) end # Terms without correct format {id, {tags}}
 		assert_equal(@Parentals_Hierachical,OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: :is_a)) # Hierarchical structure
 		assert_equal(@Parentals_Circular,OBO_Handler.expand_by_tag(terms: @Load_Circular[2][:terms],target_tag: :is_a)) # Circular structure
@@ -168,14 +168,6 @@ class TestOBOFunctionalities < Minitest::Test
 	#################################
 
 	def test_load
-		# Instantiate necessary objects
-		empty = OBO_Handler.new()
-		header = OBO_Handler.new(file: @File_Header[:file])
-		hierarchical = OBO_Handler.new(file: @File_Hierarchical[:file])
-		circular = OBO_Handler.new(file: @File_Circular[:file])
-		atomic = OBO_Handler.new(file: @File_Atomic[:file])
-		sparse = OBO_Handler.new(file: @File_Sparse[:file])
-		
 		## Check loads
 		assert_equal(false,@empty.load())
 		assert_equal(true,@header.load())
