@@ -426,7 +426,7 @@ class Ontology
 	  end
 	  hpos = @profiles.flatten.uniq
 	  onto_ic_values = hpos.map{|code| obof.get_IC(term: code)}
-	  freq_ic_values = hpos.map{|code| obof.get_IC(term: code, type: :resnick_custom)}
+	  freq_ic_values = hpos.map{|code| obof.get_IC(term: code, type: :resnick_observed)}
 	  hpos.each_with_index do |code, i|
 	    @onto_ic[code] = onto_ic_values[i]
 	  end 

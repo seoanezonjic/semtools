@@ -52,8 +52,8 @@ class TestOBOFunctionalities < Minitest::Test
 
 		# Aux variables
 		@Basic_tags = {:ancestors => [:is_a], :obsolete => [:is_obsolete], :alternative => [:alt_id,:replaced_by,:consider]}
-		@Empty_ICs = {:resnick=>{}, :resnick_custom=>{}, :seco=>{}, :zhou=>{}, :sanchez=>{}}
-		@Erroneous_freq = {:struct_freq=>-1.0, :custom_freq=>-1.0, :max_depth=>-1.0}
+		@Empty_ICs = {:resnick=>{}, :resnick_observed=>{}, :seco=>{}, :zhou=>{}, :sanchez=>{}}
+		@Erroneous_freq = {:struct_freq=>-1.0, :observed_freq=>-1.0, :max_depth=>-1.0}
 		@Empty_file = {:file=>nil, :name=>nil}
 
 		# Create necessary instnaces
@@ -64,8 +64,8 @@ class TestOBOFunctionalities < Minitest::Test
 		@sparse = OBO_Handler.new(file = @File_Sparse[:file],load_p: true, build_index_p: false)
 
 		# Freqs variables
-		@Hierarchical_freqs_default = {:struct_freq=>4.0, :custom_freq=>-1.0, :max_depth=>3.0}
-		@Hierarchical_freqs_updated = {:struct_freq=>4.0, :custom_freq=> 2.0, :max_depth=>3.0}
+		@Hierarchical_freqs_default = {:struct_freq=>4.0, :observed_freq=>-1.0, :max_depth=>3.0}
+		@Hierarchical_freqs_updated = {:struct_freq=>4.0, :observed_freq=> 2.0, :max_depth=>3.0}
 	end
 
 	#################################
@@ -153,9 +153,9 @@ class TestOBOFunctionalities < Minitest::Test
 		@hierarchical.build_index
 		# Check freqs
 		assert_equal(@Hierarchical_freqs_default,@hierarchical.max_freqs) # Only structural freq
-		# Update hierarchical custom freq
+		# Update hierarchical observed freq
 		@hierarchical.add_observed_terms(terms: ["Child2","Child2"], to_Sym: true)
-		# Check custom freq
+		# Check observed freq
 		assert_equal(@Hierarchical_freqs_updated,@hierarchical.max_freqs) # Only structural freq
 	end
 

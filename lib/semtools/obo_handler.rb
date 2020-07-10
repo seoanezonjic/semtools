@@ -3,7 +3,7 @@
 #########################################################
 
 # 1 - Handle "consider" values
-# 2 - Handle custom freqs into ICs
+# 2 - Handle observed freqs into ICs
 
 class OBO_Handler
 	#############################################
@@ -22,11 +22,11 @@ class OBO_Handler
 	# => @special_tags :: set of special tags to be expanded (:is_a, :obsolete, :alt_id)
 	# => @structureType :: type of ontology structure depending on ancestors relationship. Allowed: {atomic, sparse, circular, hierarchical}
 	# => @ics :: already calculated ICs for handled terms and IC types
-	# => @meta :: meta_information about handled terms like [ancestors, descendants, struct_freq, custom_freq]
-	# => @max_freqs :: maximum freqs found for structural and custom freqs
+	# => @meta :: meta_information about handled terms like [ancestors, descendants, struct_freq, observed_freq]
+	# => @max_freqs :: maximum freqs found for structural and observed freqs
 
 	@@basic_tags = {ancestors: [:is_a], obsolete: [:is_obsolete], alternative: [:alt_id,:replaced_by,:consider]}
-	@@allowed_calcs = {ics: [:resnick,:resnick_custom,:seco,:zhou,:sanchez], sims: [:resnick,:lin,:jiang_conrath]}
+	@@allowed_calcs = {ics: [:resnick,:resnick_observed,:seco,:zhou,:sanchez], sims: [:resnick,:lin,:jiang_conrath]}
 
 	#############################################
 	# CONSTRUCTOR
@@ -42,7 +42,7 @@ class OBO_Handler
 		@ics = Hash[@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}]
 		@meta = {}
 		@special_tags = @@basic_tags.clone
-		@max_freqs = {:struct_freq => -1.0, :custom_freq => -1.0, :max_depth => -1.0}
+		@max_freqs = {:struct_freq => -1.0, :observed_freq => -1.0, :max_depth => -1.0}
 
 		load(file) if load_p
 		build_index() if build_index_p
@@ -304,12 +304,12 @@ class OBO_Handler
 		return false unless @stanzas[:terms].keys.include? term
 	
 		# Check if exists
-		@meta[term] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:custom_freq => -1.0} if @meta[term].nil?
+		@meta[term] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => -1.0} if @meta[term].nil?
 		# Add frequency
-		@meta[term][:custom_freq] = 0 if @meta[term][:custom_freq] == -1
-		@meta[term][:custom_freq] += increase
+		@meta[term][:observed_freq] = 0 if @meta[term][:observed_freq] == -1
+		@meta[term][:observed_freq] += increase
 		# Check maximum frequency
-		@max_freqs[:custom_freq] = @meta[term][:custom_freq] if @max_freqs[:custom_freq] < @meta[term][:custom_freq]  
+		@max_freqs[:observed_freq] = @meta[term][:observed_freq] if @max_freqs[:observed_freq] < @meta[term][:observed_freq]  
 		return true
 	end
 
@@ -412,7 +412,7 @@ class OBO_Handler
 		# Per each term, add frequencies
 		@stanzas[:terms].each do |id, tags|
 			# Check if exist
-			@meta[id] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:custom_freq => -1.0} if @meta[id].nil?
+			@meta[id] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => -1.0} if @meta[id].nil?
 			# Store metadata
 			@meta[id][:ancestors] = (@ancestors_index.include? id) ? @ancestors_index[id][:ancestors].length.to_f : 0.0
 			@meta[id][:descendants] = (@ancestors_index.include? id) ? @ancestors_index[id][:descendants].length.to_f : 0.0
@@ -560,9 +560,9 @@ class OBO_Handler
 			when :resnick
 				# -log(Freq(x) / Max_Freq)
 				ic = -Math.log10(@meta[term][:struct_freq].fdiv(@max_freqs[:struct_freq]))
-			when :resnick_custom
+			when :resnick_observed
 				# -log(Freq(x) / Max_Freq)
-				ic = -Math.log10(@meta[term][:custom_freq].fdiv(@max_freqs[:custom_freq]))
+				ic = -Math.log10(@meta[term][:observed_freq].fdiv(@max_freqs[:observed_freq]))
 			when :seco
 				#  1 - ( log(hypo(x) + 1) / log(max_nodes) )
 				ic = 1 - Math.log10(@meta[term][:struct_freq]).fdiv(Math.log10(@stanzas[:terms].length - @alternatives.length))
