@@ -223,6 +223,26 @@ class OBO_Handler
 	end
 
 
+
+	# Stores info load into correct stanza
+	# Param:
+	# +type+:: of stanza
+	# +info+:: to be stored
+	# +id+:: of stanza item
+	# +container+:: of stanzas
+	# Return :: void
+	def self.loadProcess_store_by_stanza(type,info,id,container)
+		case type
+			when "Term"
+				container[:terms][id] = info
+			when "Typedef"
+				container[:typedefs][id] = info
+			when "Instance"
+				container[:instances][id] = info
+		end
+	end
+
+
 	# Class method to load an OBO format file (based on OBO 1.4 format). Specially focused on load
 	# the Header, the Terms, the Typedefs and the Instances.
 	# Param:
@@ -236,30 +256,24 @@ class OBO_Handler
 
 		# Data variables
 		header = ""
-		terms = {}
-		typedefs = {}
-		instances = {}
+		stanzas = {:terms => {}, :typedefs => {}, :instances => {}}
+
 		# Auxiliar variables
 		infoType = "Header"
 		currInfo = []
-		stanzas = ["[Term]","[Typedef]","[Instance]"]
+		stanzas_flags = ["[Term]","[Typedef]","[Instance]"]
 		# Read file
 		File.open(file).each do |line|
 			line.chomp!
 			# Check if new instance is found
-			if stanzas.include? line
+			if stanzas_flags.include? line
 				currInfo = self.info2hash(info: currInfo)
 				id = currInfo.first[1].to_sym
 				# Store current info
-				case infoType
-				when "Header" 
+				if infoType == "Header"
 					header = currInfo
-				when "Term"
-					terms[id] = currInfo
-				when "Typedef"
-					typedefs[id] = currInfo
-				when "Instance"
-					instances[id] = currInfo
+				else
+					self.loadProcess_store_by_stanza(infoType, currInfo, id, stanzas)
 				end
 				# Update info variables
 				currInfo = []
@@ -274,23 +288,17 @@ class OBO_Handler
 			currInfo = self.info2hash(info: currInfo)
 			id = currInfo.first[1].to_sym
 			# Store current info
-			case infoType
-			when "Header" 
+			if infoType == "Header"
 				header = currInfo
-			when "Term"
-				terms[id] = currInfo
-			when "Typedef"
-				typedefs[id] = currInfo
-			when "Instance"
-				instances[id] = currInfo
+			else
+				self.loadProcess_store_by_stanza(infoType, currInfo, id, stanzas)
 			end
+
 		end
 
 		# Prepare to return
 		finfo = {:file => file, :name => File.basename(file,File.extname(file))}
-		stanzas = {:terms => terms, :typedefs => typedefs, :instances => instances}
 		return finfo, header, stanzas
-		# return {"Header" => header, "Term" => terms, "Typedef" => typedefs, "Instance" => instances}
 	end
 
 
