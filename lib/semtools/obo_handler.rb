@@ -14,7 +14,6 @@ class OBO_Handler
 	# => @@allowed_calcs :: hash with allowed ICs and similaritites calcs
 	#
 	# Handled object variables
-	# => @file :: handled OBO file. Stored info {:file,:name}
 	# => @header :: file header (if is available)
 	# => @stanzas :: OBO stanzas {:terms,:typedefs,:instances}
 	# => @ancestors :: hash of ancestors/descendants per each term handled with any structure relationships
@@ -32,22 +31,21 @@ class OBO_Handler
 	#############################################
 	# CONSTRUCTOR
 	#############################################
-	def initialize(file: nil, load: false, expand_base: false)
+	def initialize(file, load_p: false, build_index_p: false)
 		# Initialize object variables
-		@file = file.nil? ? {} : {file: file, name: File.basename(file,File.extname(file))}
 		@header = nil
 		@stanzas = {terms: {}, typedefs: {}, instances: {}}
-		@ancestors = {}
-		@alternatives = {}
-		@obsoletes = {}
+		@ancestors_index = {}
+		@alternatives_index = {}
+		@obsoletes_index = {}
 		@structureType = nil
 		@ics = Hash[@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}]
 		@meta = {}
 		@special_tags = @@basic_tags.clone
 		@max_freqs = {:struct_freq => -1.0, :custom_freq => -1.0, :max_depth => -1.0}
 
-		load() if load
-		expand_base() if expand_base
+		load(file) if load_p
+		build_index() if build_index_p
 	end
 
 
@@ -228,7 +226,7 @@ class OBO_Handler
 	# Param:
 	# +type+:: of stanza
 	# +info+:: to be stored
-	# +id+:: of stanza item
+	# +id+:: of stanza
 	# +container+:: of stanzas
 	# Return :: void
 	def self.loadProcess_store_by_stanza(type,info,id,container)
@@ -248,16 +246,11 @@ class OBO_Handler
 	# Param:
 	# +file+:: OBO file to be loaded
 	# Returns hash with FILE, HEADER and STANZAS info
-	def self.load_obo(file:)
-		# Check special cases
-		return nil if file.nil?
-		return nil if !file.is_a? String
-		return nil if file.length <= 0
-
+	def self.load_obo(file:) #TODO: Send to obo_parser class
+		raise("File cannot be null") if file.nil?
 		# Data variables
 		header = ""
 		stanzas = {:terms => {}, :typedefs => {}, :instances => {}}
-
 		# Auxiliar variables
 		infoType = "Header"
 		currInfo = []
@@ -270,10 +263,10 @@ class OBO_Handler
 				currInfo = self.info2hash(info: currInfo)
 				id = currInfo.first[1].to_sym
 				# Store current info
-				if infoType == "Header"
+				if infoType.eql?("Header")
 					header = currInfo
 				else
-					self.loadProcess_store_by_stanza(infoType, currInfo, id, stanzas)
+					self.loadProcess_store_by_stanza(infoType,currInfo,id,stanzas)
 				end
 				# Update info variables
 				currInfo = []
@@ -288,12 +281,11 @@ class OBO_Handler
 			currInfo = self.info2hash(info: currInfo)
 			id = currInfo.first[1].to_sym
 			# Store current info
-			if infoType == "Header"
+			if infoType.eql?("Header")
 				header = currInfo
 			else
-				self.loadProcess_store_by_stanza(infoType, currInfo, id, stanzas)
+				self.loadProcess_store_by_stanza(infoType,currInfo,id,stanzas)
 			end
-
 		end
 
 		# Prepare to return
@@ -371,51 +363,47 @@ class OBO_Handler
 	# Params:
 	# +alt_tag+:: tag used to expand alternative IDs
 	# Returns true if process ends without errors and false in other cases
-	def expand_alternatives(alt_tag: @@basic_tags[:alternative][0])
+	def get_index_alternatives(alt_tag: @@basic_tags[:alternative][0])
 		# Check input
-		return false if @stanzas[:terms].empty?
+		raise('stanzas terms empty')  if @stanzas[:terms].empty?
 		# Take all alternative IDs
 		terms_copy = @stanzas[:terms].keys
 		terms_copy.each do |id|
 			tags = @stanzas[:terms][id]
 			next if tags.nil?
-			if tags.keys.include? alt_tag
+			if tags.keys.include?(alt_tag)
 				# Check alternative ids
 				alt_ids = tags[alt_tag]
 				alt_ids = Array.new(1,alt_ids) if !alt_ids.kind_of? Array
 				# Update info
 				alt_ids.each do |alt_term|
 					alt_term = alt_term.to_sym
-					@alternatives[alt_term] = id
+					@alternatives_index[alt_term] = id
 					@stanzas[:terms][alt_term] = @stanzas[:terms][id] if !@stanzas[:terms].include? alt_term
-					if !@ancestors.nil?
-						@ancestors[alt_term] = @ancestors[id] if @ancestors.include? id
+					if !@ancestors_index.nil?
+						@ancestors_index[alt_term] = @ancestors_index[id] if @ancestors_index.include? id
 					end
 				end
 			end
 		end
-		# Everything ok
-		return true
 	end
 
 
 	# Executes basic expansions of tags (alternatives, obsoletes and parentals) with default values
 	# Returns :: true if eprocess ends without errors and false in other cases
-	def expand_base()
-		a = self.expand_alternatives
-		b = self.expand_obsoletes
-		b = self.expand_obsoletes(alt: @@basic_tags[:alternative][2])
-		c = self.expand_parentals
-		d = self.expand_frequencies
-		return a & b & c & d
+	def build_index()
+		self.get_index_alternatives
+		self.get_index_obsoletes(alt: @@basic_tags[:alternative][2])
+		self.get_index_parentals
+		self.get_index_frequencies
 	end
 
 
 	# Calculates regular frequencies based on ontology structure (using parentals)
 	# Returns :: true if everything end without errors and false in other cases
-	def expand_frequencies()
+	def get_index_frequencies()
 		# Check
-		return false if @ancestors.empty?
+		raise('ancestors_index object is empty') if @ancestors_index.empty?
 		# Reset
 		@meta.each do |id, freqs|
 			next if 
@@ -426,14 +414,13 @@ class OBO_Handler
 			# Check if exist
 			@meta[id] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:custom_freq => -1.0} if @meta[id].nil?
 			# Store metadata
-			@meta[id][:ancestors] = (@ancestors.include? id) ? @ancestors[id][:ancestors].length.to_f : 0.0
-			@meta[id][:descendants] = (@ancestors.include? id) ? @ancestors[id][:descendants].length.to_f : 0.0
+			@meta[id][:ancestors] = (@ancestors_index.include? id) ? @ancestors_index[id][:ancestors].length.to_f : 0.0
+			@meta[id][:descendants] = (@ancestors_index.include? id) ? @ancestors_index[id][:descendants].length.to_f : 0.0
 			@meta[id][:struct_freq] = @meta[id][:descendants] + 1.0
 			# Update maximums
 			@max_freqs[:struct_freq] = @meta[id][:struct_freq] if @max_freqs[:struct_freq] < @meta[id][:struct_freq]  
 			@max_freqs[:max_depth] = @meta[id][:descendants] if @max_freqs[:max_depth] < @meta[id][:descendants]  
 		end
-		return true
 	end
 
 
@@ -443,18 +430,18 @@ class OBO_Handler
 	# +alt+:: tag to find alternative IDs (if are available)
 	# +reset_obsoletes+:: flag to indicate if obsoletes set must be reset. Default: true
 	# Returns true if process ends without errors and false in other cases
-	def expand_obsoletes(obs_tag: @@basic_tags[:obsolete][0], alt: @@basic_tags[:alternative][1], reset_obsoletes: true)
+	def get_index_obsoletes(obs_tag: @@basic_tags[:obsolete][0], alt: @@basic_tags[:alternative][1], reset_obsoletes: true)
 		# Check
-		return false if @stanzas[:terms].empty?
+		raise('stanzas terms empty') if @stanzas[:terms].empty?
 		# Reset
-		@obsoletes = {} if reset_obsoletes
+		@obsoletes_index = {} if reset_obsoletes
 		# Check obsoletes
 		@stanzas[:terms].each do |id, tags|
 			next if tags.nil?
 			if tags.keys.include? obs_tag
-				next if !@obsoletes[id].nil?
-				@obsoletes[id] = nil
-				# @alternatives[id] = nil
+				next if !@obsoletes_index[id].nil?
+				@obsoletes_index[id] = nil
+				# @alternatives_index[id] = nil
 				# Check obsolete
 				next if !tags[obs_tag]
 				alt_id = nil
@@ -466,12 +453,10 @@ class OBO_Handler
 				alt_id = alt_id[0] if alt_id.kind_of? Array
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 				# Store
-				@alternatives[id] = alt_id.to_sym
-				@obsoletes[id] = alt_id.to_sym	
+				@alternatives_index[id] = alt_id.to_sym
+				@obsoletes_index[id] = alt_id.to_sym	
 			end
 		end
-		# END
-		return true
 	end
 
 
@@ -481,18 +466,18 @@ class OBO_Handler
 	# +split_info_char+:: special regex used to split info (if it is necessary)
 	# +split_info_indx+:: special index to take splitted info (if it is necessary)
 	# Returns true if process ends without errors and false in other cases
-	def expand_parentals(tag: @@basic_tags[:ancestors][0],split_info_char: " ! ", split_info_indx: 0)
+	def get_index_parentals(tag: @@basic_tags[:ancestors][0],split_info_char: " ! ", split_info_indx: 0)
 		# Check
-		return false if @stanzas[:terms].nil?
+		raise('stanzas terms empty') if @stanzas[:terms].nil?
 		# Expand
 		structType, parentals = self.class.expand_by_tag(terms: @stanzas[:terms],
 														target_tag: tag,
 														split_info_char: split_info_char,
 														split_info_indx: split_info_indx, 
-														alt_ids: @alternatives,
-														obsoletes: @obsoletes.length)
+														alt_ids: @alternatives_index,
+														obsoletes: @obsoletes_index.length)
 		# Check
-		return false if (structType.nil?) | parentals.nil?
+		raise('Error expanding parentals')  if (structType.nil?) | parentals.nil?
 		# Prepare ancestors structure
 		anc = {}
 		parentals.each do |id, parents|
@@ -506,7 +491,7 @@ class OBO_Handler
 			end
 		end
 		# Store alternatives
-		@alternatives.each do |id,alt|
+		@alternatives_index.each do |id,alt|
 			# Store
 			anc[id] = anc[alt] if anc.include? alt
 			anc[id] = {:ancestors => [], :descendants => []} if anc[id].nil?
@@ -517,10 +502,9 @@ class OBO_Handler
 			anc.map{|k,v| structType = :circular if (v[:ancestors].include? k) | (v[:descendants].include? k)}
 		end
 		# Store
-		@ancestors = anc
+		@ancestors_index = anc
 		@structureType = structType
 		# Finish		
-		return true
 	end
 
 
@@ -672,21 +656,10 @@ class OBO_Handler
 	# Param
 	# +file+:: optional file to update object stored file
 	# Return true if process ends without errors, false in other cases
-	def load(file: nil)
-		# Check special cases
-		file = @file[:file] if file.nil?
-		return false if file.nil?
-		# Load
+	def load(file)
 		finfo, header, stanzas = self.class.load_obo(file: file)
-		# Check special cases
-		return false if finfo.nil?
-		# Store
-		@file = finfo
 		@header = header
 		@stanzas = stanzas
-
-		# Return
-		return true
 	end
 	
 	#############################################

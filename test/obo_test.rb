@@ -8,7 +8,7 @@
 # Load necessary packages
 #########################################################
 
-BASE_FOLDER = File.dirname(__FILE__)
+BASE_FOLDER = File.dirname(File.expand_path(__FILE__))
 $: << File.expand_path(File.join(BASE_FOLDER, '..', 'lib', 'semtools'))
 #$: << File.expand_path(File.join(BASE_FOLDER, '../lib'))
 AUX_FOLDER = File.join(BASE_FOLDER, 'aux_files')
@@ -57,12 +57,11 @@ class TestOBOFunctionalities < Minitest::Test
 		@Empty_file = {:file=>nil, :name=>nil}
 
 		# Create necessary instnaces
-		@empty = OBO_Handler.new()
-		@header = OBO_Handler.new(file: @File_Header[:file],load: true, expand_base: true)
-		@hierarchical = OBO_Handler.new(file: @File_Hierarchical[:file],load: true, expand_base: true)
-		@circular = OBO_Handler.new(file: @File_Circular[:file],load: true, expand_base: true)
-		@atomic = OBO_Handler.new(file: @File_Atomic[:file],load: true, expand_base: true)
-		@sparse = OBO_Handler.new(file: @File_Sparse[:file],load: true, expand_base: true)
+		@header = OBO_Handler.new(file = @File_Header[:file],load_p: true, build_index_p: false)
+		@hierarchical = OBO_Handler.new(file = @File_Hierarchical[:file],load_p: true, build_index_p: false)
+		@circular = OBO_Handler.new(file = @File_Circular[:file],load_p: true, build_index_p: false)
+		@atomic = OBO_Handler.new(file = @File_Atomic[:file],load_p: true, build_index_p: false)
+		@sparse = OBO_Handler.new(file = @File_Sparse[:file],load_p: true, build_index_p: false)
 
 		# Freqs variables
 		@Hierarchical_freqs_default = {:struct_freq=>4.0, :custom_freq=>-1.0, :max_depth=>3.0}
@@ -89,9 +88,6 @@ class TestOBOFunctionalities < Minitest::Test
 	end
 
 	def test_load_file
-		assert_nil(OBO_Handler.load_obo(file: nil)) # Nil
-		assert_nil(OBO_Handler.load_obo(file: 8)) # Not a string
-		assert_nil(OBO_Handler.load_obo(file: "")) # Empty file
 		assert_raises Errno::ENOENT do OBO_Handler.load_obo(file: "./.rb") end # Erroneous file path
 		assert_equal(@Load_Header,OBO_Handler.load_obo(file: @File_Header[:file])) # Only header
 		assert_equal(@Load_Hierarchical,OBO_Handler.load_obo(file: @File_Hierarchical[:file])) # Hierarchical
@@ -101,7 +97,6 @@ class TestOBOFunctionalities < Minitest::Test
 	end
 
 	def test_init_obj
-		assert_instance_of(OBO_Handler,OBO_Handler.new()) # Init without file
 		assert_instance_of(OBO_Handler,OBO_Handler.new(file: nil)) # Init with nill
 		assert_instance_of(OBO_Handler,OBO_Handler.new(file: @File_Header[:file])) # Init with file but without read
 		assert_instance_of(OBO_Handler,OBO_Handler.new(file: @File_Header[:file],load: true)) # Init with file and launch read file
@@ -123,44 +118,6 @@ class TestOBOFunctionalities < Minitest::Test
 	end
 
 
-	#################################
-	# ACCESSIONS
-	#################################
-
-	def test_read_write_variables
-		# Generate dummy object
-		dummy = OBO_Handler.new
-		## @structureType (R)
-		assert_nil(dummy.structureType)
-		assert_raises NoMethodError do dummy.structureType = "A" end
-		## @header (R)
-		assert_nil(dummy.header)
-		assert_raises NoMethodError do dummy.header = "A" end
-		## @stanzas (R)
-		assert_equal(@Load_Header[2],dummy.stanzas)
-		assert_raises NoMethodError do dummy.stanzas = "A" end
-		## @ancestors (R)
-		assert_equal({},dummy.ancestors)
-		assert_raises NoMethodError do dummy.ancestors = "A" end
-		# => @alternatives :: has of alternative IDs (includee alt_id and obsoletes)
-		assert_equal({},dummy.alternatives)
-		assert_raises NoMethodError do dummy.alternatives = "A" end
-		## @obsoletes (R)
-		assert_equal({},dummy.obsoletes)
-		assert_raises NoMethodError do dummy.obsoletes = "A" end
-		## @special_tags (R)
-		assert_equal(@Basic_tags,dummy.special_tags)
-		assert_raises NoMethodError do dummy.special_tags = "A" end
-		## @ics (R)
-		assert_equal(@Empty_ICs,dummy.ics)
-		assert_raises NoMethodError do dummy.ics = "A" end
-		## @meta (R)
-		assert_equal({},dummy.meta)
-		assert_raises NoMethodError do dummy.meta = "A" end
-		## @max_freqs (R)
-		assert_equal(@Erroneous_freq,dummy.max_freqs)
-		assert_raises NoMethodError do dummy.max_freqs = "A" end
-	end
 
 
 	#################################
@@ -168,24 +125,8 @@ class TestOBOFunctionalities < Minitest::Test
 	#################################
 
 	def test_load
-		## Check loads
-		assert_equal(false,@empty.load())
-		assert_equal(true,@header.load())
-		assert_equal(true,@hierarchical.load())
-		assert_equal(true,@circular.load())
-		assert_equal(true,@atomic.load())
-		assert_equal(true,@sparse.load())
-
 		## Check info
-		# File
-		assert_equal({},@empty.file)
-		assert_equal(@File_Header,@header.file)
-		assert_equal(@File_Hierarchical,@hierarchical.file)
-		assert_equal(@File_Circular,@circular.file)
-		assert_equal(@File_Atomic,@atomic.file)
-		assert_equal(@File_Sparse,@sparse.file)
 		# Header
-		assert_nil(@empty.header)
 		assert_equal(@Load_Header[1],@header.header)
 		assert_equal(@Load_Hierarchical[1],@hierarchical.header)
 		assert_equal(@Load_Circular[1],@circular.header)
@@ -200,25 +141,17 @@ class TestOBOFunctionalities < Minitest::Test
 	end
 
 	def test_obj_parentals
-		# Instantiate
-		empty = OBO_Handler.new()
-		header = OBO_Handler.new(file: @File_Header[:file],load: true)
-		hierarchical = OBO_Handler.new(file: @File_Hierarchical[:file],load: true)
-		circular = OBO_Handler.new(file: @File_Circular[:file],load: true)
-		atomic = OBO_Handler.new(file: @File_Atomic[:file],load: true)
-		sparse = OBO_Handler.new(file: @File_Sparse[:file],load: true)
-
-		assert_equal(false,empty.expand_parentals) # Empty
-		assert_equal(false,header.expand_parentals) # Only header
-		assert_equal(true,hierarchical.expand_parentals) # Hierarchical
-		assert_equal(true,circular.expand_parentals) # Circular
-		assert_equal(true,atomic.expand_parentals) # Atomic
-		assert_equal(true,sparse.expand_parentals) # Sparse
+		# Parentals
+		assert_raises RuntimeError do @header.get_index_parentals end # Only header
+		@hierarchical.get_index_parentals # Hierarchical
+		@circular.get_index_parentals # Circular
+		@atomic.get_index_parentals # Atomic
+		@sparse.get_index_parentals # Sparse
 	end
 
 	def test_frequencies
+		@hierarchical.build_index
 		# Check freqs
-		assert_equal(@Erroneous_freq,@empty.max_freqs) # Default freqs
 		assert_equal(@Hierarchical_freqs_default,@hierarchical.max_freqs) # Only structural freq
 		# Update hierarchical custom freq
 		@hierarchical.add_observed_terms(terms: ["Child2","Child2"], to_Sym: true)
