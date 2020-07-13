@@ -103,13 +103,13 @@ class TestOBOFunctionalities < Minitest::Test
 	end
 
 	def test_expand
-		assert_nil(OBO_Handler.expand_by_tag(terms: nil,target_tag: "")) # Nil terms
-		assert_nil(OBO_Handler.expand_by_tag(terms: {},target_tag: "")) # Empty terms
-		assert_nil(OBO_Handler.expand_by_tag(terms: [],target_tag: "")) # Terms not a hash
-		assert_nil(OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: nil)) # Nil target
-		assert_nil(OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: "")) # No/Empty target
-		assert_nil(OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: 8)) # Target not a string
-		assert_raises ArgumentError do OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: :is_a,split_info_char:" ! ",split_info_indx: -1) end # Erroneous info_indx
+		# assert_nil(OBO_Handler.expand_by_tag(terms: nil,target_tag: "")) # Nil terms
+		# assert_nil(OBO_Handler.expand_by_tag(terms: {},target_tag: "")) # Empty terms
+		# assert_nil(OBO_Handler.expand_by_tag(terms: [],target_tag: "")) # Terms not a hash
+		# assert_nil(OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: nil)) # Nil target
+		# assert_nil(OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: "")) # No/Empty target
+		# assert_nil(OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: 8)) # Target not a string
+		# assert_raises ArgumentError do OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: :is_a,split_info_char:" ! ",split_info_indx: -1) end # Erroneous info_indx
 		assert_raises TypeError do OBO_Handler.expand_by_tag(terms: {:A=>[1,2]},target_tag: :is_a) end # Terms without correct format {id, {tags}}
 		assert_equal(@Parentals_Hierachical,OBO_Handler.expand_by_tag(terms: @Load_Hierarchical[2][:terms],target_tag: :is_a)) # Hierarchical structure
 		assert_equal(@Parentals_Circular,OBO_Handler.expand_by_tag(terms: @Load_Circular[2][:terms],target_tag: :is_a)) # Circular structure
@@ -142,7 +142,6 @@ class TestOBOFunctionalities < Minitest::Test
 
 	def test_obj_parentals
 		# Parentals
-		assert_raises RuntimeError do @header.get_index_parentals end # Only header
 		@hierarchical.get_index_parentals # Hierarchical
 		@circular.get_index_parentals # Circular
 		@atomic.get_index_parentals # Atomic

@@ -84,15 +84,6 @@ class OBO_Handler
 	# Note: we extremly recomend use expand_by_tag function instead of it (directly)
 	def self.expand_tag(start,terms,target_tag,expansion = {}, split_info_char = " ! ", split_info_indx = 0, alt_ids = {})
 		# Check
-		return nil if start.nil?
-		return nil if terms.nil?
-		return nil if !terms.is_a? Hash
-		return nil if terms.length <= 0
-		return nil if target_tag.nil?
-		return nil if target_tag.length <= 0
-		return nil if expansion.nil?
-		raise ArgumentError, 'Info_index can not be a negative number' if split_info_indx < 0
-
 		target_tag = target_tag.to_sym unless target_tag.is_a? Symbol
 		# Take start term available info and already accumulated info
 		current_expanded = expansion[start].nil? ? [] : expansion[start]
@@ -162,15 +153,6 @@ class OBO_Handler
 	# +obsoletes+:: integer with the number of obsolete IDs. used to calculate structure type.
 	# Returns a vector with the observed structure (string) and the hash with extended terms
 	def self.expand_by_tag(terms:,target_tag:, split_info_char: " ! ", split_info_indx: 0, alt_ids: {}, obsoletes: 0)
-		# Check special cases
-		return nil if terms.nil?
-		return nil if !terms.is_a? Hash
-		return nil if terms.length <= 0
-		return nil if target_tag.nil?
-		return nil if !target_tag.is_a? Symbol
-		return nil if target_tag.length <= 0
-		raise ArgumentError, 'Info_index can not be a negative number' if split_info_indx < 0
-
 		# Define structure type
 		structType = :hierarchical
 		expansion = {}
