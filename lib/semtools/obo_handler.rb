@@ -344,6 +344,11 @@ class OBO_Handler
 	# GENERAL METHODS
 	#############################################
 	
+	# Increase observed frequency for a specific term
+	# Params:
+	# +term+:: term which frequency is going to be increased
+	# +increas+:: frequency rate to be increased. Default = 1
+	# Return :: true if process ends without errors, false in other cases
 	def add_observed_term(term:,increase: 1.0)
 		# Check
 		raise ArgumentError, "Term given is NIL" if term.nil?
@@ -364,7 +369,7 @@ class OBO_Handler
 	# Params:
 	# +terms+:: set of terms to be updated
 	# +increase+:: amount to be increased
-	# Returns true if process ends without errors and false in other cases
+	# Return :: true if process ends without errors and false in other cases
 	def add_observed_terms(terms:, increase: 1.0, to_Sym: false)
 		# Check
 		raise ArgumentError, 'Terms array given is NIL' if terms.nil?
@@ -380,10 +385,14 @@ class OBO_Handler
 
 
 
-	#
-	#
-	#
-	# 
+	# Compare to terms sets 
+	# Params
+	# +termsA+:: set to be compared
+	# +termsB+:: set to be compared
+	# +sim_type+:: similitude method to be used. Default: resnick
+	# +ic_type+:: ic type to be used. Default: resnick
+	# +bidirectional+:: calculate bidirectional similitude. Default: false
+	# Return :: similitude calculated
 	def compare(termsA:, termsB:, sim_type: :resnick, ic_type: :resnick, bidirectional: false)
 		# Check
 		raise ArgumentError, "Terms sets given are NIL" if termsA.nil? | termsB.nil?
@@ -586,13 +595,13 @@ class OBO_Handler
 	end
 
 
-	# 
+	# Obtain IC of an specific term
 	# Params:
-	# +term+:: 
-	# +type+::
-	# +force+::
-	# +zhou_k+::
-	# Returns 
+	# +term+:: which IC will be calculated
+	# +type+:: of IC to be calculated. Default: resnick
+	# +force+:: force re-calculate the IC. Do not check if it is already calculated
+	# +zhou_k+:: special coeficient for Zhou IC method
+	# Returns the IC calculated
 	def get_IC(term: ,type: :resnick, force: false, zhou_k: 0.5)
 		# Check 
 		raise ArgumentError, 'Term specified is NIL' if term.nil?
@@ -669,7 +678,7 @@ class OBO_Handler
 	end
 
 
-	# 
+	# Calculate similarity between two given terms
 	# Params:
 	# +termsA+:: to be compared
 	# +termsB+:: to be compared
