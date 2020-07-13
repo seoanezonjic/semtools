@@ -167,8 +167,14 @@ class TestOBOFunctionalities < Minitest::Test
 		# expansions
 	end
 
-
-	
+	def test_export_import
+		# Export object to JSON
+		@hierarchical.write_json(File.join(AUX_FOLDER, "testjson.json"))
+		# Import
+		assert_equal(true, @hierarchical == OBO_Handler.new(File.join(AUX_FOLDER, "testjson.json"), json_load: true))
+		# Remove generated files
+		File.delete(File.join(AUX_FOLDER, "testjson.json"))
+	end
 
 	#################################
 	# METADATA FUNCTIONALITIES

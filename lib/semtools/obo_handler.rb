@@ -1,3 +1,5 @@
+require 'json'
+
 #########################################################
 # AUTHOR NOTES
 #########################################################
@@ -31,21 +33,32 @@ class OBO_Handler
 	#############################################
 	# CONSTRUCTOR
 	#############################################
-	def initialize(file, load_p: false, build_index_p: false)
-		# Initialize object variables
-		@header = nil
-		@stanzas = {terms: {}, typedefs: {}, instances: {}}
-		@ancestors_index = {}
-		@alternatives_index = {}
-		@obsoletes_index = {}
-		@structureType = nil
-		@ics = Hash[@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}]
-		@meta = {}
-		@special_tags = @@basic_tags.clone
-		@max_freqs = {:struct_freq => -1.0, :observed_freq => -1.0, :max_depth => -1.0}
-
-		load(file) if load_p
-		build_index() if build_index_p
+	
+	# Instantiate a OBO_Handler object
+	# Params:
+	# ++::
+	def initialize(file, load_p: false, build_index_p: false, json_load: false)
+		if json_load # Load from JSON file
+			@header, @stanzas, @ancestors_index,
+			@alternatives_index, @obsoletes_index,
+			@structureType, @ics, @meta, @special_tags,
+			@max_freqs = self.class.read_ontology_json(file)
+		else # Regular initialization
+			# Initialize object variables
+			@header = nil
+			@stanzas = {terms: {}, typedefs: {}, instances: {}}
+			@ancestors_index = {}
+			@alternatives_index = {}
+			@obsoletes_index = {}
+			@structureType = nil
+			@ics = Hash[@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}]
+			@meta = {}
+			@special_tags = @@basic_tags.clone
+			@max_freqs = {:struct_freq => -1.0, :observed_freq => -1.0, :max_depth => -1.0}
+			# Load if proceeds
+			load(file) if load_p
+			build_index() if build_index_p
+		end
 	end
 
 
@@ -73,10 +86,11 @@ class OBO_Handler
 		return nil if !terms.is_a? Hash
 		return nil if terms.length <= 0
 		return nil if target_tag.nil?
-		return nil if !target_tag.is_a? Symbol
 		return nil if target_tag.length <= 0
 		return nil if expansion.nil?
 		raise ArgumentError, 'Info_index can not be a negative number' if split_info_indx < 0
+
+		target_tag = target_tag.to_sym unless target_tag.is_a? Symbol
 		# Take start term available info and already accumulated info
 		current_expanded = expansion[start].nil? ? [] : expansion[start]
 		start_expansion = terms[start][target_tag]
@@ -85,7 +99,7 @@ class OBO_Handler
 		start_expansion = Array.new(1,start_expansion) unless start_expansion.kind_of?(Array)
 
 		# Prepare auxiliar variables
-		visited = []
+		# visited = []
 		struc = :hierarchical
 
 		# Study direct extensions
@@ -291,6 +305,52 @@ class OBO_Handler
 		# Prepare to return
 		finfo = {:file => file, :name => File.basename(file,File.extname(file))}
 		return finfo, header, stanzas
+	end
+
+
+	#
+	# Params:
+	# ++::
+	# Return ::
+	def self.read_ontology_json(file)
+		# Read file
+		jsonFile = File.open(file)
+		jsonInfo = JSON.parse(jsonFile.read, :symbolize_names => true)
+		# Store info
+		header = jsonInfo[:header]
+		stanzas = jsonInfo[:stanzas]
+		ancestors_index = jsonInfo[:ancestors_index]
+		alternatives_index = jsonInfo[:alternatives_index]
+		obsoletes_index = jsonInfo[:obsoletes_index]
+		structureType = jsonInfo[:structureType]
+		ics = jsonInfo[:ics]
+		meta = jsonInfo[:meta]
+		special_tags = jsonInfo[:special_tags]
+		max_freqs = jsonInfo[:max_freqs]
+		# Return
+		return header, stanzas, ancestors_index, alternatives_index, 
+			obsoletes_index, structureType, ics, meta, special_tags, max_freqs
+	end
+
+
+	#
+	# Params:
+	# ++::
+	# Return ::
+	def self.write_ontology_json(ontobject,file)
+		# Take object stored info
+		obj_info = {:header => ontobject.header,
+					:stanzas => ontobject.stanzas,
+					:ancestors_index => ontobject.ancestors_index,
+					:alternatives_index => ontobject.alternatives_index,
+					:obsoletes_index => ontobject.obsoletes_index,
+					:structureType => ontobject.structureType,
+					:ics => ontobject.ics,
+					:meta => ontobject.meta,
+					:special_tags => ontobject.special_tags,
+					:max_freqs => ontobject.max_freqs}
+		# Convert to JSON format & write
+		File.open(file, "w") { |f| f.write obj_info.to_json }
 	end
 
 
@@ -657,10 +717,37 @@ class OBO_Handler
 	# +file+:: optional file to update object stored file
 	# Return true if process ends without errors, false in other cases
 	def load(file)
-		finfo, header, stanzas = self.class.load_obo(file: file)
+		_, header, stanzas = self.class.load_obo(file: file)
 		@header = header
 		@stanzas = stanzas
 	end
+
+
+	#
+	# Params:
+	# ++::
+	# Return ::
+	def write_json(file)
+		self.class.write_ontology_json(self, file)
+	end
+
+
+	#############################################
+	# SPECIAL METHODS
+	#############################################
+	def ==(other)
+    	self.header == other.header &&
+		self.stanzas == other.stanzas &&
+		self.ancestors_index == other.ancestors_index &&
+		self.alternatives_index == other.alternatives_index &&
+		self.obsoletes_index == other.obsoletes_index &&
+		self.structureType == other.structureType &&
+		self.ics == other.ics &&
+		self.meta == other.meta &&
+		# self.special_tags == other.special_tags &&
+		self.max_freqs == other.max_freqs
+    end
+
 	
 	#############################################
 	# ACCESS CONTROL
@@ -671,7 +758,7 @@ class OBO_Handler
 	private_class_method :expand_tag
 
 	## ATTRIBUTES
-	attr_reader :file, :header, :stanzas, :ancestors, :special_tags, :alternatives, :obsoletes, :structureType, :ics, :max_freqs, :meta
+	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta
 	# attr_writer 
 
 end
