@@ -36,7 +36,10 @@ class OBO_Handler
 	
 	# Instantiate a OBO_Handler object
 	# Params:
-	# ++::
+	# +file+:: with info to be loaded (.obo ; .json)
+	# +load:p+:: activate load process automatically (only for .obo)
+	# +build_index_p+:: activate indexes calculation processes automatically (only for .obo)
+	# +json_load+:: force to load object from JSON file
 	def initialize(file, load_p: false, build_index_p: false, json_load: false)
 		if json_load # Load from JSON file
 			@header, @stanzas, @ancestors_index,
@@ -308,10 +311,10 @@ class OBO_Handler
 	end
 
 
-	#
+	# Read a JSON file with an OBO_Handler object stored
 	# Params:
-	# ++::
-	# Return ::
+	# +file+:: with object info
+	# Return :: OBO_Handler internal fields 
 	def self.read_ontology_json(file)
 		# Read file
 		jsonFile = File.open(file)
@@ -333,10 +336,11 @@ class OBO_Handler
 	end
 
 
-	#
+	# Exports an OBO_Handler object in json format
 	# Params:
-	# ++::
-	# Return ::
+	# +ontobject+:: OBO_Handler object to be exported
+	# +file+:: where info will be stored
+	# Return :: void
 	def self.write_ontology_json(ontobject,file)
 		# Take object stored info
 		obj_info = {:header => ontobject.header,
@@ -723,10 +727,10 @@ class OBO_Handler
 	end
 
 
-	#
+	# Export this object in JSON format
 	# Params:
-	# ++::
-	# Return ::
+	# +file+:: where JSON info will be stored
+	# Return :: void
 	def write_json(file)
 		self.class.write_ontology_json(self, file)
 	end
