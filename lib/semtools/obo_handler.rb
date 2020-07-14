@@ -212,15 +212,7 @@ class OBO_Handler
 				info_hash[tag] = value
 			end
 		end
-		@@symbolizable_ids.each do |tag|
-			if !info_hash[tag].nil?
-				if info_hash[tag].kind_of?(Array)
-					info_hash[tag].map!{|item| item.to_sym}
-				else
-					info_hash[tag] = info_hash[tag].to_sym if !info_hash[tag].nil?
-				end
-			end
-		end
+		self.symbolize_ids(info_hash)
 		return info_hash
 	end
 
@@ -295,7 +287,15 @@ class OBO_Handler
 	#
 	#
 	def self.symbolize_ids(item_hash)
-
+		@@symbolizable_ids.each do |tag|
+			if !item_hash[tag].nil?
+				if item_hash[tag].kind_of?(Array)
+					item_hash[tag].map!{|item| item.to_sym}
+				else
+					item_hash[tag] = item_hash[tag].to_sym if !item_hash[tag].nil?
+				end
+			end
+		end
 	end
 
 
@@ -470,13 +470,15 @@ class OBO_Handler
 			next if 
 			freqs[:struct_freq] = 0
 		end
+		# Prepare useful variables
+		alternative_terms = @alternatives_index.keys
 		# Per each term, add frequencies
 		@stanzas[:terms].each do |id, tags|
 			# Check if exist
 			@meta[id] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => -1.0} if @meta[id].nil?
 			# Store metadata
-			@meta[id][:ancestors] = (@ancestors_index.include? id) ? @ancestors_index[id][:ancestors].length.to_f : 0.0
-			@meta[id][:descendants] = (@ancestors_index.include? id) ? @ancestors_index[id][:descendants].length.to_f : 0.0
+			@meta[id][:ancestors] = (@ancestors_index.include? id) ? @ancestors_index[id][:ancestors].reject{|anc| alternative_terms.include? anc}.length.to_f : 0.0
+			@meta[id][:descendants] = (@ancestors_index.include? id) ? @ancestors_index[id][:descendants].reject{|desc| alternative_terms.include? desc}.length.to_f : 0.0
 			@meta[id][:struct_freq] = @meta[id][:descendants] + 1.0
 			# Update maximums
 			@max_freqs[:struct_freq] = @meta[id][:struct_freq] if @max_freqs[:struct_freq] < @meta[id][:struct_freq]  
