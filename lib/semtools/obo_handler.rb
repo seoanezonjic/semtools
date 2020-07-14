@@ -30,7 +30,7 @@ class OBO_Handler
 
 	@@basic_tags = {ancestors: [:is_a], obsolete: [:is_obsolete], alternative: [:alt_id,:replaced_by,:consider]}
 	@@allowed_calcs = {ics: [:resnick,:resnick_observed,:seco,:zhou,:sanchez], sims: [:resnick,:lin,:jiang_conrath]}
-	@@symbolizable_ids = [:id, :alt_id]
+	@@symbolizable_ids = [:id, :alt_id, :replaced_by, :consider]
 
 	#############################################
 	# CONSTRUCTOR
@@ -316,7 +316,8 @@ class OBO_Handler
 			family_hash[:ancestors].map!{|anc| anc.to_sym}
 			family_hash[:descendants].map!{|desc| desc.to_sym}
 		end
-
+		jsonInfo[:obsoletes_index] = jsonInfo[:obsoletes_index].map{|id,value| [id, value.to_sym]}.to_h 
+		# ics
 		# Store info
 		header = jsonInfo[:header]
 		stanzas = jsonInfo[:stanzas]
