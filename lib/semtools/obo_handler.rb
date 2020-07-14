@@ -14,6 +14,7 @@ class OBO_Handler
 	# Handled class variables
 	# => @@basic_tags :: hash with main OBO structure tags
 	# => @@allowed_calcs :: hash with allowed ICs and similaritites calcs
+	# => @@symbolizable_ids :: tags which can be symbolized
 	#
 	# Handled object variables
 	# => @header :: file header (if is available)
@@ -29,6 +30,7 @@ class OBO_Handler
 
 	@@basic_tags = {ancestors: [:is_a], obsolete: [:is_obsolete], alternative: [:alt_id,:replaced_by,:consider]}
 	@@allowed_calcs = {ics: [:resnick,:resnick_observed,:seco,:zhou,:sanchez], sims: [:resnick,:lin,:jiang_conrath]}
+	@@symbolizable_ids = [:id, :alt_id]
 
 	#############################################
 	# CONSTRUCTOR
@@ -210,8 +212,14 @@ class OBO_Handler
 				info_hash[tag] = value
 			end
 		end
-		[:id, :alt_id].each do |tag|
-			info_hash[tag] = info_hash[tag].to_sym if !info_hash[tag].nil?
+		@@symbolizable_ids.each do |tag|
+			if !info_hash[tag].nil?
+				if info_hash[tag].kind_of?(Array)
+					info_hash[tag].map!{|item| item.to_sym}
+				else
+					info_hash[tag] = info_hash[tag].to_sym if !info_hash[tag].nil?
+				end
+			end
 		end
 		return info_hash
 	end
@@ -281,6 +289,15 @@ class OBO_Handler
 		end
 		return header
 	end
+
+	#
+	#
+	#
+	#
+	def self.symbolize_ids(item_hash)
+
+	end
+
 
 	# Read a JSON file with an OBO_Handler object stored
 	# Params:
