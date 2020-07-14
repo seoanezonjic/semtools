@@ -38,9 +38,9 @@ class OBO_Handler
 	# Params:
 	# +file+:: with info to be loaded (.obo ; .json)
 	# +load:p+:: activate load process automatically (only for .obo)
-	# +build_index_p+:: activate indexes calculation processes automatically (only for .obo)
+	# +load_index+:: activate indexes calculation processes automatically (only for .obo)
 	# +json_load+:: force to load object from JSON file
-	def initialize(file, load_p: false, build_index_p: false, json_load: false)
+	def initialize(file:, load_file: false, load_index: false, json_load: false)
 		if json_load # Load from JSON file
 			@header, @stanzas, @ancestors_index,
 			@alternatives_index, @obsoletes_index,
@@ -59,8 +59,8 @@ class OBO_Handler
 			@special_tags = @@basic_tags.clone
 			@max_freqs = {:struct_freq => -1.0, :observed_freq => -1.0, :max_depth => -1.0}
 			# Load if proceeds
-			load(file) if load_p
-			build_index() if build_index_p
+			load(file) if load_file
+			build_index() if load_index
 		end
 	end
 
@@ -186,20 +186,12 @@ class OBO_Handler
 	# Param:
 	# +info+:: string with info to be transformed into hash format
 	# Return info stored into hash structure
-	def self.info2hash(info:)
-		# Check special cases
-		return nil if info.nil?
-		return nil if !info.is_a? Array
-		return nil if info.length <= 0
+	def self.info2hash(info)
 		# Load info
 		info_hash = {}
 		info.each do |tag_tuple|
-			# Check special cases
-			raise TypeError, 'Info element is NIL' if tag_tuple.nil?
-			raise TypeError, 'Info element is not a string' if !tag_tuple.is_a? String
-			raise 'Info element is empty string' if tag_tuple.length <= 0
 			# Split info
-			tag, value = tag_tuple.split(':',2)
+			tag, value = tag_tuple.split(':', 2)
 			# Check
 			raise EncodingError, 'Info element incorrect format' if (tag.nil?) | (value.nil?)
 			# Prepare
@@ -207,14 +199,19 @@ class OBO_Handler
 			tag = tag.to_sym
 			value.lstrip!
 			# Store
-			if info_hash.keys.include? tag
-				if !info_hash[tag].kind_of?(Array)
-					info_hash[tag] = [info_hash[tag]]
+			query = info_hash[tag]
+			if !query.nil? # Tag already exists
+				if !query.kind_of?(Array) # Tag has multiple values so it is reestructured to array
+					info_hash[tag] = [query, value]
+				else
+					query << value	# Add new value to tag
 				end
-				info_hash[tag] << value				
-			else
+			else # New entry
 				info_hash[tag] = value
 			end
+		end
+		[:id, :alt_id].each do |tag|
+			info_hash[tag] = info_hash[tag].to_sym if !info_hash[tag].nil?
 		end
 		return info_hash
 	end
@@ -245,26 +242,26 @@ class OBO_Handler
 	# Param:
 	# +file+:: OBO file to be loaded
 	# Returns hash with FILE, HEADER and STANZAS info
-	def self.load_obo(file:) #TODO: Send to obo_parser class
-		raise("File cannot be null") if file.nil?
+	def self.load_obo(file) #TODO: Send to obo_parser class
+		raise("File is not defined") if file.nil?
 		# Data variables
 		header = ""
-		stanzas = {:terms => {}, :typedefs => {}, :instances => {}}
+		stanzas = {terms: {}, typedefs: {}, instances: {}}
 		# Auxiliar variables
 		infoType = "Header"
 		currInfo = []
-		stanzas_flags = ["[Term]","[Typedef]","[Instance]"]
+		stanzas_flags = %w[[Term] [Typedef] [Instance]]
 		# Read file
 		File.open(file).each do |line|
 			line.chomp!
 			# Check if new instance is found
-			if stanzas_flags.include? line
-				currInfo = self.info2hash(info: currInfo)
-				id = currInfo.first[1].to_sym
+			if stanzas_flags.include?(line)
+				currInfo = self.info2hash(currInfo)
 				# Store current info
 				if infoType.eql?("Header")
 					header = currInfo
 				else
+					id = currInfo[:id]
 					self.loadProcess_store_by_stanza(infoType,currInfo,id,stanzas)
 				end
 				# Update info variables
@@ -277,12 +274,12 @@ class OBO_Handler
 		end
 		# Store last loaded info
 		if currInfo.length > 0
-			currInfo = self.info2hash(info: currInfo)
-			id = currInfo.first[1].to_sym
+			currInfo = self.info2hash(currInfo)
 			# Store current info
 			if infoType.eql?("Header")
 				header = currInfo
 			else
+				id = currInfo[:id]
 				self.loadProcess_store_by_stanza(infoType,currInfo,id,stanzas)
 			end
 		end
@@ -370,12 +367,12 @@ class OBO_Handler
 	# +terms+:: set of terms to be updated
 	# +increase+:: amount to be increased
 	# Return :: true if process ends without errors and false in other cases
-	def add_observed_terms(terms:, increase: 1.0, to_Sym: false)
+	def add_observed_terms(terms:, increase: 1.0, transform_to_sym: false)
 		# Check
 		raise ArgumentError, 'Terms array given is NIL' if terms.nil?
 		raise ArgumentError, 'Terms given is not an array' if !terms.is_a? Array
 		# Add observations
-		if to_Sym
+		if transform_to_sym
 			checks = terms.map{|id| self.add_observed_term(term: id.to_sym,increase: increase)}
 		else
 			checks = terms.map{|id| self.add_observed_term(term: id,increase: increase)}
@@ -712,7 +709,7 @@ class OBO_Handler
 	# +file+:: optional file to update object stored file
 	# Return true if process ends without errors, false in other cases
 	def load(file)
-		_, header, stanzas = self.class.load_obo(file: file)
+		_, header, stanzas = self.class.load_obo(file)
 		@header = header
 		@stanzas = stanzas
 	end

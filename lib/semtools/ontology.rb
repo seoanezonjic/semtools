@@ -422,7 +422,7 @@ class Ontology
 	  obof = OBO_Handler.new(file: hpo_file, load: true) # Load ontology
 	  obof.expand_base
 	  @profiles.each do |profile|
-	    obof.add_observed_terms(terms: profile, to_Sym: true)
+	    obof.add_observed_terms(terms: profile, transform_to_sym: true)
 	  end
 	  hpos = @profiles.flatten.uniq
 	  onto_ic_values = hpos.map{|code| obof.get_IC(term: code)}
