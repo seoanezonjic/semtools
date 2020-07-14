@@ -218,25 +218,6 @@ class OBO_Handler
 
 
 
-	# Stores info load into correct stanza
-	# Param:
-	# +type+:: of stanza
-	# +info+:: to be stored
-	# +id+:: of stanza
-	# +container+:: of stanzas
-	# Return :: void
-	def self.loadProcess_store_by_stanza(type,info,id,container)
-		case type
-			when "Term"
-				container[:terms][id] = info
-			when "Typedef"
-				container[:typedefs][id] = info
-			when "Instance"
-				container[:instances][id] = info
-		end
-	end
-
-
 	# Class method to load an OBO format file (based on OBO 1.4 format). Specially focused on load
 	# the Header, the Terms, the Typedefs and the Instances.
 	# Param:
@@ -275,6 +256,13 @@ class OBO_Handler
 		return finfo, header, stanzas
 	end
 
+	# Handle OBO loaded info and stores it into correct container and format
+	# Params:
+	# +header+:: container
+	# +infoType+:: current ontology item type detected
+	# +stanzas+:: container
+	# +currInfo+:: info to be stored
+	# Returns :: header newly/already stored
 	def self.process_entity(header, infoType, stanzas, currInfo)
 		currInfo = self.info2hash(currInfo)
 		# Store current info
@@ -282,7 +270,14 @@ class OBO_Handler
 			header = currInfo
 		else
 			id = currInfo[:id]
-			self.loadProcess_store_by_stanza(infoType,currInfo,id,stanzas)
+			case infoType
+				when "Term"
+					stanzas[:terms][id] = currInfo
+				when "Typedef"
+					stanzas[:typedefs][id] = currInfo
+				when "Instance"
+					stanzas[:instances][id] = currInfo
+			end
 		end
 		return header
 	end
