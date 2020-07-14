@@ -152,15 +152,18 @@ class TestOBOFunctionalities < Minitest::Test
 	end
 
 
-	def test_special_loads
-		# Instantiate
-		# obsoletes
-		# alternative ids
-		# expansions
+	def test_ics
+		@hierarchical.build_index
+		assert_equal(0, @hierarchical.get_IC(term: :Parental))	# Root
+		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_IC(term: :Child2)) # Leaf	
+		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_IC(term: :Child1)) # Obsolete
+		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_IC(term: :Child3)) # Alternative
 	end
 
 	def test_export_import
+		# Add extra info to instance
 		@hierarchical.build_index
+		@hierarchical.get_IC(term: :Child2)
 		# Export object to JSON
 		@hierarchical.write_json(File.join(AUX_FOLDER, "testjson.json"))
 		# Import
