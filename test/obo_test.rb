@@ -39,7 +39,7 @@ class TestOBOFunctionalities < Minitest::Test
 
 		## OBO INFO
 		@Load_Header = [{:file=>File.join(AUX_FOLDER, "only_header_sample.obo"), :name=>"only_header_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{}, :typedefs=>{}, :instances=>{}}]
-		@Load_Hierarchical = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1", :is_a=>"Parental ! Parental"}, :Child2=>{:id=>:Child2, :name=>"Child2", :alt_id=>:Child3, :is_a=>"Parental ! Parental"}}, :typedefs=>{}, :instances=>{}}]
+		@Load_Hierarchical = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>"Parental ! Parental", :replaced_by => :Child2}, :Child2=>{:id=>:Child2, :name=>"Child2", :alt_id=>[:Child3,:Child4], :is_a=>"Parental ! Parental"}}, :typedefs=>{}, :instances=>{}}]
 		@Load_Circular = [{:file=>File.join(AUX_FOLDER, "circular_sample.obo"), :name=>"circular_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>:A, :name=>"All", :is_a=>"C ! C"}, :B=>{:id=>:B, :name=>"B", :is_a=>"A ! A"}, :C=>{:id=>:C, :name=>"C", :is_a=>"B ! B"}}, :typedefs=>{}, :instances=>{}}]
 		@Load_Atomic = [{:file=>File.join(AUX_FOLDER, "sparse_sample.obo"), :name=>"sparse_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1"}, :Child2=>{:id=>:Child2, :name=>"Child2"}}, :typedefs=>{}, :instances=>{}}]
 		@Load_Sparse = [{:file=>File.join(AUX_FOLDER, "sparse2_sample.obo"), :name=>"sparse2_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>:A, :name=>"All"}, :B=>{:id=>:B, :name=>"B", :is_a=>"A ! A"}, :C=>{:id=>:C, :name=>"C", :is_a=>"A ! A"}, :D=>{:id=>:D, :name=>"Sparsed"}}, :typedefs=>{}, :instances=>{}}]
@@ -64,8 +64,8 @@ class TestOBOFunctionalities < Minitest::Test
 		@sparse = OBO_Handler.new(file: @File_Sparse[:file],load_file: true, load_index: false)
 
 		# Freqs variables
-		@Hierarchical_freqs_default = {:struct_freq=>4.0, :observed_freq=>-1.0, :max_depth=>3.0}
-		@Hierarchical_freqs_updated = {:struct_freq=>4.0, :observed_freq=> 2.0, :max_depth=>3.0}
+		@Hierarchical_freqs_default = {:struct_freq=>2.0, :observed_freq=>-1.0, :max_depth=>1.0}
+		@Hierarchical_freqs_updated = {:struct_freq=>2.0, :observed_freq=> 2.0, :max_depth=>1.0}
 	end
 
 	#################################

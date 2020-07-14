@@ -9,11 +9,14 @@ comment: none
 [Term]
 id: Child1
 name: Child1
+is_obsolete: true
 is_a: Parental ! Parental
+replaced_by: Child2
 
 [Term]
 id: Child2
 name: Child2
 alt_id: Child3
+alt_id: Child4
 is_a: Parental ! Parental
 
