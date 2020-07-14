@@ -307,13 +307,23 @@ class OBO_Handler
 		# Read file
 		jsonFile = File.open(file)
 		jsonInfo = JSON.parse(jsonFile.read, :symbolize_names => true)
+		# Pre-process (Symbolize some hashs values)
+		jsonInfo[:stanzas][:terms].map{|id,info| self.symbolize_ids(info)} # STANZAS
+		jsonInfo[:stanzas][:typedefs].map{|id,info| self.symbolize_ids(info)}
+		jsonInfo[:stanzas][:instances].map{|id,info| self.symbolize_ids(info)}
+		jsonInfo[:alternatives_index] = jsonInfo[:alternatives_index].map{|id,value| [id, value.to_sym]}.to_h 
+		jsonInfo[:ancestors_index].map do |id,family_hash| 
+			family_hash[:ancestors].map!{|anc| anc.to_sym}
+			family_hash[:descendants].map!{|desc| desc.to_sym}
+		end
+
 		# Store info
 		header = jsonInfo[:header]
 		stanzas = jsonInfo[:stanzas]
 		ancestors_index = jsonInfo[:ancestors_index]
 		alternatives_index = jsonInfo[:alternatives_index]
 		obsoletes_index = jsonInfo[:obsoletes_index]
-		structureType = jsonInfo[:structureType]
+		structureType = jsonInfo[:structureType].to_sym
 		ics = jsonInfo[:ics]
 		meta = jsonInfo[:meta]
 		special_tags = jsonInfo[:special_tags]
@@ -454,7 +464,7 @@ class OBO_Handler
 	# Returns :: true if eprocess ends without errors and false in other cases
 	def build_index()
 		self.get_index_alternatives
-		self.get_index_obsoletes(alt: @@basic_tags[:alternative][2])
+		self.get_index_obsoletes
 		self.get_index_parentals
 		self.get_index_frequencies
 	end
@@ -489,28 +499,25 @@ class OBO_Handler
 
 	# Expand obsoletes set and link info to their alternative IDs
 	# Params:
-	# +obs_tag+:: tag to be used to find obsoletes
-	# +alt+:: tag to find alternative IDs (if are available)
+	# +obs_tags+:: tags to be used to find obsoletes
+	# +alt_tags+:: tags to find alternative IDs (if are available)
 	# +reset_obsoletes+:: flag to indicate if obsoletes set must be reset. Default: true
 	# Returns true if process ends without errors and false in other cases
-	def get_index_obsoletes(obs_tag: @@basic_tags[:obsolete][0], alt: @@basic_tags[:alternative][1], reset_obsoletes: true)
+	def get_index_obsoletes(obs_tags: @@basic_tags[:obsolete], alt_tags: @@basic_tags[:alternative], reset_obsoletes: true)
 		# Check
 		raise('stanzas terms empty') if @stanzas[:terms].empty?
 		# Reset
 		@obsoletes_index = {} if reset_obsoletes
 		# Check obsoletes
-		@stanzas[:terms].each do |id, tags|
-			next if tags.nil?
-			if tags.keys.include? obs_tag
-				next if !@obsoletes_index[id].nil?
+		@stanzas[:terms].each do |id, term_tags|
+			next if term_tags.nil?
+			if !term_tags.keys.select{|tag| obs_tags.include? tag}.empty? # Obsolete tag presence 
+				next if !@obsoletes_index[id].nil? # Already stored
 				@obsoletes_index[id] = nil
-				# @alternatives_index[id] = nil
-				# Check obsolete
-				next if !tags[obs_tag]
 				alt_id = nil
 				# Check if alternative value is available
-				alt_id = tags[alt] if tags.keys.include? alt
-				next if alt_id.nil?
+				alt_tag_toBeUsed = term_tags.keys.select{|tag| alt_tags.include? tag}
+				alt_id = term_tags[alt_tag_toBeUsed[0]] if !alt_tag_toBeUsed.empty?
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 				# That is not a correct way to do this 
 				alt_id = alt_id[0] if alt_id.kind_of? Array
