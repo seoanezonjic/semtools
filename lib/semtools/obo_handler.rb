@@ -256,14 +256,7 @@ class OBO_Handler
 			line.chomp!
 			# Check if new instance is found
 			if stanzas_flags.include?(line)
-				currInfo = self.info2hash(currInfo)
-				# Store current info
-				if infoType.eql?("Header")
-					header = currInfo
-				else
-					id = currInfo[:id]
-					self.loadProcess_store_by_stanza(infoType,currInfo,id,stanzas)
-				end
+				header = self.process_entity(header, infoType, stanzas, currInfo)
 				# Update info variables
 				currInfo = []
 				infoType = line.gsub!(/["\[\]"]/,"")
@@ -274,14 +267,7 @@ class OBO_Handler
 		end
 		# Store last loaded info
 		if currInfo.length > 0
-			currInfo = self.info2hash(currInfo)
-			# Store current info
-			if infoType.eql?("Header")
-				header = currInfo
-			else
-				id = currInfo[:id]
-				self.loadProcess_store_by_stanza(infoType,currInfo,id,stanzas)
-			end
+			header = self.process_entity(header, infoType, stanzas, currInfo)
 		end
 
 		# Prepare to return
@@ -289,6 +275,17 @@ class OBO_Handler
 		return finfo, header, stanzas
 	end
 
+	def self.process_entity(header, infoType, stanzas, currInfo)
+		currInfo = self.info2hash(currInfo)
+		# Store current info
+		if infoType.eql?("Header")
+			header = currInfo
+		else
+			id = currInfo[:id]
+			self.loadProcess_store_by_stanza(infoType,currInfo,id,stanzas)
+		end
+		return header
+	end
 
 	# Read a JSON file with an OBO_Handler object stored
 	# Params:
