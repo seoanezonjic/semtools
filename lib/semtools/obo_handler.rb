@@ -282,10 +282,10 @@ class OBO_Handler
 		return header
 	end
 
-	#
-	#
-	#
-	#
+	# Symboliza all values into hashs using symbolizable tags as keys
+	# Params:
+	# +item_hash+:: hash to be checked
+	# Return :: void
 	def self.symbolize_ids(item_hash)
 		@@symbolizable_ids.each do |tag|
 			if !item_hash[tag].nil?
@@ -317,7 +317,6 @@ class OBO_Handler
 			family_hash[:descendants].map!{|desc| desc.to_sym}
 		end
 		jsonInfo[:obsoletes_index] = jsonInfo[:obsoletes_index].map{|id,value| [id, value.to_sym]}.to_h 
-		# ics
 		# Store info
 		header = jsonInfo[:header]
 		stanzas = jsonInfo[:stanzas]
