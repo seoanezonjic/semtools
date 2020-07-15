@@ -489,7 +489,6 @@ class OBO_Handler
 			raise('Error expanding parentals')  if (structType.nil?) || parentals.nil?
 			# Prepare ancestors structure
 			anc = {}
-			STDOUT.puts '---------------------', parentals.inspect, '---------------------' 
 			parentals.each do |id, parents|
 				# Store ancestors
 				anc[id] = {:ancestors => [], :descendants => []} if !anc.include? id
