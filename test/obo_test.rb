@@ -17,12 +17,6 @@ AUX_FOLDER = File.join(BASE_FOLDER, 'aux_files')
 require 'minitest/autorun'
 require 'obo_handler'
 
-RubyVM::InstructionSequence.compile_option = {
-  :tailcall_optimization => true,
-  :trace_instruction => false
-}
-
-
 #########################################################
 # Define TESTS
 #########################################################
@@ -39,13 +33,14 @@ class TestOBOFunctionalities < Minitest::Test
 
 		## OBO INFO
 		@Load_Header = [{:file=>File.join(AUX_FOLDER, "only_header_sample.obo"), :name=>"only_header_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{}, :typedefs=>{}, :instances=>{}}]
-		@Load_Hierarchical = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>"Parental ! Parental", :replaced_by => :Child2}, :Child2=>{:id=>:Child2, :name=>"Child2", :alt_id=>[:Child3,:Child4], :is_a=>"Parental ! Parental"}}, :typedefs=>{}, :instances=>{}}]
-		@Load_Circular = [{:file=>File.join(AUX_FOLDER, "circular_sample.obo"), :name=>"circular_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>:A, :name=>"All", :is_a=>"C ! C"}, :B=>{:id=>:B, :name=>"B", :is_a=>"A ! A"}, :C=>{:id=>:C, :name=>"C", :is_a=>"B ! B"}}, :typedefs=>{}, :instances=>{}}]
+		@Load_Hierarchical_WithoutIndex = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>["Parental ! Parental"], :replaced_by => [:Child2]}, :Child2=>{:id=>:Child2, :name=>"Child2", :alt_id=>[:Child3,:Child4], :is_a=>["Parental ! Parental"]}}, :typedefs=>{}, :instances=>{}}]
+		@Load_Hierarchical = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>["Parental ! Parental"], :replaced_by => [:Child2]}, :Child2=>{:id=>:Child2, :name=>"Child2", :alt_id=>[:Child3,:Child4], :is_a=>["Parental ! Parental"]}, :Child3=>{:id=>:Child2, :name=>"Child2", :alt_id=>[:Child3, :Child4], :is_a=>["Parental ! Parental"]}, :Child4=>{:id=>:Child2, :name=>"Child2", :alt_id=>[:Child3, :Child4], :is_a=>["Parental ! Parental"]}}, :typedefs=>{}, :instances=>{}}]
+		@Load_Circular = [{:file=>File.join(AUX_FOLDER, "circular_sample.obo"), :name=>"circular_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>:A, :name=>"All", :is_a=>["C ! C"]}, :B=>{:id=>:B, :name=>"B", :is_a=>["A ! A"]}, :C=>{:id=>:C, :name=>"C", :is_a=>["B ! B"]}}, :typedefs=>{}, :instances=>{}}]
 		@Load_Atomic = [{:file=>File.join(AUX_FOLDER, "sparse_sample.obo"), :name=>"sparse_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1"}, :Child2=>{:id=>:Child2, :name=>"Child2"}}, :typedefs=>{}, :instances=>{}}]
-		@Load_Sparse = [{:file=>File.join(AUX_FOLDER, "sparse2_sample.obo"), :name=>"sparse2_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>:A, :name=>"All"}, :B=>{:id=>:B, :name=>"B", :is_a=>"A ! A"}, :C=>{:id=>:C, :name=>"C", :is_a=>"A ! A"}, :D=>{:id=>:D, :name=>"Sparsed"}}, :typedefs=>{}, :instances=>{}}]
+		@Load_Sparse = [{:file=>File.join(AUX_FOLDER, "sparse2_sample.obo"), :name=>"sparse2_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>:A, :name=>"All"}, :B=>{:id=>:B, :name=>"B", :is_a=>["A ! A"]}, :C=>{:id=>:C, :name=>"C", :is_a=>["A ! A"]}, :D=>{:id=>:D, :name=>"Sparsed"}}, :typedefs=>{}, :instances=>{}}]
 
 		# Parentals
-		@Parentals_Hierachical = [:hierarchical, {:Child1=>[:Parental], :Child2=>[:Parental]}]
+		@Parentals_Hierachical = [:hierarchical, {:Child1=>[:Parental], :Child2=>[:Parental], :Child3=>[:Parental], :Child4=>[:Parental]}]
 		@Parentals_Circular = [:circular, {:A=>[:C, :B], :C=>[:B, :A], :B=>[:A, :C]}]
 		@Parentals_Atomic = [:atomic, {}]
 		@Parentals_Sparse = [:sparse, {:B=>[:A], :C=>[:A]}]
@@ -57,11 +52,10 @@ class TestOBOFunctionalities < Minitest::Test
 		@Empty_file = {:file=>nil, :name=>nil}
 
 		# Create necessary instnaces
-		@header = OBO_Handler.new(file: @File_Header[:file],load_file: true, load_index: false)
-		@hierarchical = OBO_Handler.new(file: @File_Hierarchical[:file],load_file: true, load_index: false)
-		@circular = OBO_Handler.new(file: @File_Circular[:file],load_file: true, load_index: false)
-		@atomic = OBO_Handler.new(file: @File_Atomic[:file],load_file: true, load_index: false)
-		@sparse = OBO_Handler.new(file: @File_Sparse[:file],load_file: true, load_index: false)
+		@hierarchical = OBO_Handler.new(file: @File_Hierarchical[:file],load_file: true)
+		@circular = OBO_Handler.new(file: @File_Circular[:file],load_file: true)
+		@atomic = OBO_Handler.new(file: @File_Atomic[:file],load_file: true)
+		@sparse = OBO_Handler.new(file: @File_Sparse[:file],load_file: true)
 
 		# Freqs variables
 		@Hierarchical_freqs_default = {:struct_freq=>2.0, :observed_freq=>-1.0, :max_depth=>1.0}
@@ -72,27 +66,13 @@ class TestOBOFunctionalities < Minitest::Test
 	# INIT AND CLASS FUNCTIONALITIES
 	#################################
 
-	def test_transform_funcs
-		## INFO2HASH
-		assert_equal({:a=>"b"},OBO_Handler.info2hash(["a:b"])) # Correct format with one instance
-		assert_equal({:a=>"b",:b=>"c"},OBO_Handler.info2hash(["a:b","b:c"])) # Correct format with several instances (not overlapping)
-		assert_equal({:a=>["b","c"]},OBO_Handler.info2hash(["a:b","a:c"])) # Correct format with several instances (overlapping)
-		assert_raises EncodingError do OBO_Handler.info2hash(["a:b","ab"]) end # Several instances with some incorrect elements
-	end
-
 	def test_load_file
 		assert_raises Errno::ENOENT do OBO_Handler.load_obo("./.rb") end # Erroneous file path
 		assert_equal(@Load_Header,OBO_Handler.load_obo(@File_Header[:file])) # Only header
-		assert_equal(@Load_Hierarchical,OBO_Handler.load_obo(@File_Hierarchical[:file])) # Hierarchical
+		assert_equal(@Load_Hierarchical_WithoutIndex,OBO_Handler.load_obo(@File_Hierarchical[:file])) # Hierarchical
 		assert_equal(@Load_Circular,OBO_Handler.load_obo(@File_Circular[:file])) # Circular
 		assert_equal(@Load_Atomic,OBO_Handler.load_obo(@File_Atomic[:file])) # Sparsed
 		assert_equal(@Load_Sparse,OBO_Handler.load_obo(@File_Sparse[:file])) # Sparsed 2
-	end
-
-	def test_init_obj
-		assert_instance_of(OBO_Handler,OBO_Handler.new(file: nil)) # Init with nill
-		assert_instance_of(OBO_Handler,OBO_Handler.new(file: @File_Header[:file])) # Init with file but without read
-		assert_instance_of(OBO_Handler,OBO_Handler.new(file: @File_Header[:file], load_file: true)) # Init with file and launch read file
 	end
 
 	def test_expand
@@ -120,13 +100,11 @@ class TestOBOFunctionalities < Minitest::Test
 	def test_load
 		## Check info
 		# Header
-		assert_equal(@Load_Header[1],@header.header)
 		assert_equal(@Load_Hierarchical[1],@hierarchical.header)
 		assert_equal(@Load_Circular[1],@circular.header)
 		assert_equal(@Load_Atomic[1],@atomic.header)		
 		assert_equal(@Load_Sparse[1],@sparse.header)		
 		# Stanzas
-		assert_equal(@Load_Header[2],@header.stanzas)
 		assert_equal(@Load_Hierarchical[2],@hierarchical.stanzas)
 		assert_equal(@Load_Circular[2],@circular.stanzas)
 		assert_equal(@Load_Atomic[2],@atomic.stanzas)		
@@ -165,9 +143,12 @@ class TestOBOFunctionalities < Minitest::Test
 		@hierarchical.build_index
 		@hierarchical.get_IC(term: :Child2)
 		# Export object to JSON
-		@hierarchical.write_json(File.join(AUX_FOLDER, "testjson.json"))
+		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
+		#file: File.join(AUX_FOLDER, "testjson.json"
+		obo = OBO_Handler.new()
+		obo.read(File.join(AUX_FOLDER, "testjson.json"))
 		# Import
-		assert_equal(@hierarchical, OBO_Handler.new(file: File.join(AUX_FOLDER, "testjson.json"), json_load: true))
+		assert_equal(@hierarchical, obo)
 		# Remove generated files
 		File.delete(File.join(AUX_FOLDER, "testjson.json"))
 	end

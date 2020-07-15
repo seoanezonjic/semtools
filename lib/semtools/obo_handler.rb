@@ -40,30 +40,20 @@ class OBO_Handler
 	# Params:
 	# +file+:: with info to be loaded (.obo ; .json)
 	# +load:p+:: activate load process automatically (only for .obo)
-	# +load_index+:: activate indexes calculation processes automatically (only for .obo)
-	# +json_load+:: force to load object from JSON file
-	def initialize(file:, load_file: false, load_index: false, json_load: false)
-		if json_load # Load from JSON file
-			@header, @stanzas, @ancestors_index,
-			@alternatives_index, @obsoletes_index,
-			@structureType, @ics, @meta, @special_tags,
-			@max_freqs = self.class.read_ontology_json(file)
-		else # Regular initialization
-			# Initialize object variables
-			@header = nil
-			@stanzas = {terms: {}, typedefs: {}, instances: {}}
-			@ancestors_index = {}
-			@alternatives_index = {}
-			@obsoletes_index = {}
-			@structureType = nil
-			@ics = Hash[@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}]
-			@meta = {}
-			@special_tags = @@basic_tags.clone
-			@max_freqs = {:struct_freq => -1.0, :observed_freq => -1.0, :max_depth => -1.0}
-			# Load if proceeds
-			load(file) if load_file
-			build_index() if load_index
-		end
+	def initialize(file: nil, load_file: false)
+		# Initialize object variables
+		@header = nil
+		@stanzas = {terms: {}, typedefs: {}, instances: {}}
+		@ancestors_index = {}
+		@alternatives_index = {}
+		@obsoletes_index = {}
+		@structureType = nil
+		@ics = Hash[@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}]
+		@meta = {}
+		@special_tags = @@basic_tags.clone
+		@max_freqs = {:struct_freq => -1.0, :observed_freq => -1.0, :max_depth => -1.0}
+		# Load if proceeds
+		load(file) if load_file
 	end
 
 
@@ -122,7 +112,7 @@ class OBO_Handler
 				current_expanded << id
 				expansion[start] = current_expanded
 				# Expand current
-				structExp, expansionNew = OBO_Handler.send :expand_tag,id,terms,target_tag,expansion,split_info_char,split_info_indx,alt_ids
+				structExp, expansionNew = self.expand_tag(id,terms,target_tag,expansion,split_info_char,split_info_indx,alt_ids)
 				# Concat
 				current_expanded = current_expanded | expansionNew unless expansionNew.nil?
 				# Check struct
@@ -159,14 +149,11 @@ class OBO_Handler
 		structType = :hierarchical
 		expansion = {}
 		terms.each do |id,tags|
-			# Check
-			next if tags.nil?
-			raise TypeError, 'Tags of term (#{id}) is not a hash' unless tags.is_a? Hash 
 			# Check if target tag is defined
-			if tags.keys.include? target_tag
+			if !tags[target_tag].nil?
 				# id = id.split(split_info_char)[split_info_indx]
 				# Obtain related terms
-				set_structure, related_ids = OBO_Handler.send :expand_tag, id, terms, target_tag, expansion, split_info_char, split_info_indx, alt_ids
+				set_structure, related_ids = self.expand_tag(id, terms, target_tag, expansion, split_info_char, split_info_indx, alt_ids)
 				# Check structure
 				if(set_structure == :circular)
 					structType = :circular
@@ -186,30 +173,33 @@ class OBO_Handler
 
 	# Class method to transform string with <tag : info> into hash structure
 	# Param:
-	# +info+:: string with info to be transformed into hash format
-	# Return info stored into hash structure
-	def self.info2hash(info)
+	# +attributes+:: array tuples with info to be transformed into hash format
+	# Return attributes stored into hash structure
+	def self.info2hash(attributes)
 		# Load info
 		info_hash = {}
-		info.each do |tag_tuple|
-			# Split info
-			tag, value = tag_tuple.split(':', 2)
+		# Only TERMS multivalue tags (future add Typedefs and Instance)
+		multivalue_tags = [:alt_id, :is_a, :subset, :synonym, :xref, :intersection_of, :union_of, :disjoint_from, :relationship, :replaced_by, :consider]
+		attributes.each do |tag, value|
 			# Check
-			raise EncodingError, 'Info element incorrect format' if (tag.nil?) | (value.nil?)
+			raise EncodingError, 'Info element incorrect format' if (tag.nil?) || (value.nil?)
 			# Prepare
-			tag.lstrip!
-			tag = tag.to_sym
+			tag = tag.lstrip.to_sym
 			value.lstrip!
 			# Store
 			query = info_hash[tag]
 			if !query.nil? # Tag already exists
-				if !query.kind_of?(Array) # Tag has multiple values so it is reestructured to array
-					info_hash[tag] = [query, value]
+				if !query.kind_of?(Array) # Check that tag is multivalue
+					raise('Attempt to concatenate plain text with another. The tag is not declared as multivalue')
 				else
 					query << value	# Add new value to tag
 				end
 			else # New entry
-				info_hash[tag] = value
+				if multivalue_tags.include?(tag)
+					info_hash[tag] = [value]
+				else
+					info_hash[tag] = value
+				end
 			end
 		end
 		self.symbolize_ids(info_hash)
@@ -226,33 +216,33 @@ class OBO_Handler
 	def self.load_obo(file) #TODO: Send to obo_parser class
 		raise("File is not defined") if file.nil?
 		# Data variables
-		header = ""
+		header = ''
 		stanzas = {terms: {}, typedefs: {}, instances: {}}
 		# Auxiliar variables
-		infoType = "Header"
+		infoType = 'Header'
 		currInfo = []
 		stanzas_flags = %w[[Term] [Typedef] [Instance]]
 		# Read file
 		File.open(file).each do |line|
 			line.chomp!
+			next if line.empty?
+			fields = line.split(':', 2)
 			# Check if new instance is found
 			if stanzas_flags.include?(line)
 				header = self.process_entity(header, infoType, stanzas, currInfo)
 				# Update info variables
 				currInfo = []
-				infoType = line.gsub!(/["\[\]"]/,"")
+				infoType = line.gsub!(/[\[\]]/, '')
 				next
 			end
 			# Concat info
-			currInfo << line unless line.length <= 0
+			currInfo << fields  
 		end
 		# Store last loaded info
-		if currInfo.length > 0
-			header = self.process_entity(header, infoType, stanzas, currInfo)
-		end
+		header = self.process_entity(header, infoType, stanzas, currInfo) if !currInfo.empty?
 
 		# Prepare to return
-		finfo = {:file => file, :name => File.basename(file,File.extname(file))}
+		finfo = {:file => file, :name => File.basename(file, File.extname(file))}
 		return finfo, header, stanzas
 	end
 
@@ -264,19 +254,19 @@ class OBO_Handler
 	# +currInfo+:: info to be stored
 	# Returns :: header newly/already stored
 	def self.process_entity(header, infoType, stanzas, currInfo)
-		currInfo = self.info2hash(currInfo)
+		info = self.info2hash(currInfo)
 		# Store current info
-		if infoType.eql?("Header")
-			header = currInfo
+		if infoType.eql?('Header')
+			header = info
 		else
-			id = currInfo[:id]
+			id = info[:id]
 			case infoType
-				when "Term"
-					stanzas[:terms][id] = currInfo
-				when "Typedef"
-					stanzas[:typedefs][id] = currInfo
-				when "Instance"
-					stanzas[:instances][id] = currInfo
+				when 'Term'
+					stanzas[:terms][id] = info
+				when 'Typedef'
+					stanzas[:typedefs][id] = info
+				when 'Instance'
+					stanzas[:instances][id] = info
 			end
 		end
 		return header
@@ -288,72 +278,22 @@ class OBO_Handler
 	# Return :: void
 	def self.symbolize_ids(item_hash)
 		@@symbolizable_ids.each do |tag|
-			if !item_hash[tag].nil?
-				if item_hash[tag].kind_of?(Array)
-					item_hash[tag].map!{|item| item.to_sym}
+			query = item_hash[tag] 
+			if !query.nil?
+				if query.kind_of?(Array)
+					query.map!{|item| item.to_sym}
 				else
-					item_hash[tag] = item_hash[tag].to_sym if !item_hash[tag].nil?
+					item_hash[tag] = query.to_sym if !query.nil?
 				end
 			end
 		end
 	end
 
 
-	# Read a JSON file with an OBO_Handler object stored
-	# Params:
-	# +file+:: with object info
-	# Return :: OBO_Handler internal fields 
-	def self.read_ontology_json(file)
-		# Read file
-		jsonFile = File.open(file)
-		jsonInfo = JSON.parse(jsonFile.read, :symbolize_names => true)
-		# Pre-process (Symbolize some hashs values)
-		jsonInfo[:stanzas][:terms].map{|id,info| self.symbolize_ids(info)} # STANZAS
-		jsonInfo[:stanzas][:typedefs].map{|id,info| self.symbolize_ids(info)}
-		jsonInfo[:stanzas][:instances].map{|id,info| self.symbolize_ids(info)}
-		jsonInfo[:alternatives_index] = jsonInfo[:alternatives_index].map{|id,value| [id, value.to_sym]}.to_h 
-		jsonInfo[:ancestors_index].map do |id,family_hash| 
-			family_hash[:ancestors].map!{|anc| anc.to_sym}
-			family_hash[:descendants].map!{|desc| desc.to_sym}
-		end
-		jsonInfo[:obsoletes_index] = jsonInfo[:obsoletes_index].map{|id,value| [id, value.to_sym]}.to_h 
-		# Store info
-		header = jsonInfo[:header]
-		stanzas = jsonInfo[:stanzas]
-		ancestors_index = jsonInfo[:ancestors_index]
-		alternatives_index = jsonInfo[:alternatives_index]
-		obsoletes_index = jsonInfo[:obsoletes_index]
-		structureType = jsonInfo[:structureType].to_sym
-		ics = jsonInfo[:ics]
-		meta = jsonInfo[:meta]
-		special_tags = jsonInfo[:special_tags]
-		max_freqs = jsonInfo[:max_freqs]
-		# Return
-		return header, stanzas, ancestors_index, alternatives_index, 
-			obsoletes_index, structureType, ics, meta, special_tags, max_freqs
-	end
 
 
-	# Exports an OBO_Handler object in json format
-	# Params:
-	# +ontobject+:: OBO_Handler object to be exported
-	# +file+:: where info will be stored
-	# Return :: void
-	def self.write_ontology_json(ontobject,file)
-		# Take object stored info
-		obj_info = {:header => ontobject.header,
-					:stanzas => ontobject.stanzas,
-					:ancestors_index => ontobject.ancestors_index,
-					:alternatives_index => ontobject.alternatives_index,
-					:obsoletes_index => ontobject.obsoletes_index,
-					:structureType => ontobject.structureType,
-					:ics => ontobject.ics,
-					:meta => ontobject.meta,
-					:special_tags => ontobject.special_tags,
-					:max_freqs => ontobject.max_freqs}
-		# Convert to JSON format & write
-		File.open(file, "w") { |f| f.write obj_info.to_json }
-	end
+
+
 
 
 	#############################################
@@ -438,25 +378,19 @@ class OBO_Handler
 		# Check input
 		raise('stanzas terms empty')  if @stanzas[:terms].empty?
 		# Take all alternative IDs
-		terms_copy = @stanzas[:terms].keys
-		terms_copy.each do |id|
-			tags = @stanzas[:terms][id]
-			next if tags.nil?
-			if tags.keys.include?(alt_tag)
-				# Check alternative ids
-				alt_ids = tags[alt_tag]
-				alt_ids = Array.new(1,alt_ids) if !alt_ids.kind_of? Array
+		alt_ids2add = {}
+		@stanzas[:terms].each do |id, tags|
+			alt_ids = tags[alt_tag]
+			if !alt_ids.nil?
 				# Update info
 				alt_ids.each do |alt_term|
-					alt_term = alt_term.to_sym
 					@alternatives_index[alt_term] = id
-					@stanzas[:terms][alt_term] = @stanzas[:terms][id] if !@stanzas[:terms].include? alt_term
-					if !@ancestors_index.nil?
-						@ancestors_index[alt_term] = @ancestors_index[id] if @ancestors_index.include? id
-					end
+					alt_ids2add[alt_term] = @stanzas[:terms][id] if !@stanzas[:terms].include?(alt_term)
+					@ancestors_index[alt_term] = @ancestors_index[id] if !@ancestors_index[id].nil?
 				end
 			end
 		end
+		@stanzas[:terms].merge!(alt_ids2add)
 	end
 
 
@@ -474,25 +408,28 @@ class OBO_Handler
 	# Returns :: true if everything end without errors and false in other cases
 	def get_index_frequencies()
 		# Check
-		raise('ancestors_index object is empty') if @ancestors_index.empty?
-		# Reset
-		@meta.each do |id, freqs|
-			next if 
-			freqs[:struct_freq] = 0
-		end
-		# Prepare useful variables
-		alternative_terms = @alternatives_index.keys
-		# Per each term, add frequencies
-		@stanzas[:terms].each do |id, tags|
-			# Check if exist
-			@meta[id] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => -1.0} if @meta[id].nil?
-			# Store metadata
-			@meta[id][:ancestors] = (@ancestors_index.include? id) ? @ancestors_index[id][:ancestors].reject{|anc| alternative_terms.include? anc}.length.to_f : 0.0
-			@meta[id][:descendants] = (@ancestors_index.include? id) ? @ancestors_index[id][:descendants].reject{|desc| alternative_terms.include? desc}.length.to_f : 0.0
-			@meta[id][:struct_freq] = @meta[id][:descendants] + 1.0
-			# Update maximums
-			@max_freqs[:struct_freq] = @meta[id][:struct_freq] if @max_freqs[:struct_freq] < @meta[id][:struct_freq]  
-			@max_freqs[:max_depth] = @meta[id][:descendants] if @max_freqs[:max_depth] < @meta[id][:descendants]  
+		if @ancestors_index.empty?
+			warn('ancestors_index object is empty') 
+		else
+			# Reset
+			@meta.each do |id, freqs|
+				next if 
+				freqs[:struct_freq] = 0
+			end
+			# Prepare useful variables
+			alternative_terms = @alternatives_index.keys
+			# Per each term, add frequencies
+			@stanzas[:terms].each do |id, tags|
+				# Check if exist
+				@meta[id] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => -1.0} if @meta[id].nil?
+				# Store metadata
+				@meta[id][:ancestors] = (@ancestors_index.include? id) ? @ancestors_index[id][:ancestors].reject{|anc| alternative_terms.include? anc}.length.to_f : 0.0
+				@meta[id][:descendants] = (@ancestors_index.include? id) ? @ancestors_index[id][:descendants].reject{|desc| alternative_terms.include? desc}.length.to_f : 0.0
+				@meta[id][:struct_freq] = @meta[id][:descendants] + 1.0
+				# Update maximums
+				@max_freqs[:struct_freq] = @meta[id][:struct_freq] if @max_freqs[:struct_freq] < @meta[id][:struct_freq]  
+				@max_freqs[:max_depth] = @meta[id][:descendants] if @max_freqs[:max_depth] < @meta[id][:descendants]  
+			end
 		end
 	end
 
@@ -538,42 +475,46 @@ class OBO_Handler
 	# Returns true if process ends without errors and false in other cases
 	def get_index_parentals(tag: @@basic_tags[:ancestors][0],split_info_char: " ! ", split_info_indx: 0)
 		# Check
-		raise('stanzas terms empty') if @stanzas[:terms].nil?
-		# Expand
-		structType, parentals = self.class.expand_by_tag(terms: @stanzas[:terms],
-														target_tag: tag,
-														split_info_char: split_info_char,
-														split_info_indx: split_info_indx, 
-														alt_ids: @alternatives_index,
-														obsoletes: @obsoletes_index.length)
-		# Check
-		raise('Error expanding parentals')  if (structType.nil?) | parentals.nil?
-		# Prepare ancestors structure
-		anc = {}
-		parentals.each do |id, parents|
-			# Store ancestors
-			anc[id] = {:ancestors => [], :descendants => []} if !anc.include? id
-			anc[id][:ancestors] = parents
-			# Add descendants
-			parents.each do |anc_id|
-				anc[anc_id] = {:ancestors => [], :descendants => []} if !anc.include? anc_id
-				anc[anc_id][:descendants] << id
+		if @stanzas[:terms].nil?
+			warn('stanzas terms empty')
+		else
+			# Expand
+			structType, parentals = self.class.expand_by_tag(terms: @stanzas[:terms],
+															target_tag: tag,
+															split_info_char: split_info_char,
+															split_info_indx: split_info_indx, 
+															alt_ids: @alternatives_index,
+															obsoletes: @obsoletes_index.length)
+			# Check
+			raise('Error expanding parentals')  if (structType.nil?) || parentals.nil?
+			# Prepare ancestors structure
+			anc = {}
+			STDOUT.puts '---------------------', parentals.inspect, '---------------------' 
+			parentals.each do |id, parents|
+				# Store ancestors
+				anc[id] = {:ancestors => [], :descendants => []} if !anc.include? id
+				anc[id][:ancestors] = parents
+				# Add descendants
+				parents.each do |anc_id|
+					anc[anc_id] = {:ancestors => [], :descendants => []} if !anc.include? anc_id
+					anc[anc_id][:descendants] << id
+				end
 			end
-		end
-		# Store alternatives
-		@alternatives_index.each do |id,alt|
+			# Store alternatives
+			@alternatives_index.each do |id,alt|
+				# Store
+				anc[id] = anc[alt] if anc.include? alt
+				anc[id] = {:ancestors => [], :descendants => []} if anc[id].nil?
+			end
+			# Check structure
+			if ![:atomic,:sparse].include? structureType
+				structType = :hierarchical
+				anc.map{|k,v| structType = :circular if (v[:ancestors].include? k) | (v[:descendants].include? k)}
+			end
 			# Store
-			anc[id] = anc[alt] if anc.include? alt
-			anc[id] = {:ancestors => [], :descendants => []} if anc[id].nil?
+			@ancestors_index = anc
+			@structureType = structType
 		end
-		# Check structure
-		if ![:atomic,:sparse].include? structureType
-			structType = :hierarchical
-			anc.map{|k,v| structType = :circular if (v[:ancestors].include? k) | (v[:descendants].include? k)}
-		end
-		# Store
-		@ancestors_index = anc
-		@structureType = structType
 		# Finish		
 	end
 
@@ -730,17 +671,60 @@ class OBO_Handler
 		_, header, stanzas = self.class.load_obo(file)
 		@header = header
 		@stanzas = stanzas
+		build_index() 
 	end
 
 
-	# Export this object in JSON format
+	# Exports an OBO_Handler object in json format
 	# Params:
-	# +file+:: where JSON info will be stored
+	# +file+:: where info will be stored
 	# Return :: void
-	def write_json(file)
-		self.class.write_ontology_json(self, file)
+	def write(file)
+		# Take object stored info
+		obj_info = {:header => @header,
+					:stanzas => @stanzas,
+					:ancestors_index => @ancestors_index,
+					:alternatives_index => @alternatives_index,
+					:obsoletes_index => @obsoletes_index,
+					:structureType => @structureType,
+					:ics => @ics,
+					:meta => @meta,
+					:special_tags => @special_tags,
+					:max_freqs => @max_freqs}
+		# Convert to JSON format & write
+		File.open(file, "w") { |f| f.write obj_info.to_json }
 	end
 
+	# Read a JSON file with an OBO_Handler object stored
+	# Params:
+	# +file+:: with object info
+	# Return :: OBO_Handler internal fields 
+	def read(file)
+		# Read file
+		jsonFile = File.open(file)
+		jsonInfo = JSON.parse(jsonFile.read, :symbolize_names => true)
+		# Pre-process (Symbolize some hashs values)
+		jsonInfo[:stanzas][:terms].map{|id,info| self.class.symbolize_ids(info)} # STANZAS
+		jsonInfo[:stanzas][:typedefs].map{|id,info| self.class.symbolize_ids(info)}
+		jsonInfo[:stanzas][:instances].map{|id,info| self.class.symbolize_ids(info)}
+		jsonInfo[:alternatives_index] = jsonInfo[:alternatives_index].map{|id,value| [id, value.to_sym]}.to_h 
+		jsonInfo[:ancestors_index].map do |id,family_hash| 
+			family_hash[:ancestors].map!{|anc| anc.to_sym}
+			family_hash[:descendants].map!{|desc| desc.to_sym}
+		end
+		jsonInfo[:obsoletes_index] = jsonInfo[:obsoletes_index].map{|id,value| [id, value.to_sym]}.to_h 
+		# Store info
+		@header = jsonInfo[:header]
+		@stanzas = jsonInfo[:stanzas]
+		@ancestors_index = jsonInfo[:ancestors_index]
+		@alternatives_index = jsonInfo[:alternatives_index]
+		@obsoletes_index = jsonInfo[:obsoletes_index]
+		@structureType = jsonInfo[:structureType].to_sym
+		@ics = jsonInfo[:ics]
+		@meta = jsonInfo[:meta]
+		@special_tags = jsonInfo[:special_tags]
+		@max_freqs = jsonInfo[:max_freqs]
+	end
 
 	#############################################
 	# SPECIAL METHODS
@@ -765,7 +749,7 @@ class OBO_Handler
 	## METHODS
 	# public :get_ancestors, :get_descendants, :get_familiar
 	# private
-	private_class_method :expand_tag
+	#private_class_method :expand_tag
 
 	## ATTRIBUTES
 	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta
