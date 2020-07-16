@@ -522,31 +522,34 @@ class OBO_Handler
 	# Params:
 	# +term+:: to be checked
 	# Returns an array with all ancestors of given term or false if parents are not available yet
-	def get_ancestors(term:)
-		return self.get_familiar(term: term,return_ancestors: true)		
+	def get_ancestors(term:, filter_alternatives: false)
+		return self.get_familiar(term: term,return_ancestors: true, filter_alternatives: filter_alternatives)		
 	end
 
 	# Find descendants of a given term
 	# Params:
 	# +term+:: to be checked
 	# Returns an array with all descendants of given term or false if parents are not available yet
-	def get_descendants(term:)
-		return self.get_familiar(term: term,return_ancestors: false)		
+	def get_descendants(term:, filter_alternatives: false)
+		return self.get_familiar(term: term,return_ancestors: false, filter_alternatives: filter_alternatives)		
 	end
 
 	# Find ancestors/descendants of a given term
 	# Params:
 	# +term+:: to be checked
 	# +return_ancestors+:: return ancestors if true or descendants if false
-	# Returns an array with all ancestors/descendants of given term or false if parents are not available yet
-	def get_familiar(term:, return_ancestors: true)
+	# Returns an array with all ancestors/descendants of given term or nil if parents are not available yet
+	def get_familiar(term:, return_ancestors: true, filter_alternatives: false)
 		# Check
-		raise ArgumentError, 'Term specified is NIL' if term.nil?
-		return false if @ancestors.nil?
-		return false if @ancestors[term].nil?
+		return nil if @ancestors.nil?
+		return nil if @ancestors[term].nil?
 		term = term.to_sym if term.is_a? String
 		# Find into parentals
-		return return_ancestors ? @ancestors[term][:ancestors] : @ancestors[term][:descendants]		
+		if filter_alternatives
+			return return_ancestors ? @ancestors[term][:ancestors].reject{|anc| !@alternatives_index[anc].nil?} : @ancestors[term][:descendants].reject{|desc| @alternatives_index[desc].nil?}		
+		else
+			return return_ancestors ? @ancestors[term][:ancestors] : @ancestors[term][:descendants]		
+		end
 	end
 
 
