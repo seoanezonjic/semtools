@@ -65,11 +65,13 @@ def complex_text_similitude(textA, textB, splitChar = ";", charsToRemove = "")
   return -1.0 if (textA.length <= 0) | (textB.length <= 0)
   # Split&Clean both sets
   textA_splitted = textA.split(splitChar)
-  textA_splitted.map! {|str| str.gsub(/["#{charsToRemove}"]/,'')}
-  textA_splitted.select! {|str| str.length > 0}
   textB_splitted = textB.split(splitChar)
-  textB_splitted.map! {|str| str.gsub(/["#{charsToRemove}"]/,'')}
-  textB_splitted.select! {|str| str.length > 0}
+  if !charsToRemove.empty?
+    textA_splitted.map! {|str| str.gsub(/[#{charsToRemove}]/,'')}
+    textA_splitted.select! {|str| str.length > 0}
+    textB_splitted.map! {|str| str.gsub(/[#{charsToRemove}]/,'')}
+    textB_splitted.select! {|str| str.length > 0}
+  end
   # Per each X elemnt, compare against all Y elements
   similitudesA = ctext_AtoB(textA_splitted, textB_splitted)
   similitudesB = ctext_AtoB(textB_splitted, textA_splitted)
