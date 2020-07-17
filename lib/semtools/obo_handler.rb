@@ -74,12 +74,12 @@ class OBO_Handler
 	# +alt_ids+:: set of alternative IDs
 	# Returns a vector with the observed structure (string) and the array with extended terms
 	# Note: we extremly recomend use expand_by_tag function instead of it (directly)
-	def self.expand_tag(start,terms,target_tag,expansion = {}, split_info_char = " ! ", split_info_indx = 0, alt_ids = {}, verbose: false)
+	def self.expand_tag(start,terms,target_tag,expansion = {}, split_info_char = " ! ", split_info_indx = 0, alt_ids = {})
 		# Check
-		puts terms if verbose
 		target_tag = target_tag.to_sym unless target_tag.is_a? Symbol
 		# Take start term available info and already accumulated info
 		current_expanded = expansion[start].nil? ? [] : expansion[start]
+		return [:leaf,[]] if terms[start].nil?
 		start_expansion = terms[start][target_tag]
 		return [:source,[]] if start_expansion.nil?
 		start_expansion = start_expansion.clone
@@ -93,9 +93,12 @@ class OBO_Handler
 		while start_expansion.length > 0
 			# Take current element
 			id = start_expansion.shift
-			id = id.split(split_info_char)[split_info_indx]	
-			id = id.to_sym
+			if !id.is_a? Symbol
+				id = id.split(split_info_char)[split_info_indx]	
+				id = id.to_sym 
+			end
 			id = alt_ids[id] if alt_ids.include? id # NOTE: if you want to persist current ID instead source ID, re-implement this
+			
 			# Handle
 			if current_expanded.include? id # Check if already have been included into this expansion
 				struct = :circular 
@@ -125,7 +128,6 @@ class OBO_Handler
 				end
 			end
 		end
-
 		# Update
 		expansion[start] = current_expanded
 
