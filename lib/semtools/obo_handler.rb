@@ -31,7 +31,8 @@ class OBO_Handler
 	@@basic_tags = {ancestors: [:is_a], obsolete: [:is_obsolete], alternative: [:alt_id,:replaced_by,:consider]}
 	@@allowed_calcs = {ics: [:resnick,:resnick_observed,:seco,:zhou,:sanchez], sims: [:resnick,:lin,:jiang_conrath]}
 	@@symbolizable_ids = [:id, :alt_id, :replaced_by, :consider]
-
+	@@tags_with_trailing_modifiers = [:is_a, :union_of, :disjoint_from, :relationship]
+	@@symbolizable_ids.concat(@@tags_with_trailing_modifiers)
 	#############################################
 	# CONSTRUCTOR
 	#############################################
@@ -73,66 +74,50 @@ class OBO_Handler
 	# +split_info_indx+:: special index to take splitted info (if it is necessary)
 	# +alt_ids+:: set of alternative IDs
 	# Returns a vector with the observed structure (string) and the array with extended terms
-	# Note: we extremly recomend use expand_by_tag function instead of it (directly)
-	def self.expand_tag(start,terms,target_tag,expansion = {}, split_info_char = " ! ", split_info_indx = 0, alt_ids = {})
-		# Check
-		target_tag = target_tag.to_sym unless target_tag.is_a? Symbol
-		# Take start term available info and already accumulated info
-		current_expanded = expansion[start].nil? ? [] : expansion[start]
-		return [:leaf,[]] if terms[start].nil?
-		start_expansion = terms[start][target_tag]
-		return [:source,[]] if start_expansion.nil?
-		start_expansion = start_expansion.clone
-		start_expansion = Array.new(1,start_expansion) unless start_expansion.kind_of?(Array)
+	# Note: we extremly recomend use get_related_ids_by_tag function instead of it (directly)
+	def self.get_related_ids(start_id, terms, target_tag, related_ids = {}, alt_ids = {})
+		# Take start_id term available info and already accumulated info
+		current_associations = related_ids[start_id]
+		current_associations = [] if current_associations.nil? 
+		return [:no_term,[]] if terms[start_id].nil?
+		id_relations = terms[start_id][target_tag]
+		return [:source,[]] if id_relations.nil?
 
 		# Prepare auxiliar variables
-		# visited = []
 		struct = :hierarchical
 
 		# Study direct extensions
-		while start_expansion.length > 0
-			# Take current element
-			id = start_expansion.shift
-			if !id.is_a? Symbol
-				id = id.split(split_info_char)[split_info_indx]	
-				id = id.to_sym 
-			end
-			id = alt_ids[id] if alt_ids.include? id # NOTE: if you want to persist current ID instead source ID, re-implement this
+		id_relations = id_relations.clone
+		while id_relations.length > 0
+			id = id_relations.shift
+			id = alt_ids[id].first if alt_ids.include?(id) # NOTE: if you want to persist current ID instead source ID, re-implement this
 			
 			# Handle
-			if current_expanded.include? id # Check if already have been included into this expansion
+			if current_associations.include?(id) # Check if already have been included into this expansion
 				struct = :circular 
-			elsif expansion.include? id # Check if current already has been expanded
-				# Concat
-				current_expanded << id 
-				current_expanded = current_expanded | expansion[id]
-				# Check circular case
-				if current_expanded.include? start
-					struct = :circular
-					[id,start].each do |repeated| current_expanded.delete(repeated) end
-				end	
-			else # Expand
-				# Add current
-				current_expanded << id
-				expansion[start] = current_expanded
-				# Expand current
-				structExp, expansionNew = self.expand_tag(id,terms,target_tag,expansion,split_info_char,split_info_indx,alt_ids)
-				# Concat
-				current_expanded = current_expanded | expansionNew unless expansionNew.nil?
-				# Check struct
-				struct = :circular if structExp == :circular
-				# Check circular case
-				if (current_expanded.include? start)
-					struct = :circular
-					current_expanded.delete(start)
+			else
+				current_associations << id 
+				if related_ids.include?(id) # Check if current already has been expanded
+					current_associations = current_associations | related_ids[id]
+					if current_associations.include?(start_id) # Check circular case
+						struct = :circular
+						[id, start_id].each{|repeated| current_associations.delete(repeated)}
+					end	
+				else # Expand
+					related_ids[start_id] = current_associations
+					structExp, current_related_ids = self.get_related_ids(id, terms, target_tag, related_ids, alt_ids) # Expand current
+					current_associations = current_associations | current_related_ids
+					struct = :circular if structExp == :circular # Check struct				
+					if current_associations.include?(start_id) # Check circular case
+						struct = :circular
+						current_associations.delete(start_id)
+					end
 				end
 			end
 		end
-		# Update
-		expansion[start] = current_expanded
+		related_ids[start_id] = current_associations
 
-		# Return
-		return struct, current_expanded
+		return struct, current_associations
 	end
 
 
@@ -147,30 +132,25 @@ class OBO_Handler
 	# +alt_ids+:: set of alternative IDs
 	# +obsoletes+:: integer with the number of obsolete IDs. used to calculate structure type.
 	# Returns a vector with the observed structure (string) and the hash with extended terms
-	def self.expand_by_tag(terms:,target_tag:, split_info_char: " ! ", split_info_indx: 0, alt_ids: {}, obsoletes: 0)
+	def self.get_related_ids_by_tag(terms:,target_tag:, alt_ids: {}, obsoletes: 0)
 		# Define structure type
 		structType = :hierarchical
-		expansion = {}
-		terms.each do |id,tags|
+		related_ids = {}
+		terms.each do |id, tags|
 			# Check if target tag is defined
 			if !tags[target_tag].nil?
-				# id = id.split(split_info_char)[split_info_indx]
 				# Obtain related terms
-				set_structure, related_ids = self.expand_tag(id, terms, target_tag, expansion, split_info_char, split_info_indx, alt_ids)
-				# Check structure
-				if(set_structure == :circular)
-					structType = :circular
-				end
-				# Update Expansion info
-				expansion[id] = related_ids
+				set_structure, _ = self.get_related_ids(id, terms, target_tag, related_ids, alt_ids)
+				# Check structure			
+				structType = :circular if set_structure == :circular
 			end
 		end
 
 		# Check special case
-		structType = :atomic if expansion.length <= 0
-		structType = :sparse if (expansion.length > 0) & ((terms.length - expansion.length - obsoletes) >= 2)
-		# Return type and hash with expansion
-		return structType, expansion
+		structType = :atomic if related_ids.length <= 0
+		structType = :sparse if related_ids.length > 0 && ((terms.length - related_ids.length - obsoletes) >= 2)
+		# Return type and hash with related_ids
+		return structType, related_ids
 	end
 
 
@@ -178,7 +158,7 @@ class OBO_Handler
 	# Param:
 	# +attributes+:: array tuples with info to be transformed into hash format
 	# Return attributes stored into hash structure
-	def self.info2hash(attributes)
+	def self.info2hash(attributes, split_char = " ! ", selected_field = 0)
 		# Load info
 		info_hash = {}
 		# Only TERMS multivalue tags (future add Typedefs and Instance)
@@ -189,6 +169,8 @@ class OBO_Handler
 			# Prepare
 			tag = tag.lstrip.to_sym
 			value.lstrip!
+			value = value.split(split_char)[selected_field].to_sym if @@tags_with_trailing_modifiers.include?(tag)
+			
 			# Store
 			query = info_hash[tag]
 			if !query.nil? # Tag already exists
@@ -476,16 +458,14 @@ class OBO_Handler
 	# +split_info_char+:: special regex used to split info (if it is necessary)
 	# +split_info_indx+:: special index to take splitted info (if it is necessary)
 	# Returns true if process ends without errors and false in other cases
-	def get_index_parentals(tag: @@basic_tags[:ancestors][0],split_info_char: " ! ", split_info_indx: 0)
+	def get_index_parentals(tag: @@basic_tags[:ancestors][0])
 		# Check
 		if @stanzas[:terms].nil?
 			warn('stanzas terms empty')
 		else
 			# Expand
-			structType, parentals = self.class.expand_by_tag(terms: @stanzas[:terms],
+			structType, parentals = self.class.get_related_ids_by_tag(terms: @stanzas[:terms],
 															target_tag: tag,
-															split_info_char: split_info_char,
-															split_info_indx: split_info_indx, 
 															alt_ids: @alternatives_index,
 															obsoletes: @obsoletes_index.length)
 			# Check
@@ -754,7 +734,7 @@ class OBO_Handler
 	## METHODS
 	# public :get_ancestors, :get_descendants, :get_familiar
 	# private
-	#private_class_method :expand_tag
+	#private_class_method :get_related_ids
 
 	## ATTRIBUTES
 	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta
