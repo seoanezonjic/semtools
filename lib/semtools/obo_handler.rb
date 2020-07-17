@@ -74,8 +74,9 @@ class OBO_Handler
 	# +alt_ids+:: set of alternative IDs
 	# Returns a vector with the observed structure (string) and the array with extended terms
 	# Note: we extremly recomend use expand_by_tag function instead of it (directly)
-	def self.expand_tag(start,terms,target_tag,expansion = {}, split_info_char = " ! ", split_info_indx = 0, alt_ids = {})
+	def self.expand_tag(start,terms,target_tag,expansion = {}, split_info_char = " ! ", split_info_indx = 0, alt_ids = {}, verbose: false)
 		# Check
+		puts terms if verbose
 		target_tag = target_tag.to_sym unless target_tag.is_a? Symbol
 		# Take start term available info and already accumulated info
 		current_expanded = expansion[start].nil? ? [] : expansion[start]
@@ -86,7 +87,7 @@ class OBO_Handler
 
 		# Prepare auxiliar variables
 		# visited = []
-		struc = :hierarchical
+		struct = :hierarchical
 
 		# Study direct extensions
 		while start_expansion.length > 0
