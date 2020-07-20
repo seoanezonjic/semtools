@@ -720,7 +720,7 @@ class OBO_Handler
 	# Params:
 	# +tag+:: to be used to calculate dictionary
 	# Return :: calcualted bidirectional dictonary
-	def calc_dictionary(tag)
+	def calc_dictionary(tag, scan_regex: nil, remove_regex: nil)
 		if @stanzas[:terms].empty?
 			warn('Terms are not already loaded. Aborting dictionary calc') 
 		else
@@ -731,7 +731,17 @@ class OBO_Handler
 				if @alternatives_index[term].nil? # Avoid alternatives
 					queryTag = tags[tag]
 					if !queryTag.nil?
-						if queryTag.kind_of?(Array)
+						# Pre-process
+						if !scan_regex.nil? || !remove_regex.nil?
+							if queryTag.kind_of?(Array)
+								queryTag = queryTag.map{|value| value.scan(scan_regex).first} unless scan_regex.nil?
+								queryTag = queryTag.map{|value| value.gsub(remove_regex,'')} unless remove_regex.nil?
+							else
+								queryTag = queryTag.scan(scan_regex).first unless scan_regex.nil?
+								queryTag = queryTag.gsub(remove_regex,'') unless remove_regex.nil?
+							end
+						end
+						if queryTag.kind_of?(Array) # Store
 							byTerm[term] = queryTag
 							queryTag.each{|value| byValue[value] = term}
 						else
