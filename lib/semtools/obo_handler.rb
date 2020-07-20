@@ -29,7 +29,7 @@ class OBO_Handler
 	# => @max_freqs :: maximum freqs found for structural and observed freqs
 	# => @dicts :: bidirectional dictionaries with three levels <key|value>: 1º) <tag|hash2>; 2º) <(:byTerm/:byValue)|hash3>; 3º) dictionary <k|v>
 
-	@@basic_tags = {ancestors: [:is_a], obsolete: [:is_obsolete], alternative: [:alt_id,:replaced_by,:consider]}
+	@@basic_tags = {ancestors: [:is_a], obsolete: :is_obsolete, alternative: [:alt_id,:replaced_by,:consider]}
 	@@allowed_calcs = {ics: [:resnick,:resnick_observed,:seco,:zhou,:sanchez], sims: [:resnick,:lin,:jiang_conrath]}
 	@@symbolizable_ids = [:id, :alt_id, :replaced_by, :consider]
 	@@tags_with_trailing_modifiers = [:is_a, :union_of, :disjoint_from, :relationship]
@@ -47,6 +47,7 @@ class OBO_Handler
 		@header = nil
 		@stanzas = {terms: {}, typedefs: {}, instances: {}}
 		@ancestors_index = {}
+		@descendants_index = {}
 		@alternatives_index = {}
 		@obsoletes_index = {}
 		@structureType = nil
@@ -386,7 +387,7 @@ class OBO_Handler
 	def build_index()
 		self.get_index_alternatives
 		self.get_index_obsoletes
-		self.get_index_parentals
+		self.get_index_child_parent_relations
 		self.get_index_frequencies
 	end
 
@@ -398,24 +399,22 @@ class OBO_Handler
 		if @ancestors_index.empty?
 			warn('ancestors_index object is empty') 
 		else
-			# Reset
-			@meta.each do |id, freqs|
-				next if 
-				freqs[:struct_freq] = 0
-			end
 			# Prepare useful variables
 			alternative_terms = @alternatives_index.keys
 			# Per each term, add frequencies
-			@stanzas[:terms].each do |id, tags|
-				# Check if exist
-				@meta[id] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => -1.0} if @meta[id].nil?
+			@stanzas[:terms].each do |id, tags|			
+				query = @meta[id] # Check if exist
+				if query.nil?
+					query = {ancestors: 0.0, descendants: 0.0, struct_freq: 0.0, observed_freq: 0.0}
+					@meta[id] = query 
+				end
 				# Store metadata
-				@meta[id][:ancestors] = (@ancestors_index.include? id) ? @ancestors_index[id][:ancestors].reject{|anc| alternative_terms.include? anc}.length.to_f : 0.0
-				@meta[id][:descendants] = (@ancestors_index.include? id) ? @ancestors_index[id][:descendants].reject{|desc| alternative_terms.include? desc}.length.to_f : 0.0
-				@meta[id][:struct_freq] = @meta[id][:descendants] + 1.0
+				query[:ancestors] = @ancestors_index.include?(id) ? @ancestors_index[id].count{|anc| !alternative_terms.include?(anc)}.to_f : 0.0
+				query[:descendants] = @descendants_index.include?(id) ? @descendants_index[id].count{|desc| !alternative_terms.include?(desc)}.to_f : 0.0
+				query[:struct_freq] = query[:descendants] + 1.0
 				# Update maximums
-				@max_freqs[:struct_freq] = @meta[id][:struct_freq] if @max_freqs[:struct_freq] < @meta[id][:struct_freq]  
-				@max_freqs[:max_depth] = @meta[id][:descendants] if @max_freqs[:max_depth] < @meta[id][:descendants]  
+				@max_freqs[:struct_freq] = query[:struct_freq] if @max_freqs[:struct_freq] < query[:struct_freq]  
+				@max_freqs[:max_depth] = query[:descendants] if @max_freqs[:max_depth] < query[:descendants]  
 			end
 		end
 	end
@@ -427,28 +426,25 @@ class OBO_Handler
 	# +alt_tags+:: tags to find alternative IDs (if are available)
 	# +reset_obsoletes+:: flag to indicate if obsoletes set must be reset. Default: true
 	# Returns true if process ends without errors and false in other cases
-	def get_index_obsoletes(obs_tags: @@basic_tags[:obsolete], alt_tags: @@basic_tags[:alternative], reset_obsoletes: true)
-		# Check
-		raise('stanzas terms empty') if @stanzas[:terms].empty?
-		# Reset
-		@obsoletes_index = {} if reset_obsoletes
-		# Check obsoletes
-		@stanzas[:terms].each do |id, term_tags|
-			next if term_tags.nil?
-			if !term_tags.keys.select{|tag| obs_tags.include? tag}.empty? # Obsolete tag presence 
-				next if !@obsoletes_index[id].nil? # Already stored
-				@obsoletes_index[id] = nil
-				alt_id = nil
-				# Check if alternative value is available
-				alt_tag_toBeUsed = term_tags.keys.select{|tag| alt_tags.include? tag}
-				alt_id = term_tags[alt_tag_toBeUsed[0]] if !alt_tag_toBeUsed.empty?
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-				# That is not a correct way to do this 
-				alt_id = alt_id[0] if alt_id.kind_of? Array
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-				# Store
-				@alternatives_index[id] = alt_id.to_sym
-				@obsoletes_index[id] = alt_id.to_sym	
+	def get_index_obsoletes(obs_tag: @@basic_tags[:obsolete], alt_tags: @@basic_tags[:alternative])
+		if @stanzas[:terms].empty?
+			warn('stanzas terms empty')
+		else
+			# Check obsoletes
+			@stanzas[:terms].each do |id, term_tags|
+				next if term_tags.nil?
+				query = term_tags[obs_tag]
+				if !query.nil? && query == 'true' # Obsolete tag presence 
+					next if !@obsoletes_index[id].nil? # Already stored
+					# Check if alternative value is available
+					alt_ids = alt_tags.map{|alt| term_tags[alt]}.compact
+					if !alt_ids.empty?
+						alt_id = alt_ids.first.first #FIRST tag, FIRST id 
+						# Store
+						@alternatives_index[id] = alt_id
+						@obsoletes_index[id] = alt_id
+					end
+				end
 			end
 		end
 	end
@@ -460,7 +456,7 @@ class OBO_Handler
 	# +split_info_char+:: special regex used to split info (if it is necessary)
 	# +split_info_indx+:: special index to take splitted info (if it is necessary)
 	# Returns true if process ends without errors and false in other cases
-	def get_index_parentals(tag: @@basic_tags[:ancestors][0])
+	def get_index_child_parent_relations(tag: @@basic_tags[:ancestors][0])
 		# Check
 		if @stanzas[:terms].nil?
 			warn('stanzas terms empty')
@@ -474,29 +470,29 @@ class OBO_Handler
 			raise('Error expanding parentals')  if (structType.nil?) || parentals.nil?
 			# Prepare ancestors structure
 			anc = {}
+			des = {}
 			parentals.each do |id, parents|
-				# Store ancestors
-				anc[id] = {:ancestors => [], :descendants => []} if !anc.include? id
-				anc[id][:ancestors] = parents
-				# Add descendants
-				parents.each do |anc_id|
-					anc[anc_id] = {:ancestors => [], :descendants => []} if !anc.include? anc_id
-					anc[anc_id][:descendants] << id
+				anc[id] = parents
+				parents.each do |anc_id| # Add descendants
+					if !des.include?(anc_id)
+						des[anc_id] = [id]
+					else 
+						des[anc_id] << id
+					end
 				end
 			end
 			# Store alternatives
 			@alternatives_index.each do |id,alt|
-				# Store
-				anc[id] = anc[alt] if anc.include? alt
-				anc[id] = {:ancestors => [], :descendants => []} if anc[id].nil?
+				anc[id] = anc[alt] if anc.include?(alt)
+				des[id] = des[alt] if des.include?(alt)
 			end
 			# Check structure
-			if ![:atomic,:sparse].include? structureType
-				structType = :hierarchical
-				anc.map{|k,v| structType = :circular if (v[:ancestors].include? k) | (v[:descendants].include? k)}
+			if ![:atomic,:sparse].include? structType
+				structType = structType == :circular ? :circular : :hierarchical
 			end
 			# Store
 			@ancestors_index = anc
+			@descendants_index = des
 			@structureType = structType
 		end
 		# Finish		
