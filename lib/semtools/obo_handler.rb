@@ -669,6 +669,7 @@ class OBO_Handler
 		obj_info = {:header => @header,
 					:stanzas => @stanzas,
 					:ancestors_index => @ancestors_index,
+					:descendants_index => @descendants_index,
 					:alternatives_index => @alternatives_index,
 					:obsoletes_index => @obsoletes_index,
 					:structureType => @structureType,
@@ -693,15 +694,15 @@ class OBO_Handler
 		jsonInfo[:stanzas][:typedefs].map{|id,info| self.class.symbolize_ids(info)}
 		jsonInfo[:stanzas][:instances].map{|id,info| self.class.symbolize_ids(info)}
 		jsonInfo[:alternatives_index] = jsonInfo[:alternatives_index].map{|id,value| [id, value.to_sym]}.to_h 
-		jsonInfo[:ancestors_index].map do |id,family_hash| 
-			family_hash[:ancestors].map!{|anc| anc.to_sym}
-			family_hash[:descendants].map!{|desc| desc.to_sym}
-		end
+		jsonInfo[:ancestors_index].map {|id,family_arr| family_arr.map!{|item| item.to_sym}}
+		jsonInfo[:descendants_index].map {|id,family_arr| family_arr.map!{|item| item.to_sym}}
+			
 		jsonInfo[:obsoletes_index] = jsonInfo[:obsoletes_index].map{|id,value| [id, value.to_sym]}.to_h 
 		# Store info
 		@header = jsonInfo[:header]
 		@stanzas = jsonInfo[:stanzas]
 		@ancestors_index = jsonInfo[:ancestors_index]
+		@descendants_index = jsonInfo[:descendants_index]
 		@alternatives_index = jsonInfo[:alternatives_index]
 		@obsoletes_index = jsonInfo[:obsoletes_index]
 		@structureType = jsonInfo[:structureType].to_sym
