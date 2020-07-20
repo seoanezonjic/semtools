@@ -529,9 +529,9 @@ class OBO_Handler
 		term = term.to_sym if term.is_a? String
 		# Find into parentals
 		if filter_alternatives
-			return return_ancestors ? @ancestors[term][:ancestors].reject{|anc| !@alternatives_index[anc].nil?} : @ancestors[term][:descendants].reject{|desc| @alternatives_index[desc].nil?}		
+			return return_ancestors ? @ancestors_index[term].reject{|anc| !@alternatives_index[anc].nil?} : @descendants_index[term].reject{|desc| @alternatives_index[desc].nil?}		
 		else
-			return return_ancestors ? @ancestors[term][:ancestors] : @ancestors[term][:descendants]		
+			return return_ancestors ? @ancestors_index[term] : @descendants_index[term]		
 		end
 	end
 
