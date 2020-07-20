@@ -27,6 +27,7 @@ class OBO_Handler
 	# => @ics :: already calculated ICs for handled terms and IC types
 	# => @meta :: meta_information about handled terms like [ancestors, descendants, struct_freq, observed_freq]
 	# => @max_freqs :: maximum freqs found for structural and observed freqs
+	# => @dicts :: bidirectional dictionaries with three levels <key|value>: 1º) <tag|hash2>; 2º) <(:byTerm/:byValue)|hash3>; 3º) dictionary <k|v>
 
 	@@basic_tags = {ancestors: [:is_a], obsolete: [:is_obsolete], alternative: [:alt_id,:replaced_by,:consider]}
 	@@allowed_calcs = {ics: [:resnick,:resnick_observed,:seco,:zhou,:sanchez], sims: [:resnick,:lin,:jiang_conrath]}
@@ -53,6 +54,7 @@ class OBO_Handler
 		@meta = {}
 		@special_tags = @@basic_tags.clone
 		@max_freqs = {:struct_freq => -1.0, :observed_freq => -1.0, :max_depth => -1.0}
+		@dicts = {}
 		# Load if proceeds
 		load(file) if load_file
 	end
@@ -710,6 +712,58 @@ class OBO_Handler
 		@special_tags = jsonInfo[:special_tags]
 		@max_freqs = jsonInfo[:max_freqs]
 	end
+
+
+	# Generate a bidirectinal dictionary set using a specific tag and terms stanzas set
+	# This functions stores calculated dictionary into @dicts field.
+	# This functions stores first value for multivalue tags
+	# This function does not handle synonims for byValue dictionaries
+	# Params:
+	# +tag+:: to be used to calculate dictionary
+	# Return :: calcualted bidirectional dictonary
+	def calc_dictionary(tag)
+		warn('Terms are not already loaded. Aborting dictionary calc') if @stanzas[:terms].empty?
+		byTerm = {}
+		byValue = {}
+		# Calc per term
+		@stanzas[:terms].each do |term,tags|
+			if @alternatives_index[term].nil? # Avoid alternatives
+				queryTag = tags[tag]
+				if !queryTag.nil?
+					if queryTag.kind_of?(Array)
+						byTerm[term] = queryTag.first
+					else
+						byTerm[term] = queryTag
+					end
+				end
+			end
+		end
+		# Reverse to obtain dict by value
+		byTerm.each{|term,value| byValue[value] = term}
+		# Store
+		@dicts[tag] = {byTerm: byTerm, byValue: byValue}
+	end
+
+
+	# Translate a given value using an already calcualted dictionary
+	# Params:
+	# +toTranslate+:: value to be translated using dictiontionary
+	# +tag+:: used to generate the dictionary
+	# +byValue+:: boolean flag to indicate if dictionary must be used values as keys or terms as keys. Default: values as keys = true
+	# Return :: translation
+	def translate(toTranslate, tag, byValue: true)
+		if @dicts[tag].nil?
+			warn('Dictionary not calculated for given tag')
+			return nil
+		end
+		dict = byValue ? @dicts[tag][:byValue] : @dicts[tag][:byTerm]
+		if !byValue
+			queryAlternative = @alternatives_index[toTranslate]
+			toTranslate = queryAlternative if !queryAlternative.nil?
+		end
+		return dict[toTranslate]
+	end
+
 
 	#############################################
 	# SPECIAL METHODS
