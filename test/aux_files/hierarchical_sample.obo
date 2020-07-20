@@ -16,7 +16,7 @@ replaced_by: Child2
 [Term]
 id: Child2
 name: Child2
-synonim: "1,6-alpha-mannosyltransferase activity" EXACT []
+synonym: "1,6-alpha-mannosyltransferase activity" EXACT []
 alt_id: Child3
 alt_id: Child4
 is_a: Parental ! Parental

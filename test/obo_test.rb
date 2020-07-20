@@ -164,7 +164,7 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(:Parental, @hierarchical.translate('All', :name))
 		assert_equal(['Child2'], @hierarchical.translate(:Child2, :name, byValue: false)) # Official term
 		assert_equal(['Child2'], @hierarchical.translate(:Child4, :name, byValue: false)) # Alternative term		
-		assert_equal(:Child2, @hierarchical.translate(aux_synonim[:Child2].first, :synonim, byValue: true))
+		assert_equal(:Child2, @hierarchical.translate(aux_synonim[:Child2].first, :synonym, byValue: true))
 	end
 
 end
