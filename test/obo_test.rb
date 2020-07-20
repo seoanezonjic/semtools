@@ -158,10 +158,10 @@ class TestOBOFunctionalities < Minitest::Test
 	#################################
 
 	def test_dictionaries
-		assert_equal({Parental: 'All', Child2: 'Child2'}, @hierarchical.calc_dictionary(:name)[:byTerm])
+		assert_equal({Parental: ['All'], Child2: ['Child2']}, @hierarchical.calc_dictionary(:name)[:byTerm])
 		assert_equal(:Parental, @hierarchical.translate('All',:name))
-		assert_equal('Child2', @hierarchical.translate(:Child2,:name, byValue: false)) # Official term
-		assert_equal('Child2', @hierarchical.translate(:Child4,:name, byValue: false)) # Alternative term		
+		assert_equal(['Child2'], @hierarchical.translate(:Child2,:name, byValue: false)) # Official term
+		assert_equal(['Child2'], @hierarchical.translate(:Child4,:name, byValue: false)) # Alternative term		
 	end
 
 end

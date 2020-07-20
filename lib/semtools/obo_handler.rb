@@ -389,6 +389,8 @@ class OBO_Handler
 		self.get_index_obsoletes
 		self.get_index_child_parent_relations
 		self.get_index_frequencies
+		self.calc_dictionary(:name)
+		self.calc_dictionary(:synonym)
 	end
 
 
@@ -718,26 +720,28 @@ class OBO_Handler
 	# +tag+:: to be used to calculate dictionary
 	# Return :: calcualted bidirectional dictonary
 	def calc_dictionary(tag)
-		warn('Terms are not already loaded. Aborting dictionary calc') if @stanzas[:terms].empty?
-		byTerm = {}
-		byValue = {}
-		# Calc per term
-		@stanzas[:terms].each do |term,tags|
-			if @alternatives_index[term].nil? # Avoid alternatives
-				queryTag = tags[tag]
-				if !queryTag.nil?
-					if queryTag.kind_of?(Array)
-						byTerm[term] = queryTag.first
-					else
-						byTerm[term] = queryTag
+		if @stanzas[:terms].empty?
+			warn('Terms are not already loaded. Aborting dictionary calc') 
+		else
+			byTerm = {}
+			byValue = {}
+			# Calc per term
+			@stanzas[:terms].each do |term, tags|
+				if @alternatives_index[term].nil? # Avoid alternatives
+					queryTag = tags[tag]
+					if !queryTag.nil?
+						if queryTag.kind_of?(Array)
+							byTerm[term] = queryTag
+							queryTag.each{|value| byValue[value] = term}
+						else
+							byTerm[term] = [queryTag]
+							byValue[queryTag] = term
+						end
 					end
 				end
 			end
+			@dicts[tag] = {byTerm: byTerm, byValue: byValue}
 		end
-		# Reverse to obtain dict by value
-		byTerm.each{|term,value| byValue[value] = term}
-		# Store
-		@dicts[tag] = {byTerm: byTerm, byValue: byValue}
 	end
 
 
@@ -748,16 +752,16 @@ class OBO_Handler
 	# +byValue+:: boolean flag to indicate if dictionary must be used values as keys or terms as keys. Default: values as keys = true
 	# Return :: translation
 	def translate(toTranslate, tag, byValue: true)
-		if @dicts[tag].nil?
-			warn('Dictionary not calculated for given tag')
-			return nil
-		end
-		dict = byValue ? @dicts[tag][:byValue] : @dicts[tag][:byTerm]
-		if !byValue
-			queryAlternative = @alternatives_index[toTranslate]
-			toTranslate = queryAlternative if !queryAlternative.nil?
-		end
+		dict = byValue ? @dicts[tag][:byValue] : @dicts[tag][:byTerm]	
+		toTranslate =  get_main_id(toTranslate) if !byValue
 		return dict[toTranslate]
+	end
+
+	def get_main_id(id)
+		new_id = id
+		mainID = @alternatives_index[id]
+		new_id = mainID if !mainID.nil?
+		return new_id
 	end
 
 
