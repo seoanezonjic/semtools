@@ -33,8 +33,8 @@ class TestOBOFunctionalities < Minitest::Test
 
 		## OBO INFO
 		@load_Header = [{:file=>File.join(AUX_FOLDER, "only_header_sample.obo"), :name=>"only_header_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{}, :typedefs=>{}, :instances=>{}}]
-		@load_Hierarchical_WithoutIndex = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>[:Parental], :replaced_by => [:Child2]}, :Child2=>{:id=>:Child2, :name=>"Child2", :synonim=>"\"1,6-alpha-mannosyltransferase activity\" EXACT []", :alt_id=>[:Child3,:Child4], :is_a=>[:Parental]}}, :typedefs=>{}, :instances=>{}}]
-		@load_Hierarchical = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>[:Parental], :replaced_by => [:Child2]}, :Child2=>{:id=>:Child2, :name=>"Child2", :synonim=>"\"1,6-alpha-mannosyltransferase activity\" EXACT []", :alt_id=>[:Child3,:Child4], :is_a=>[:Parental]}, :Child3=>{:id=>:Child2, :name=>"Child2", :synonim=>"\"1,6-alpha-mannosyltransferase activity\" EXACT []", :alt_id=>[:Child3, :Child4], :is_a=>[:Parental]}, :Child4=>{:id=>:Child2, :name=>"Child2", :synonim=>"\"1,6-alpha-mannosyltransferase activity\" EXACT []", :alt_id=>[:Child3, :Child4], :is_a=>[:Parental]}}, :typedefs=>{}, :instances=>{}}]
+		@load_Hierarchical_WithoutIndex = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>[:Parental], :replaced_by => [:Child2]}, :Child2=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3,:Child4], :is_a=>[:Parental]}}, :typedefs=>{}, :instances=>{}}]
+		@load_Hierarchical = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>[:Parental], :replaced_by => [:Child2]}, :Child2=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3,:Child4], :is_a=>[:Parental]}, :Child3=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3, :Child4], :is_a=>[:Parental]}, :Child4=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3, :Child4], :is_a=>[:Parental]}}, :typedefs=>{}, :instances=>{}}]
 		@load_Circular = [{:file=>File.join(AUX_FOLDER, "circular_sample.obo"), :name=>"circular_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>:A, :name=>"All", :is_a=>[:C]}, :B=>{:id=>:B, :name=>"B", :is_a=>[:A]}, :C=>{:id=>:C, :name=>"C", :is_a=>[:B]}}, :typedefs=>{}, :instances=>{}}]
 		@load_Atomic = [{:file=>File.join(AUX_FOLDER, "sparse_sample.obo"), :name=>"sparse_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1"}, :Child2=>{:id=>:Child2, :name=>"Child2"}}, :typedefs=>{}, :instances=>{}}]
 		@load_Sparse = [{:file=>File.join(AUX_FOLDER, "sparse2_sample.obo"), :name=>"sparse2_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>:A, :name=>"All"}, :B=>{:id=>:B, :name=>"B", :is_a=>[:A]}, :C=>{:id=>:C, :name=>"C", :is_a=>[:A]}, :D=>{:id=>:D, :name=>"Sparsed"}}, :typedefs=>{}, :instances=>{}}]
@@ -159,12 +159,15 @@ class TestOBOFunctionalities < Minitest::Test
 
 	def test_dictionaries
 		assert_equal({Parental: ['All'], Child2: ['Child2']}, @hierarchical.calc_dictionary(:name)[:byTerm])
-		aux_synonim = {Child2:["1,6-alpha-mannosyltransferase activity"]}
-		assert_equal(aux_synonim, @hierarchical.calc_dictionary(:synonim, scan_regex: /\".*\"/, remove_regex: /\"/)[:byTerm])
+		aux_synonym = {Child2:["1,6-alpha-mannosyltransferase activity"]}
+		assert_equal(aux_synonym, @hierarchical.calc_dictionary(:synonym, scan_regex: /\".*\"/, remove_regex: /\"/)[:byTerm])
 		assert_equal(:Parental, @hierarchical.translate('All', :name))
 		assert_equal(['Child2'], @hierarchical.translate(:Child2, :name, byValue: false)) # Official term
 		assert_equal(['Child2'], @hierarchical.translate(:Child4, :name, byValue: false)) # Alternative term		
-		assert_equal(:Child2, @hierarchical.translate(aux_synonim[:Child2].first, :synonym, byValue: true))
+		assert_equal(:Child2, @hierarchical.translate(aux_synonym[:Child2].first, :synonym, byValue: true))
+		assert_equal(:Parental, @hierarchical.translate_name('All'))
+		assert_equal(:Child2, @hierarchical.translate_name(aux_synonym[:Child2].first))
+		assert_nil(@hierarchical.translate_name("Erroneous name"))
 	end
 
 end

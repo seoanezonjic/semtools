@@ -768,6 +768,21 @@ class OBO_Handler
 		return dict[toTranslate]
 	end
 
+
+	#
+	# Params:
+	# ++::
+	# Return ::
+	def translate_name(name)
+		term = self.translate(name, :name)
+		term = self.translate(name, :synonym) if term.nil?
+		return term			
+	end
+
+	#
+	# Params:
+	# ++::
+	# Return ::
 	def get_main_id(id)
 		new_id = id
 		mainID = @alternatives_index[id]
