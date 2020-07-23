@@ -390,7 +390,7 @@ class OBO_Handler
 		self.get_index_child_parent_relations
 		self.get_index_frequencies
 		self.calc_dictionary(:name)
-		self.calc_dictionary(:synonym)
+		self.calc_dictionary(:synonym, scan_regex: /\".*\"/, remove_regex: /\"/)
 	end
 
 
@@ -505,16 +505,16 @@ class OBO_Handler
 	# Params:
 	# +term+:: to be checked
 	# Returns an array with all ancestors of given term or false if parents are not available yet
-	def get_ancestors(term:, filter_alternatives: false)
-		return self.get_familiar(term: term,return_ancestors: true, filter_alternatives: filter_alternatives)		
+	def get_ancestors(term, filter_alternatives = false)
+		return self.get_familiar(term, true, filter_alternatives)		
 	end
 
 	# Find descendants of a given term
 	# Params:
 	# +term+:: to be checked
 	# Returns an array with all descendants of given term or false if parents are not available yet
-	def get_descendants(term:, filter_alternatives: false)
-		return self.get_familiar(term: term,return_ancestors: false, filter_alternatives: filter_alternatives)		
+	def get_descendants(term, filter_alternatives = false)
+		return self.get_familiar(term, false, filter_alternatives)		
 	end
 
 	# Find ancestors/descendants of a given term
@@ -522,17 +522,15 @@ class OBO_Handler
 	# +term+:: to be checked
 	# +return_ancestors+:: return ancestors if true or descendants if false
 	# Returns an array with all ancestors/descendants of given term or nil if parents are not available yet
-	def get_familiar(term:, return_ancestors: true, filter_alternatives: false)
-		# Check
-		return nil if @ancestors.nil?
-		return nil if @ancestors[term].nil?
-		term = term.to_sym if term.is_a? String
+	def get_familiar(term, return_ancestors = true, filter_alternatives = false)
 		# Find into parentals
-		if filter_alternatives
-			return return_ancestors ? @ancestors_index[term].reject{|anc| !@alternatives_index[anc].nil?} : @descendants_index[term].reject{|desc| @alternatives_index[desc].nil?}		
-		else
-			return return_ancestors ? @ancestors_index[term] : @descendants_index[term]		
+		familiars = return_ancestors ? @ancestors_index[term] : @descendants_index[term]		
+		if !familiars.nil?
+			if filter_alternatives
+				familiars = familiars.reject{|fm| @alternatives_index.include?(fm)}
+			end
 		end
+		return familiars
 	end
 
 
