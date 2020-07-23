@@ -526,9 +526,12 @@ class OBO_Handler
 		# Find into parentals
 		familiars = return_ancestors ? @ancestors_index[term] : @descendants_index[term]		
 		if !familiars.nil?
+			familiars = familiars.copy
 			if filter_alternatives
-				familiars = familiars.reject{|fm| @alternatives_index.include?(fm)}
+				familiars.reject!{|fm| @alternatives_index.include?(fm)}
 			end
+		else
+			familiars = []
 		end
 		return familiars
 	end
@@ -541,13 +544,11 @@ class OBO_Handler
 	# +force+:: force re-calculate the IC. Do not check if it is already calculated
 	# +zhou_k+:: special coeficient for Zhou IC method
 	# Returns the IC calculated
-	def get_IC(term: ,type: :resnick, force: false, zhou_k: 0.5)
+	def get_IC(term, type: :resnick, force: false, zhou_k: 0.5)
 		# Check 
-		raise ArgumentError, 'Term specified is NIL' if term.nil?
-		raise ArgumentError, "IC type specified (#{type}) is not allowed" if !@@allowed_calcs[:ics].include? type
-		term = term.to_sym if term.is_a? String
+		raise ArgumentError, "IC type specified (#{type}) is not allowed" if !@@allowed_calcs[:ics].include?(type)
 		# Check if it's already calculated
-		return @ics[type][term] if (@ics[type].include? term) & !force
+		return @ics[type][term] if (@ics[type].include? term) && !force
 		# Calculate
 		ic = - 1
 		case type
@@ -557,20 +558,18 @@ class OBO_Handler
 			when :resnick_observed
 				# -log(Freq(x) / Max_Freq)
 				ic = -Math.log10(@meta[term][:observed_freq].fdiv(@max_freqs[:observed_freq]))
-			when :seco
+			when :seco, :zhou
 				#  1 - ( log(hypo(x) + 1) / log(max_nodes) )
 				ic = 1 - Math.log10(@meta[term][:struct_freq]).fdiv(Math.log10(@stanzas[:terms].length - @alternatives.length))
-			when :zhou
-				# k*(IC_Seco(x)) + (1-k)*(log(depth(x))/log(max_depth)) 
-				ic_seco = 1 - Math.log10(@meta[term][:struct_freq]).fdiv(Math.log10(@stanzas[:terms].length - @alternatives.length))
-				ic = zhou_k * ic_seco + (1.0 - zhou_k) * (Math.log10(@meta[term][:descendants]).fdiv(Math.log10(@max_freqs[:max_depth])))
+				if :zhou				
+					# k*(IC_Seco(x)) + (1-k)*(log(depth(x))/log(max_depth))
+					@ics[:seco][term] = ic # Special store
+					ic = zhou_k * ic + (1.0 - zhou_k) * (Math.log10(@meta[term][:descendants]).fdiv(Math.log10(@max_freqs[:max_depth])))
+				end
 			when :sanchez
 				ic = -Math.log10((@meta[term][:descendants].fdiv(@meta[term][:ancestors]) + 1.0).fdiv(@max_freqs[:max_depth] + 1.0))
 		end			
-		# Store
 		@ics[type][term] = ic
-		@ics[:seco][term] = ic_seco if type == :zhou
-		# Return
 		return ic
 	end
 
@@ -581,10 +580,9 @@ class OBO_Handler
 	# +termB+:: term to be checked
 	# +ic_type+:: IC formula to be used
 	# Returns the IC of the MICA(termA,termB)
-	def get_ICMICA(termA:,termB:,ic_type: :resnick)
-		mica = self.get_MICA(termA: termA,termB: termB,ic_type: ic_type)
-		return false if !mica
-		return mica[1]
+	def get_ICMICA(termA, termB, ic_type = :resnick)
+		mica = self.get_MICA(termA, termB, ic_type)
+		return mica.first.nil? ? nil : mica.last
 	end
 
 
@@ -594,25 +592,26 @@ class OBO_Handler
 	# +termB+:: term to be checked
 	# +ic_type+:: IC formula to be used
 	# Returns the MICA(termA,termB) and it's IC
-	def get_MICA(termA:,termB:,ic_type: :resnick)
+	def get_MICA(termA, termB, ic_type = :resnick)
 		# Obtain ancestors (include itselfs too)
-		anc_A = self.get_ancestors(term: termA) | [termA]
-		anc_B = self.get_ancestors(term: termB) | [termB]
+		anc_A = self.get_ancestors(termA) 
+		anc_B = self.get_ancestors(termB)
 
-		# Check
-		return false if (!anc_A) | (!anc_B)
-		# Find shared ancestors
-		shared_ancestors = anc_A & anc_B
-		# Find MICA
 		mica = [nil,-1.0]
-		return mica if shared_ancestors.length <= 0
-		shared_ancestors.each do |anc|
-			# Obtain IC
-			ic = self.get_IC(term: anc, type: ic_type)
-			# Check
-			mica = [anc,ic] if ic > mica[1]
+		if !anc_A.empty? && !anc_B.empty?
+			anc_A << termA
+			anc_B << termB
+			# Find shared ancestors
+			shared_ancestors = anc_A & anc_B
+			# Find MICA
+			if shared_ancestors.length > 0
+				shared_ancestors.each do |anc|
+					ic = self.get_IC(anc, type: ic_type)
+					# Check
+					mica = [anc,ic] if ic > mica[1]
+				end
+			end
 		end
-		# Return value calculated
 		return mica
 	end
 
@@ -624,22 +623,22 @@ class OBO_Handler
 	# +type+:: similitude formula to be used
 	# +ic_type+:: IC formula to be used
 	# Returns the similarity between both sets or false if frequencies are not available yet
-	def get_similarity(termA:, termB:, type: :resnick, ic_type: :resnick)
+	def get_similarity(termA, termB, type: :resnick, ic_type: :resnick)
 		# Check
-		raise ArgumentError, 'Terms specified are NIL' if termA.nil? | termB.nil?
-		raise ArgumentError, "IC type specified (#{ic_type}) is not allowed" if !@@allowed_calcs[:ics].include? ic_type
-		raise ArgumentError, "SIM type specified (#{type}) is not allowed" if !@@allowed_calcs[:sims].include? type
+		raise ArgumentError, "SIM type specified (#{type}) is not allowed" if !@@allowed_calcs[:sims].include?(type)
+		sim = nil
 		# Launch comparissons
-		sim_res = get_ICMICA(termA: termA, termB: termB, ic_type: ic_type)
-		case type
-			when :resnick
-				sim = sim_res
-			when :lin
-				sim = (2.0 * sim_res).fdiv(self.get_IC(term: termA,type: ic_type) + self.get_IC(term: termB,type: ic_type))
-			when :jiang_conrath
-				sim = (self.get_IC(term: termA,type: ic_type) + self.get_IC(term: termB,type: ic_type)) - (2.0 * sim_res)
+		sim_res = get_ICMICA(termA, termB, ic_type)
+		if !sim_res.nil?
+			case type
+				when :resnick
+					sim = sim_res
+				when :lin
+					sim = (2.0 * sim_res).fdiv(self.get_IC(termA,type: ic_type) + self.get_IC(termB,type: ic_type))
+				when :jiang_conrath
+					sim = (self.get_IC(termA, type: ic_type) + self.get_IC(termB, type: ic_type)) - (2.0 * sim_res)
+			end
 		end
-		# Return
 		return sim
 	end
 
