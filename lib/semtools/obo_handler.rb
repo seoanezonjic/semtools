@@ -4,8 +4,7 @@ require 'json'
 # AUTHOR NOTES
 #########################################################
 
-# 1 - Handle "consider" values
-# 2 - Handle observed freqs into ICs
+# 1 - Store @profiles as @stanzas[:instances]
 
 class OBO_Handler
 	#############################################
@@ -390,7 +389,7 @@ class OBO_Handler
 		self.get_index_child_parent_relations
 		self.get_index_frequencies
 		self.calc_dictionary(:name)
-		self.calc_dictionary(:synonym, scan_regex: /\".*\"/, remove_regex: /\"/)
+		self.calc_dictionary(:synonym, select_regex: /\"(.*)\"/)
 	end
 
 
@@ -725,7 +724,7 @@ class OBO_Handler
 	# Params:
 	# +tag+:: to be used to calculate dictionary
 	# Return :: calcualted bidirectional dictonary
-	def calc_dictionary(tag, scan_regex: nil, remove_regex: nil)
+	def calc_dictionary(tag, select_regex: nil)
 		if @stanzas[:terms].empty?
 			warn('Terms are not already loaded. Aborting dictionary calc') 
 		else
@@ -737,13 +736,12 @@ class OBO_Handler
 					queryTag = tags[tag]
 					if !queryTag.nil?
 						# Pre-process
-						if !scan_regex.nil? || !remove_regex.nil?
+						if !select_regex.nil?
 							if queryTag.kind_of?(Array)
-								queryTag = queryTag.map{|value| value.scan(scan_regex).first} unless scan_regex.nil?
-								queryTag = queryTag.map{|value| value.gsub(remove_regex,'')} unless remove_regex.nil?
+								queryTag = queryTag.map{|value| value.scan(select_regex).first}
+								queryTag.flatten!
 							else
-								queryTag = queryTag.scan(scan_regex).first unless scan_regex.nil?
-								queryTag = queryTag.gsub(remove_regex,'') unless remove_regex.nil?
+								queryTag = queryTag.scan(select_regex).first
 							end
 						end
 						if queryTag.kind_of?(Array) # Store
