@@ -526,7 +526,7 @@ class OBO_Handler
 		# Find into parentals
 		familiars = return_ancestors ? @ancestors_index[term] : @descendants_index[term]		
 		if !familiars.nil?
-			familiars = familiars.copy
+			familiars = familiars.clone
 			if filter_alternatives
 				familiars.reject!{|fm| @alternatives_index.include?(fm)}
 			end
@@ -593,22 +593,30 @@ class OBO_Handler
 	# +ic_type+:: IC formula to be used
 	# Returns the MICA(termA,termB) and it's IC
 	def get_MICA(termA, termB, ic_type = :resnick)
-		# Obtain ancestors (include itselfs too)
-		anc_A = self.get_ancestors(termA) 
-		anc_B = self.get_ancestors(termB)
-
+		termA = @alternatives_index[termA] if @alternatives_index.include?(termA)
+		termB = @alternatives_index[termB] if @alternatives_index.include?(termB)
 		mica = [nil,-1.0]
-		if !anc_A.empty? && !anc_B.empty?
-			anc_A << termA
-			anc_B << termB
-			# Find shared ancestors
-			shared_ancestors = anc_A & anc_B
-			# Find MICA
-			if shared_ancestors.length > 0
-				shared_ancestors.each do |anc|
-					ic = self.get_IC(anc, type: ic_type)
-					# Check
-					mica = [anc,ic] if ic > mica[1]
+		# Special case
+		if termA.eql?(termB)
+			ic = self.get_IC(termA, type: ic_type)
+			mica = [termA, ic]
+		else	
+			# Obtain ancestors (include itselfs too)
+			anc_A = self.get_ancestors(termA) 
+			anc_B = self.get_ancestors(termB)
+
+			if !(anc_A.empty? && anc_B.empty?)
+				anc_A << termA
+				anc_B << termB
+				# Find shared ancestors
+				shared_ancestors = anc_A & anc_B
+				# Find MICA
+				if shared_ancestors.length > 0
+					shared_ancestors.each do |anc|
+						ic = self.get_IC(anc, type: ic_type)
+						# Check
+						mica = [anc,ic] if ic > mica[1]
+					end
 				end
 			end
 		end
@@ -785,6 +793,24 @@ class OBO_Handler
 		mainID = @alternatives_index[id]
 		new_id = mainID if !mainID.nil?
 		return new_id
+	end
+
+
+	#
+	# Params:
+	# ++::
+	# Return ::
+	def check_ids(ids)
+		checked_codes = []
+		rejected_codes = []
+		ids.each do |id|
+			if @stanzas[:terms].include? id
+				checked_codes << id
+			else
+				rejected_codes << id
+			end
+		end
+		return checked_codes, rejected_codes
 	end
 
 

@@ -170,4 +170,27 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_nil(@hierarchical.translate_name("Erroneous name"))
 	end
 
+	def test_familiars_and_valids
+		assert_equal([ [:Parental,:Child3], [:FakeID] ], @hierarchical.check_ids([:Parental,:FakeID,:Child3])) # Validate ids
+		assert_equal([], @hierarchical.get_ancestors(:Parental)) # Ancestors
+		assert_equal([], @hierarchical.get_ancestors(:Parental, true))
+		assert_equal([:Parental], @hierarchical.get_ancestors(:Child2))
+		assert_equal([:Parental], @hierarchical.get_ancestors(:Child3))
+		assert_equal([], @hierarchical.get_descendants(:Child2)) # Descendants
+		assert_equal([:Child1, :Child2, :Child3, :Child4], @hierarchical.get_descendants(:Parental))
+		assert_equal([:Child2], @hierarchical.get_descendants(:Parental, true))
+	end
+
+	def test_similarities
+		# assert_equal(nil,@hierarchical.meta)
+		assert_equal([:Child2,-Math.log10(1.fdiv(2))], @hierarchical.get_MICA(:Child2, :Child2)) # MICA
+		assert_equal([:Child2,-Math.log10(1.fdiv(2))], @hierarchical.get_MICA(:Child2, :Child3))
+		assert_equal([:Parental,0], @hierarchical.get_MICA(:Child2, :Parental)) # ERR
+		assert_equal([:Parental,0], @hierarchical.get_MICA(:Parental, :Parental)) # ERR
+		assert_equal(0.0, @hierarchical.get_similarity(:Parental, :Parental)) # SIM
+		assert_equal(0.0, @hierarchical.get_similarity(:Parental, :Child2))
+		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_similarity(:Child2, :Child2))
+		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_similarity(:Child2, :Child3))
+	end
+
 end
