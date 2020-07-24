@@ -183,7 +183,6 @@ class TestOBOFunctionalities < Minitest::Test
 	end
 
 	def test_similarities
-		# assert_equal(nil,@hierarchical.meta)
 		assert_equal([:Child2,-Math.log10(1.fdiv(2))], @hierarchical.get_MICA(:Child2, :Child2)) # MICA
 		assert_equal([:Child2,-Math.log10(1.fdiv(2))], @hierarchical.get_MICA(:Child2, :Child3))
 		assert_equal([:Parental,0], @hierarchical.get_MICA(:Child2, :Parental)) # ERR
@@ -192,6 +191,20 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(0.0, @hierarchical.get_similarity(:Parental, :Child2))
 		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_similarity(:Child2, :Child2))
 		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_similarity(:Child2, :Child3))
+	end
+
+	def test_profiles
+		@hierarchical.add_profile(:A, [:Child2, :Parental]) # Add profiles
+		@hierarchical.add_profile(:B, [:Child2, :Parental, :FakeID])
+		assert_equal([:Child2, :Parental], @hierarchical.get_profile(:A))
+		assert_equal([:Child2, :Parental], @hierarchical.get_profile(:B))
+		# Export/import
+		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
+		obo = OBO_Handler.new()
+		obo.read(File.join(AUX_FOLDER, "testjson.json"))
+		assert_equal(@hierarchical, obo)
+		File.delete(File.join(AUX_FOLDER, "testjson.json"))
+
 	end
 
 end

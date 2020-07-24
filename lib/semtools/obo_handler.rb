@@ -27,6 +27,7 @@ class OBO_Handler
 	# => @meta :: meta_information about handled terms like [ancestors, descendants, struct_freq, observed_freq]
 	# => @max_freqs :: maximum freqs found for structural and observed freqs
 	# => @dicts :: bidirectional dictionaries with three levels <key|value>: 1º) <tag|hash2>; 2º) <(:byTerm/:byValue)|hash3>; 3º) dictionary <k|v>
+	# => @profiles :: set of terms assigned to an ID
 
 	@@basic_tags = {ancestors: [:is_a], obsolete: :is_obsolete, alternative: [:alt_id,:replaced_by,:consider]}
 	@@allowed_calcs = {ics: [:resnick,:resnick_observed,:seco,:zhou,:sanchez], sims: [:resnick,:lin,:jiang_conrath]}
@@ -55,6 +56,7 @@ class OBO_Handler
 		@special_tags = @@basic_tags.clone
 		@max_freqs = {:struct_freq => -1.0, :observed_freq => -1.0, :max_depth => -1.0}
 		@dicts = {}
+		@profiles = {}
 		# Load if proceeds
 		load(file) if load_file
 	end
@@ -681,7 +683,8 @@ class OBO_Handler
 					meta: @meta,
 					special_tags: @special_tags,
 					max_freqs: @max_freqs,
-					dicts: @dicts}
+					dicts: @dicts,
+					profiles: @profiles}
 		# Convert to JSON format & write
 		File.open(file, "w") { |f| f.write obj_info.to_json }
 	end
@@ -705,6 +708,7 @@ class OBO_Handler
 		jsonInfo[:dicts] = jsonInfo[:dicts].each do |flag, dictionaries|
 			dictionaries[:byValue] = dictionaries[:byValue].map{|value, term| [value.to_s, term.to_sym]}.to_h
 		end 
+		jsonInfo[:profiles].map{|id,terms| terms.map!{|term| term.to_sym}}
 		# Store info
 		@header = jsonInfo[:header]
 		@stanzas = jsonInfo[:stanzas]
@@ -718,6 +722,7 @@ class OBO_Handler
 		@special_tags = jsonInfo[:special_tags]
 		@max_freqs = jsonInfo[:max_freqs]
 		@dicts = jsonInfo[:dicts]
+		@profiles = jsonInfo[:profiles]
 	end
 
 
@@ -826,7 +831,29 @@ class OBO_Handler
 	end
 
 
-	#############################################
+	#
+	# Params:
+	# ++::
+	# Return ::
+	def add_profile(id, terms)
+		warn("Profile assigned to ID (#{id}) is going to be replaced") if @profiles.include? id
+		correct_terms, rejected_terms = self.check_ids(terms)
+		if !rejected_terms.empty?
+			warn('Given terms contains erroneus IDs. These IDs will be removed')
+		end
+		@profiles[id.to_sym] = correct_terms  
+	end	
+
+	#
+	# Params:
+	# ++::
+	# Return ::
+	def get_profile(id)
+		return @profiles[id]
+	end	
+
+
+	############################################
 	# SPECIAL METHODS
 	#############################################
 	def ==(other)
@@ -839,6 +866,7 @@ class OBO_Handler
 		self.ics == other.ics &&
 		self.meta == other.meta &&
 		self.dicts == other.dicts &&
+		self.profiles == other.profiles &&
 		# self.special_tags == other.special_tags &&
 		self.max_freqs == other.max_freqs
     end
@@ -853,7 +881,7 @@ class OBO_Handler
 	#private_class_method :get_related_ids
 
 	## ATTRIBUTES
-	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts
+	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles
 	# attr_writer 
 
 end
