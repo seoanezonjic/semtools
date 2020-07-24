@@ -670,17 +670,18 @@ class OBO_Handler
 	# Return :: void
 	def write(file)
 		# Take object stored info
-		obj_info = {:header => @header,
-					:stanzas => @stanzas,
-					:ancestors_index => @ancestors_index,
-					:descendants_index => @descendants_index,
-					:alternatives_index => @alternatives_index,
-					:obsoletes_index => @obsoletes_index,
-					:structureType => @structureType,
-					:ics => @ics,
-					:meta => @meta,
-					:special_tags => @special_tags,
-					:max_freqs => @max_freqs}
+		obj_info = {header: @header,
+					stanzas: @stanzas,
+					ancestors_index: @ancestors_index,
+					descendants_index: @descendants_index,
+					alternatives_index: @alternatives_index,
+					obsoletes_index: @obsoletes_index,
+					structureType: @structureType,
+					ics: @ics,
+					meta: @meta,
+					special_tags: @special_tags,
+					max_freqs: @max_freqs,
+					dicts: @dicts}
 		# Convert to JSON format & write
 		File.open(file, "w") { |f| f.write obj_info.to_json }
 	end
@@ -700,8 +701,10 @@ class OBO_Handler
 		jsonInfo[:alternatives_index] = jsonInfo[:alternatives_index].map{|id,value| [id, value.to_sym]}.to_h 
 		jsonInfo[:ancestors_index].map {|id,family_arr| family_arr.map!{|item| item.to_sym}}
 		jsonInfo[:descendants_index].map {|id,family_arr| family_arr.map!{|item| item.to_sym}}
-			
-		jsonInfo[:obsoletes_index] = jsonInfo[:obsoletes_index].map{|id,value| [id, value.to_sym]}.to_h 
+		jsonInfo[:obsoletes_index] = jsonInfo[:obsoletes_index].map{|id,value| [id, value.to_sym]}.to_h
+		jsonInfo[:dicts] = jsonInfo[:dicts].each do |flag, dictionaries|
+			dictionaries[:byValue] = dictionaries[:byValue].map{|value, term| [value.to_s, term.to_sym]}.to_h
+		end 
 		# Store info
 		@header = jsonInfo[:header]
 		@stanzas = jsonInfo[:stanzas]
@@ -714,6 +717,7 @@ class OBO_Handler
 		@meta = jsonInfo[:meta]
 		@special_tags = jsonInfo[:special_tags]
 		@max_freqs = jsonInfo[:max_freqs]
+		@dicts = jsonInfo[:dicts]
 	end
 
 
@@ -834,6 +838,7 @@ class OBO_Handler
 		self.structureType == other.structureType &&
 		self.ics == other.ics &&
 		self.meta == other.meta &&
+		self.dicts == other.dicts &&
 		# self.special_tags == other.special_tags &&
 		self.max_freqs == other.max_freqs
     end
@@ -848,7 +853,7 @@ class OBO_Handler
 	#private_class_method :get_related_ids
 
 	## ATTRIBUTES
-	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta
+	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts
 	# attr_writer 
 
 end
