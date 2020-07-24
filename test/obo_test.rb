@@ -168,6 +168,7 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(:Parental, @hierarchical.translate_name('All'))
 		assert_equal(:Child2, @hierarchical.translate_name(aux_synonym[:Child2].first))
 		assert_nil(@hierarchical.translate_name("Erroneous name"))
+		assert_equal('All', @hierarchical.translate_id(:Parental))
 	end
 
 	def test_familiars_and_valids

@@ -786,6 +786,16 @@ class OBO_Handler
 	# Params:
 	# ++::
 	# Return ::
+	def translate_id(id)
+		name = self.translate(id, :name, byValue: false)
+		return name.nil? ? nil : name.first
+	end
+
+
+	#
+	# Params:
+	# ++::
+	# Return ::
 	def get_main_id(id)
 		new_id = id
 		mainID = @alternatives_index[id]
