@@ -852,6 +852,14 @@ class OBO_Handler
 		return @profiles[id]
 	end	
 
+	#
+	# Params:
+	# ++::
+	# Return ::
+	def get_profile_sizes()
+		return @profiles.map{|id,terms| terms.length}
+	end
+
 
 	############################################
 	# SPECIAL METHODS

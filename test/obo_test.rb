@@ -198,6 +198,7 @@ class TestOBOFunctionalities < Minitest::Test
 		@hierarchical.add_profile(:B, [:Child2, :Parental, :FakeID])
 		assert_equal([:Child2, :Parental], @hierarchical.get_profile(:A))
 		assert_equal([:Child2, :Parental], @hierarchical.get_profile(:B))
+		assert_equal([2, 2], @hierarchical.get_profile_sizes)
 		# Export/import
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
 		obo = OBO_Handler.new()
