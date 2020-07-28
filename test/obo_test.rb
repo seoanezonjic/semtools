@@ -228,6 +228,18 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal([[:Child2, :Child3], [:Parental]], @hierarchical.remove_ancestors_from_profile(@hierarchical.profiles[:C]))
 		assert_equal([[:Child2, :Parental], [:Child3]], @hierarchical.remove_alternatives_from_profile(@hierarchical.profiles[:C]))
 		assert_equal({A: [:Child2], B: [:Child2], C: [:Child2], D: [:Child3, :Child4]}, @hierarchical.clean_profiles)
+		# ICs
+		expected_A_IC_resnick = (-Math.log10(1.fdiv(2))-Math.log10(2.fdiv(2))).fdiv(2) 
+		assert_equal(expected_A_IC_resnick, @hierarchical.get_profile_mean_IC(@hierarchical.profiles[:A]))
+		expected_profiles_IC_resnick = {A: (-Math.log10(1.fdiv(2)) - Math.log10(2.fdiv(2))).fdiv(2),
+										B: (-Math.log10(1.fdiv(2)) - Math.log10(2.fdiv(2))).fdiv(2), 
+										C: (-Math.log10(1.fdiv(2)) - Math.log10(1.fdiv(2)) - Math.log10(2.fdiv(2))).fdiv(3), 
+										D: (-Math.log10(1.fdiv(2)) - Math.log10(1.fdiv(2)) - Math.log10(2.fdiv(2))).fdiv(3)}
+		expected_profiles_IC_resnick_observed = {A: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6))).fdiv(2),
+												 B: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6))).fdiv(2), 
+												 C: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6)) - Math.log10(6.fdiv(6))).fdiv(3), 
+												 D: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6)) - Math.log10(6.fdiv(6))).fdiv(3)}
+		assert_equal([expected_profiles_IC_resnick, expected_profiles_IC_resnick_observed], @hierarchical.get_profiles_resnick_dual_ICs)
 		# Export/import
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
 		obo = OBO_Handler.new()

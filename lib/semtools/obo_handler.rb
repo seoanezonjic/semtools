@@ -30,7 +30,7 @@ class OBO_Handler
 	# => @profiles :: set of terms assigned to an ID
 
 	@@basic_tags = {ancestors: [:is_a], obsolete: :is_obsolete, alternative: [:alt_id,:replaced_by,:consider]}
-	@@allowed_calcs = {ics: [:resnick,:resnick_observed,:seco,:zhou,:sanchez], sims: [:resnick,:lin,:jiang_conrath]}
+	@@allowed_calcs = {ics: [:resnick, :resnick_observed, :seco, :zhou, :sanchez], sims: [:resnick, :lin, :jiang_conrath]}
 	@@symbolizable_ids = [:id, :alt_id, :replaced_by, :consider]
 	@@tags_with_trailing_modifiers = [:is_a, :union_of, :disjoint_from, :relationship]
 	@@symbolizable_ids.concat(@@tags_with_trailing_modifiers)
@@ -1015,6 +1015,29 @@ class OBO_Handler
 		@profiles = cleaned_profiles if store
 		return cleaned_profiles
 	end
+
+	#
+	# Params:
+	# ++::
+	# Returns 
+	def get_profile_mean_IC(prof, ic_type: :resnick, zhou_k: 0.5)
+		return prof.map{|term| self.get_IC(term, type: ic_type, zhou_k: zhou_k)}.inject(0){|sum,x| sum + x}.fdiv(prof.length)
+	end	
+
+	#
+	# Params:
+	# ++::
+	# Returns 
+	def get_profiles_resnick_dual_ICs
+		puts @max_freqs
+		struct_ics = {}
+		observ_ics = {}
+		@profiles.each do |id, terms|
+			struct_ics[id] = self.get_profile_mean_IC(terms, ic_type: :resnick)
+			observ_ics[id] = self.get_profile_mean_IC(terms, ic_type: :resnick_observed)
+		end
+		return struct_ics, observ_ics
+	end	
 
 
 	############################################
