@@ -954,6 +954,32 @@ class OBO_Handler
 		return self.get_frequency(term, type: :observed_freq)
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
+	def get_profiles_terms_frequency(ratio: true, literal: true, asArray: true)
+		n_profiles = @profiles.length
+		if literal
+			freqs = {}
+			@profiles.each do |id, terms|
+				terms.each do |literalTerm|
+					if freqs.include?(literalTerm)
+						freqs[literalTerm] += 1
+					else
+						freqs[literalTerm] = 1
+					end
+				end
+			end
+			freqs.each{|term, freq| freqs[term] = freq.fdiv(n_profiles)} if ratio
+			freqs = freqs.map{|term, freq| [term, freq]} if asArray
+		else # Freqs translating alternatives
+			freqs = @meta.select{|id, freqs| freqs[:observed_freq] > 0}.map{|id, freqs| [id, ratio ? freqs[:observed_freq].fdiv(n_profiles) : freqs[:observed_freq]]}
+			freqs = freqs.to_h if !asArray
+		end
+		return freqs
+	end	
+
 
 	############################################
 	# SPECIAL METHODS

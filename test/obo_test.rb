@@ -213,12 +213,17 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal({0 => ["Child2", "All"], 1 => ["Child2", "All"]}, @hierarchical.translate_profiles_ids([@hierarchical.profiles[:A],@hierarchical.profiles[:B]], asArray: false))
 		# Frequencies from profiles
 		@hierarchical.add_observed_terms_from_profiles
-		assert_equal(1, @hierarchical.get_structural_frequency(:Child2)) # Official ID
+		assert_equal(1, @hierarchical.get_structural_frequency(:Child2)) ## Term by term frequencies
 		assert_equal(6, @hierarchical.get_observed_frequency(:Child2))
 		assert_equal(1, @hierarchical.get_structural_frequency(:Child3)) # ALternative ID
 		assert_equal(6, @hierarchical.get_observed_frequency(:Child3))
 		assert_equal(2, @hierarchical.get_structural_frequency(:Parental))
 		assert_equal(4, @hierarchical.get_observed_frequency(:Parental))
+		assert_equal({Parental: 4.0, Child2: 6.0, Child1: 6.0, Child3: 6.0, Child4: 6.0}, @hierarchical.get_profiles_terms_frequency(literal: false, ratio: false, asArray: false)) # Terms frequencies observed
+		assert_equal([[:Parental, 1.0], [:Child2, 1.5], [:Child1, 1.5], [:Child3, 1.5], [:Child4, 1.5]], @hierarchical.get_profiles_terms_frequency(literal: false, ratio: true, asArray: true)) 
+		assert_equal({Child2: 3, Parental: 4, Child3: 2, Child4: 1}, @hierarchical.get_profiles_terms_frequency(literal: true, ratio: false, asArray: false))
+		assert_equal([[:Child2, 0.75], [:Parental, 1.0], [:Child3, 0.5], [:Child4, 0.25]], @hierarchical.get_profiles_terms_frequency(literal: true, ratio: true, asArray: true)) 
+		
 		# Export/import
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
 		obo = OBO_Handler.new()
