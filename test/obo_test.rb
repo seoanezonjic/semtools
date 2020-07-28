@@ -211,6 +211,14 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal({A: ["Child2", "All"], B: ["Child2", "All"], C: ["Child2", "All", "Child2"], D: ["Child2", "All", "Child2"]}, @hierarchical.translate_profiles_ids(asArray: false))
 		assert_equal([["Child2", "All"], ["Child2", "All"]], @hierarchical.translate_profiles_ids([@hierarchical.profiles[:A],@hierarchical.profiles[:B]]))
 		assert_equal({0 => ["Child2", "All"], 1 => ["Child2", "All"]}, @hierarchical.translate_profiles_ids([@hierarchical.profiles[:A],@hierarchical.profiles[:B]], asArray: false))
+		# Frequencies from profiles
+		@hierarchical.add_observed_terms_from_profiles
+		assert_equal(1, @hierarchical.get_structural_frequency(:Child2)) # Official ID
+		assert_equal(6, @hierarchical.get_observed_frequency(:Child2))
+		assert_equal(1, @hierarchical.get_structural_frequency(:Child3)) # ALternative ID
+		assert_equal(6, @hierarchical.get_observed_frequency(:Child3))
+		assert_equal(2, @hierarchical.get_structural_frequency(:Parental))
+		assert_equal(4, @hierarchical.get_observed_frequency(:Parental))
 		# Export/import
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
 		obo = OBO_Handler.new()

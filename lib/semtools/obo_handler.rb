@@ -297,8 +297,12 @@ class OBO_Handler
 	def add_observed_term(term:,increase: 1.0)
 		# Check
 		raise ArgumentError, "Term given is NIL" if term.nil?
-		return false unless @stanzas[:terms].keys.include? term
-	
+		return false unless @stanzas[:terms].include?(term)
+		if @alternatives_index.include?(term)
+			alt_id = @alternatives_index[term]
+			@meta[alt_id] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => -1.0} if @meta[alt_id].nil?
+			@meta[term] = @meta[alt_id] 			
+		end
 		# Check if exists
 		@meta[term] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => -1.0} if @meta[term].nil?
 		# Add frequency
@@ -406,18 +410,29 @@ class OBO_Handler
 			alternative_terms = @alternatives_index.keys
 			# Per each term, add frequencies
 			@stanzas[:terms].each do |id, tags|			
-				query = @meta[id] # Check if exist
-				if query.nil?
-					query = {ancestors: 0.0, descendants: 0.0, struct_freq: 0.0, observed_freq: 0.0}
-					@meta[id] = query 
+				if @alternatives_index.include?(id)
+					alt_id = @alternatives_index[id]
+					query = @meta[alt_id] # Check if exist
+					if query.nil?
+						query = {ancestors: 0.0, descendants: 0.0, struct_freq: 0.0, observed_freq: 0.0}
+						@meta[alt_id] = query 
+					end 
+					@meta[id] = query
+					# Note: alternative terms do not increase structural frequencies
+				else # Official term
+					query = @meta[id] # Check if exist
+					if query.nil?
+						query = {ancestors: 0.0, descendants: 0.0, struct_freq: 0.0, observed_freq: 0.0}
+						@meta[id] = query 
+					end
+					# Store metadata
+					query[:ancestors] = @ancestors_index.include?(id) ? @ancestors_index[id].count{|anc| !alternative_terms.include?(anc)}.to_f : 0.0
+					query[:descendants] = @descendants_index.include?(id) ? @descendants_index[id].count{|desc| !alternative_terms.include?(desc)}.to_f : 0.0
+					query[:struct_freq] = query[:descendants] + 1.0
+					# Update maximums
+					@max_freqs[:struct_freq] = query[:struct_freq] if @max_freqs[:struct_freq] < query[:struct_freq]  
+					@max_freqs[:max_depth] = query[:descendants] if @max_freqs[:max_depth] < query[:descendants]  
 				end
-				# Store metadata
-				query[:ancestors] = @ancestors_index.include?(id) ? @ancestors_index[id].count{|anc| !alternative_terms.include?(anc)}.to_f : 0.0
-				query[:descendants] = @descendants_index.include?(id) ? @descendants_index[id].count{|desc| !alternative_terms.include?(desc)}.to_f : 0.0
-				query[:struct_freq] = query[:descendants] + 1.0
-				# Update maximums
-				@max_freqs[:struct_freq] = query[:struct_freq] if @max_freqs[:struct_freq] < query[:struct_freq]  
-				@max_freqs[:max_depth] = query[:descendants] if @max_freqs[:max_depth] < query[:descendants]  
 			end
 		end
 	end
@@ -898,9 +913,45 @@ class OBO_Handler
 	# Returns
 	def translate_profiles_ids(profs = [], asArray: true)
 		profs = @profiles if profs.empty?
-		profs = profs.each_with_index.map{|terms,index| [index, terms]}.to_h if profs.kind_of?(Array)
+		profs = profs.each_with_index.map{|terms, index| [index, terms]}.to_h if profs.kind_of?(Array)
 		profs_names = profs.map{|id, terms| [id, self.profile_names(terms)]}.to_h
 		return asArray ? profs_names.values : profs_names
+	end
+
+	#
+	# Params:
+	# ++::
+	# Returns
+	def add_observed_terms_from_profiles(reset: false)
+		@meta.each{|term, freqs| freqs[:observed_freq] = -1} if reset
+		@profiles.each{|id, terms| self.add_observed_terms(terms: terms)}
+	end
+
+
+	#
+	# Params:
+	# ++::
+	# Returns
+	def get_frequency(term, type: :struct_freq)
+		queryFreq = @meta[term]
+		return queryFreq.nil? ? nil : queryFreq[type]		
+	end
+
+
+	#
+	# Params:
+	# ++::
+	# Returns
+	def get_structural_frequency(term)
+		return self.get_frequency(term, type: :struct_freq)
+	end
+
+	#
+	# Params:
+	# ++::
+	# Returns
+	def get_observed_frequency(term)
+		return self.get_frequency(term, type: :observed_freq)
 	end
 
 
