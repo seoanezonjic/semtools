@@ -744,7 +744,7 @@ class OBO_Handler
 	# Generate a bidirectinal dictionary set using a specific tag and terms stanzas set
 	# This functions stores calculated dictionary into @dicts field.
 	# This functions stores first value for multivalue tags
-	# This function does not handle synonims for byValue dictionaries
+	# This function does not handle synonyms for byValue dictionaries
 	# Params:
 	# +tag+:: to be used to calculate dictionary
 	# Return :: calcualted bidirectional dictonary
@@ -979,6 +979,42 @@ class OBO_Handler
 		end
 		return freqs
 	end	
+
+	#
+	# Params:
+	# +prof+:: array of terms to be checked
+	# Returns two arrays, first is the cleaned profile and second is the removed elements array
+	def remove_ancestors_from_profile(prof)
+		ancestors = prof.map{|term| self.get_ancestors(term)}.flatten
+		redundant = prof.select{|term| ancestors.include?(term)}
+		return prof - redundant, redundant
+	end
+
+
+	# Remove alternative IDs if official ID is present. DOES NOT REMOVE synonyms or alternative IDs of the same official ID
+	# Params:
+	# ++::
+	# Returns two arrays, first is the cleaned profile and second is the removed elements array
+	def remove_alternatives_from_profile(prof)
+		alternatives = prof.select{|term| @alternatives_index.include?(term)}
+		redundant = alternatives.select{|alt_id| prof.include?(@alternatives_index[alt_id])}
+		return prof - redundant, redundant
+	end
+
+	#
+	# Params:
+	# ++::
+	# Returns a hash with cleaned profiles
+	def clean_profiles(store: false)
+		cleaned_profiles = {}
+		@profiles.each do |id, terms|
+			terms_without_ancestors, _ = self.remove_ancestors_from_profile(terms)
+			terms_without_ancestors_and_alternatices, _ = self.remove_alternatives_from_profile(terms_without_ancestors)
+			cleaned_profiles[id] = terms_without_ancestors_and_alternatices
+		end
+		@profiles = cleaned_profiles if store
+		return cleaned_profiles
+	end
 
 
 	############################################

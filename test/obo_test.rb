@@ -223,7 +223,11 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal([[:Parental, 1.0], [:Child2, 1.5], [:Child1, 1.5], [:Child3, 1.5], [:Child4, 1.5]], @hierarchical.get_profiles_terms_frequency(literal: false, ratio: true, asArray: true)) 
 		assert_equal({Child2: 3, Parental: 4, Child3: 2, Child4: 1}, @hierarchical.get_profiles_terms_frequency(literal: true, ratio: false, asArray: false))
 		assert_equal([[:Child2, 0.75], [:Parental, 1.0], [:Child3, 0.5], [:Child4, 0.25]], @hierarchical.get_profiles_terms_frequency(literal: true, ratio: true, asArray: true)) 
-		
+		# Remove parentals and alternatives
+		assert_equal([[:Child2], [:Parental]], @hierarchical.remove_ancestors_from_profile(@hierarchical.profiles[:A]))
+		assert_equal([[:Child2, :Child3], [:Parental]], @hierarchical.remove_ancestors_from_profile(@hierarchical.profiles[:C]))
+		assert_equal([[:Child2, :Parental], [:Child3]], @hierarchical.remove_alternatives_from_profile(@hierarchical.profiles[:C]))
+		assert_equal({A: [:Child2], B: [:Child2], C: [:Child2], D: [:Child3, :Child4]}, @hierarchical.clean_profiles)
 		# Export/import
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
 		obo = OBO_Handler.new()
