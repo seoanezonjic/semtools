@@ -396,6 +396,7 @@ class OBO_Handler
 		self.get_index_frequencies
 		self.calc_dictionary(:name)
 		self.calc_dictionary(:synonym, select_regex: /\"(.*)\"/)
+		self.calc_term_levels
 	end
 
 
@@ -721,7 +722,28 @@ class OBO_Handler
 		jsonInfo[:descendants_index].map {|id,family_arr| family_arr.map!{|item| item.to_sym}}
 		jsonInfo[:obsoletes_index] = jsonInfo[:obsoletes_index].map{|id,value| [id, value.to_sym]}.to_h
 		jsonInfo[:dicts] = jsonInfo[:dicts].each do |flag, dictionaries|
-			dictionaries[:byValue] = dictionaries[:byValue].map{|value, term| [value.to_s, term.to_sym]}.to_h
+			# Special case: byTerm
+			dictionaries[:byTerm] = dictionaries[:byTerm].map do |term, value| 
+				if !term.to_s.scan(/\A[-+]?[0-9]*\.?[0-9]+\Z/).empty?  # Numeric dictionary
+					[term.to_s.to_i, value.map{|term| term.to_sym}]
+				elsif value.is_a? Numeric # Numeric dictionary
+					[term.to_sym, value]
+				else
+					[term.to_sym, value]
+				end
+			end
+			dictionaries[:byTerm] = dictionaries[:byTerm].to_h
+			# By value
+			dictionaries[:byValue] = dictionaries[:byValue].map do |value, term| 
+				if value.is_a? Numeric # Numeric dictionary
+					[value, term.to_sym]
+				elsif term.is_a? Numeric # Numeric dictionary
+					[value.to_s.to_sym, term]
+				else
+					[value.to_s, term.to_sym]
+				end
+			end
+			dictionaries[:byValue] = dictionaries[:byValue].to_h
 		end 
 		jsonInfo[:profiles].map{|id,terms| terms.map!{|term| term.to_sym}}
 		# Store info
@@ -1029,7 +1051,6 @@ class OBO_Handler
 	# ++::
 	# Returns 
 	def get_profiles_resnick_dual_ICs
-		puts @max_freqs
 		struct_ics = {}
 		observ_ics = {}
 		@profiles.each do |id, terms|
@@ -1038,6 +1059,59 @@ class OBO_Handler
 		end
 		return struct_ics, observ_ics
 	end	
+
+	#
+	# Params:
+	# ++::
+	# Returns 
+	def calc_term_levels
+		if @meta.empty?
+			warn('Terms metainfo are not already loaded. Aborting dictionary calc') 
+		else
+			byTerm = {}
+			byValue = {}
+			# Calc per term
+			@meta.each do |term, info|
+				level = info[:ancestors].round(0)
+				byTerm[term] = level
+				queryLevels = byValue[level]
+				if queryLevels.nil?
+					byValue[level] = [term]
+				else
+					byValue[level] << term
+				end
+			end
+			@dicts[:level] = {byTerm: byValue, byValue: byTerm} # Note: in this case, value has multiplicity and term is unique value
+		end
+	end
+
+	#
+	# Params:
+	# ++::
+	# Returns 
+	def get_ontology_levels
+		return @dicts[:level][:byTerm]
+	end
+
+	#
+	# Params:
+	# ++::
+	# Returns 
+	def get_ontology_levels_from_profiles(uniq = true)
+		profiles_terms = @profiles.values.flatten
+		profiles_terms.uniq! if uniq
+		term_freqs_byProfile = {}
+		profiles_terms.each do |term|
+			query = term_freqs_byProfile[term]
+			if query.nil?
+				term_freqs_byProfile[term] = 1
+			else
+				term_freqs_byProfile[term] += 1
+			end
+		end
+		levels_filtered = @dicts[:level][:byTerm].map{|level, terms| [level,terms.map{|t| profiles_terms.include?(t) ? Array.new(term_freqs_byProfile[t], t) : nil}.flatten.compact]}.select{|level, filteredTerms| !filteredTerms.empty?}.to_h
+		return levels_filtered
+	end
 
 
 	############################################

@@ -240,6 +240,11 @@ class TestOBOFunctionalities < Minitest::Test
 												 C: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6)) - Math.log10(6.fdiv(6))).fdiv(3), 
 												 D: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6)) - Math.log10(6.fdiv(6))).fdiv(3)}
 		assert_equal([expected_profiles_IC_resnick, expected_profiles_IC_resnick_observed], @hierarchical.get_profiles_resnick_dual_ICs)
+		# Ontology levels
+		assert_equal({0=>[:Parental], 1=>[:Child2, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles)
+		assert_equal({0=>[:Parental, :Parental, :Parental, :Parental], 1=>[:Child2, :Child2, :Child2, :Child3, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles(false))
+		assert_equal({0=>[:Parental], 1=>[:Child2, :Child1, :Child3, :Child4]}, @hierarchical.get_ontology_levels)
+
 		# Export/import
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
 		obo = OBO_Handler.new()
