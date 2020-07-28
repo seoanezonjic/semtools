@@ -856,9 +856,32 @@ class OBO_Handler
 	# Params:
 	# ++::
 	# Return ::
-	def get_profile_sizes()
+	def get_profiles_sizes()
 		return @profiles.map{|id,terms| terms.length}
 	end
+
+	#
+	# Params:
+	# ++::
+	# Returns
+	def get_profiles_mean_size
+		sizes = @profiles.map{|id,terms| terms.length}
+		return sizes.inject(0){|sum, n| sum + n}.fdiv(@profiles.length).round(4)
+	end
+
+
+	#
+	# Params:
+	# ++::
+	# Returns
+	def get_profile_length_at_percentile(perc=50)
+		prof_lengths = @profiles.map{|id,terms| terms.length}.sort
+		n_profiles = prof_lengths.length 
+		percentile_index = ((perc * (n_profiles - 1)).fdiv(100) - 0.5).round # Take length which not overpass percentile selected
+		percentile_index = 0 if percentile_index < 0 # Special case (caused by literal calc)
+		return prof_lengths[percentile_index]
+	end
+
 
 
 	############################################

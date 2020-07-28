@@ -196,16 +196,22 @@ class TestOBOFunctionalities < Minitest::Test
 	def test_profiles
 		@hierarchical.add_profile(:A, [:Child2, :Parental]) # Add profiles
 		@hierarchical.add_profile(:B, [:Child2, :Parental, :FakeID])
-		assert_equal([:Child2, :Parental], @hierarchical.get_profile(:A))
+		@hierarchical.add_profile(:C, [:Child2, :Parental, :Child3])
+		@hierarchical.add_profile(:D, [:Child3, :Parental, :Child4])
+		assert_equal([:Child2, :Parental], @hierarchical.get_profile(:A)) # Check storage
 		assert_equal([:Child2, :Parental], @hierarchical.get_profile(:B))
-		assert_equal([2, 2], @hierarchical.get_profile_sizes)
+		assert_equal([2, 2, 3, 3], @hierarchical.get_profiles_sizes) # Check metadata
+		assert_equal(10.fdiv(4).round(4), @hierarchical.get_profiles_mean_size)
+		assert_equal(2, @hierarchical.get_profile_length_at_percentile(0))
+		assert_equal(2, @hierarchical.get_profile_length_at_percentile(2.fdiv(4 - 1) * 100))
+		assert_equal(3, @hierarchical.get_profile_length_at_percentile(3.fdiv(4 - 1) * 100))
+		assert_equal(3, @hierarchical.get_profile_length_at_percentile(4.fdiv(4 - 1) * 100))
 		# Export/import
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
 		obo = OBO_Handler.new()
 		obo.read(File.join(AUX_FOLDER, "testjson.json"))
 		assert_equal(@hierarchical, obo)
 		File.delete(File.join(AUX_FOLDER, "testjson.json"))
-
 	end
 
 end
