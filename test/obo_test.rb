@@ -206,6 +206,11 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(2, @hierarchical.get_profile_length_at_percentile(2.fdiv(4 - 1) * 100))
 		assert_equal(3, @hierarchical.get_profile_length_at_percentile(3.fdiv(4 - 1) * 100))
 		assert_equal(3, @hierarchical.get_profile_length_at_percentile(4.fdiv(4 - 1) * 100))
+		assert_equal(["Child2", "All"], @hierarchical.profile_names(@hierarchical.profiles[:A])) # Profiles to names
+		assert_equal([["Child2", "All"], ["Child2", "All"], ["Child2", "All", "Child2"], ["Child2", "All", "Child2"]], @hierarchical.translate_profiles_ids())
+		assert_equal({A: ["Child2", "All"], B: ["Child2", "All"], C: ["Child2", "All", "Child2"], D: ["Child2", "All", "Child2"]}, @hierarchical.translate_profiles_ids(asArray: false))
+		assert_equal([["Child2", "All"], ["Child2", "All"]], @hierarchical.translate_profiles_ids([@hierarchical.profiles[:A],@hierarchical.profiles[:B]]))
+		assert_equal({0 => ["Child2", "All"], 1 => ["Child2", "All"]}, @hierarchical.translate_profiles_ids([@hierarchical.profiles[:A],@hierarchical.profiles[:B]], asArray: false))
 		# Export/import
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
 		obo = OBO_Handler.new()

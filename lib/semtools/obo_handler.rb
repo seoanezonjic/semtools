@@ -883,6 +883,26 @@ class OBO_Handler
 	end
 
 
+	#
+	# Params:
+	# ++::
+	# Returns
+	def profile_names(prof)
+		return prof.map{|term| self.translate_id(term)}
+	end
+
+
+	#
+	# Params:
+	# ++::
+	# Returns
+	def translate_profiles_ids(profs = [], asArray: true)
+		profs = @profiles if profs.empty?
+		profs = profs.each_with_index.map{|terms,index| [index, terms]}.to_h if profs.kind_of?(Array)
+		profs_names = profs.map{|id, terms| [id, self.profile_names(terms)]}.to_h
+		return asArray ? profs_names.values : profs_names
+	end
+
 
 	############################################
 	# SPECIAL METHODS
