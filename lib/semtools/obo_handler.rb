@@ -28,6 +28,7 @@ class OBO_Handler
 	# => @max_freqs :: maximum freqs found for structural and observed freqs
 	# => @dicts :: bidirectional dictionaries with three levels <key|value>: 1º) <tag|hash2>; 2º) <(:byTerm/:byValue)|hash3>; 3º) dictionary <k|v>
 	# => @profiles :: set of terms assigned to an ID
+	# => @profilesDict :: set of profile IDs assigned to a term
 
 	@@basic_tags = {ancestors: [:is_a], obsolete: :is_obsolete, alternative: [:alt_id,:replaced_by,:consider]}
 	@@allowed_calcs = {ics: [:resnick, :resnick_observed, :seco, :zhou, :sanchez], sims: [:resnick, :lin, :jiang_conrath]}
@@ -57,6 +58,7 @@ class OBO_Handler
 		@max_freqs = {:struct_freq => -1.0, :observed_freq => -1.0, :max_depth => -1.0}
 		@dicts = {}
 		@profiles = {}
+		@profilesDict = {}
 		# Load if proceeds
 		load(file) if load_file
 	end
@@ -700,7 +702,8 @@ class OBO_Handler
 					special_tags: @special_tags,
 					max_freqs: @max_freqs,
 					dicts: @dicts,
-					profiles: @profiles}
+					profiles: @profiles,
+					profilesDict: @profilesDict}
 		# Convert to JSON format & write
 		File.open(file, "w") { |f| f.write obj_info.to_json }
 	end
@@ -746,6 +749,7 @@ class OBO_Handler
 			dictionaries[:byValue] = dictionaries[:byValue].to_h
 		end 
 		jsonInfo[:profiles].map{|id,terms| terms.map!{|term| term.to_sym}}
+		jsonInfo[:profilesDict].map{|term,ids| ids.map!{|id| id.to_sym}}
 		# Store info
 		@header = jsonInfo[:header]
 		@stanzas = jsonInfo[:stanzas]
@@ -760,6 +764,7 @@ class OBO_Handler
 		@max_freqs = jsonInfo[:max_freqs]
 		@dicts = jsonInfo[:dicts]
 		@profiles = jsonInfo[:profiles]
+		@profilesDict = jsonInfo[:profilesDict]
 	end
 
 
@@ -1113,6 +1118,45 @@ class OBO_Handler
 		return levels_filtered
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns 
+	def calc_profiles_dictionary
+		if @profiles.empty?
+			warn('Profiles are not already loaded. Aborting dictionary calc')
+		else
+			byTerm = {} # Key: Terms
+			# byValue -- Key: Profile == @profiles
+			@profiles.each do |id, terms|
+				terms.each do |term|
+					if byTerm.include?(term)
+						byTerm[term] << id
+					else
+						byTerm[term] = [id]
+					end
+				end
+			end
+			@profilesDict = byTerm
+		end
+	end
+
+	#
+	# Params:
+	# ++::
+	# Returns 
+	def get_terms_linked_profiles
+		return @profilesDict
+	end	
+
+	#
+	# Params:
+	# ++::
+	# Returns 
+	def get_term_linked_profiles(term)
+		return @profilesDict[term]
+	end
+
 
 	############################################
 	# SPECIAL METHODS
@@ -1128,6 +1172,7 @@ class OBO_Handler
 		self.meta == other.meta &&
 		self.dicts == other.dicts &&
 		self.profiles == other.profiles &&
+		self.profilesDict == other.profilesDict &&
 		# self.special_tags == other.special_tags &&
 		self.max_freqs == other.max_freqs
     end
@@ -1142,7 +1187,7 @@ class OBO_Handler
 	#private_class_method :get_related_ids
 
 	## ATTRIBUTES
-	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles
+	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict
 	# attr_writer 
 
 end

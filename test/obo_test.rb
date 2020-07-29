@@ -244,6 +244,9 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal({0=>[:Parental], 1=>[:Child2, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles)
 		assert_equal({0=>[:Parental, :Parental, :Parental, :Parental], 1=>[:Child2, :Child2, :Child2, :Child3, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles(false))
 		assert_equal({0=>[:Parental], 1=>[:Child2, :Child1, :Child3, :Child4]}, @hierarchical.get_ontology_levels)
+		# Profiles dictionary
+		@hierarchical.calc_profiles_dictionary
+		assert_equal({Child2: [:A, :B, :C], Parental: [:A, :B, :C, :D], Child3: [:C, :D], Child4: [:D]}, @hierarchical.get_terms_linked_profiles)
 
 		# Export/import
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
