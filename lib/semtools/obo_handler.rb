@@ -1095,7 +1095,7 @@ class OBO_Handler
 	# ++::
 	# Returns 
 	def get_ontology_levels
-		return @dicts[:level][:byTerm]
+		return @dicts[:level][:byTerm] # By term, in this case, is Key::Level, Value::Terms
 	end
 
 	#
@@ -1157,6 +1157,18 @@ class OBO_Handler
 		return @profilesDict[term]
 	end
 
+
+	#
+	# Params:
+	# ++::
+	# Returns
+	def get_childs_table(terms, filter_alternatives = false)
+		expanded_terms = []
+		terms.each do |t|
+			expanded_terms << [[t, self.translate_id(t)], self.get_descendants(t, filter_alternatives)]
+		end
+		return expanded_terms
+	end
 
 	############################################
 	# SPECIAL METHODS
