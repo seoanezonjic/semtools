@@ -5,6 +5,7 @@ require 'json'
 #########################################################
 
 # 1 - Store @profiles as @stanzas[:instances]
+# 2 - Items values (not keys) are imported as strings, not as symbols (maybe add a flag which indicates if values are, or not, symbols?) 
 
 class OBO_Handler
 	#############################################
@@ -29,6 +30,7 @@ class OBO_Handler
 	# => @dicts :: bidirectional dictionaries with three levels <key|value>: 1º) <tag|hash2>; 2º) <(:byTerm/:byValue)|hash3>; 3º) dictionary <k|v>
 	# => @profiles :: set of terms assigned to an ID
 	# => @profilesDict :: set of profile IDs assigned to a term
+	# => @items :: hash with items relations to terms
 
 	@@basic_tags = {ancestors: [:is_a], obsolete: :is_obsolete, alternative: [:alt_id,:replaced_by,:consider]}
 	@@allowed_calcs = {ics: [:resnick, :resnick_observed, :seco, :zhou, :sanchez], sims: [:resnick, :lin, :jiang_conrath]}
@@ -59,6 +61,7 @@ class OBO_Handler
 		@dicts = {}
 		@profiles = {}
 		@profilesDict = {}
+		@items = {}
 		# Load if proceeds
 		load(file) if load_file
 	end
@@ -703,7 +706,8 @@ class OBO_Handler
 					max_freqs: @max_freqs,
 					dicts: @dicts,
 					profiles: @profiles,
-					profilesDict: @profilesDict}
+					profilesDict: @profilesDict,
+					items: @items}
 		# Convert to JSON format & write
 		File.open(file, "w") { |f| f.write obj_info.to_json }
 	end
@@ -765,6 +769,7 @@ class OBO_Handler
 		@dicts = jsonInfo[:dicts]
 		@profiles = jsonInfo[:profiles]
 		@profilesDict = jsonInfo[:profilesDict]
+		@items = jsonInfo[:items]
 	end
 
 
@@ -1182,6 +1187,23 @@ class OBO_Handler
 		@profiles.merge!(profiles)
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
+	def load_item_relations_to_terms(relations, remove_old_relations = false)
+		@items = {} if remove_old_relations
+		if !relations.select{|term, items| !@stanzas[:terms].include?(term)}.empty?
+			warn('Some terms specified are not stored into this ontology. These not correct terms will be stored too')
+		end
+		if !remove_old_relations
+			if !relations.select{|term, items| @items.include?(term)}.empty?
+				warn('Some terms given are already stored. Stored version will be replaced')
+			end
+		end
+		@items.merge!(relations)
+	end	
+
 
 	############################################
 	# SPECIAL METHODS
@@ -1198,6 +1220,7 @@ class OBO_Handler
 		self.dicts == other.dicts &&
 		self.profiles == other.profiles &&
 		self.profilesDict == other.profilesDict &&
+		(self.items.keys - other.items.keys).empty? &&
 		# self.special_tags == other.special_tags &&
 		self.max_freqs == other.max_freqs
     end
@@ -1207,6 +1230,6 @@ class OBO_Handler
 	# ACCESS CONTROL
 	#############################################
 	## ATTRIBUTES
-	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict
+	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict, :items
 
 end
