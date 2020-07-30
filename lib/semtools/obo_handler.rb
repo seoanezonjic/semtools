@@ -1170,6 +1170,19 @@ class OBO_Handler
 		return expanded_terms
 	end
 
+	#
+	# Params:
+	# ++::
+	# Returns
+	def load_profiles(profiles)
+		# Check
+		if !profiles.keys.select{|id| @profiles.include?(id)}.empty?
+			warn('Some profiles given are already stored. Stored version will be replaced')
+		end
+		@profiles.merge!(profiles)
+	end
+
+
 	############################################
 	# SPECIAL METHODS
 	#############################################
@@ -1193,13 +1206,7 @@ class OBO_Handler
 	#############################################
 	# ACCESS CONTROL
 	#############################################
-	## METHODS
-	# public :get_ancestors, :get_descendants, :get_familiar
-	# private
-	#private_class_method :get_related_ids
-
 	## ATTRIBUTES
 	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict
-	# attr_writer 
 
 end
