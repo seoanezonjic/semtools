@@ -45,7 +45,7 @@ class OBO_Handler
 	# Params:
 	# +file+:: with info to be loaded (.obo ; .json)
 	# +load:p+:: activate load process automatically (only for .obo)
-	def initialize(file: nil, load_file: false)
+	def initialize(file: nil, load_file: false, removable_terms: [])
 		# Initialize object variables
 		@header = nil
 		@stanzas = {terms: {}, typedefs: {}, instances: {}}
@@ -62,6 +62,7 @@ class OBO_Handler
 		@profiles = {}
 		@profilesDict = {}
 		@items = {}
+		@removable_terms = removable_terms.empty? ? [] : removable_terms
 		# Load if proceeds
 		load(file) if load_file
 	end
@@ -293,6 +294,26 @@ class OBO_Handler
 	#############################################
 	# GENERAL METHODS
 	#############################################
+
+	# 
+	# Params:
+	# ++:: 
+	# Return :: 
+	def add_removable_terms(terms)
+		@removable_terms.concat(terms)
+	end
+
+	# 
+	# Params:
+	# ++:: 
+	# Return :: 
+	def add_removable_terms_from_file(file)
+		File.open(excluded_codes_file).each do |line|
+			line.chomp!
+			@removable_terms << line
+		end
+	end
+
 	
 	# Increase observed frequency for a specific term
 	# Params:
@@ -303,6 +324,7 @@ class OBO_Handler
 		# Check
 		raise ArgumentError, "Term given is NIL" if term.nil?
 		return false unless @stanzas[:terms].include?(term)
+		return false if @removable_terms.include?(term)
 		if @alternatives_index.include?(term)
 			alt_id = @alternatives_index[term]
 			@meta[alt_id] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => -1.0} if @meta[alt_id].nil?
@@ -380,6 +402,7 @@ class OBO_Handler
 		@stanzas[:terms].each do |id, tags|
 			alt_ids = tags[alt_tag]
 			if !alt_ids.nil?
+				alt_ids = alt_ids - @removable_terms
 				# Update info
 				alt_ids.each do |alt_term|
 					@alternatives_index[alt_term] = id
@@ -496,6 +519,7 @@ class OBO_Handler
 			anc = {}
 			des = {}
 			parentals.each do |id, parents|
+				parents = parents - @removable_terms
 				anc[id] = parents
 				parents.each do |anc_id| # Add descendants
 					if !des.include?(anc_id)
@@ -683,6 +707,7 @@ class OBO_Handler
 		_, header, stanzas = self.class.load_obo(file)
 		@header = header
 		@stanzas = stanzas
+		@removable_terms.each{|removableID| @stanzas[:terms].delete(removableID)} if !@removable_terms.empty? # Remove if proceed
 		build_index() 
 	end
 

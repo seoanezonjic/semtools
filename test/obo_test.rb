@@ -266,4 +266,10 @@ class TestOBOFunctionalities < Minitest::Test
 		File.delete(File.join(AUX_FOLDER, "testjson.json"))
 	end
 
+	def test_blacklist
+		hierarchical_cutted = OBO_Handler.new(file: @file_Hierarchical[:file],load_file: true, removable_terms: [:Parental])
+		assert_equal(0, hierarchical_cutted.meta[:Child2][:ancestors])
+		assert_nil(hierarchical_cutted.stanzas[:terms][:Parental])
+	end
+
 end
