@@ -15,13 +15,15 @@ class OBO_Handler
 	# => @@basic_tags :: hash with main OBO structure tags
 	# => @@allowed_calcs :: hash with allowed ICs and similaritites calcs
 	# => @@symbolizable_ids :: tags which can be symbolized
+	# => @@tags_with_trailing_modifiers :: tags which can include extra info after specific text modifiers
 	#
 	# Handled object variables
 	# => @header :: file header (if is available)
 	# => @stanzas :: OBO stanzas {:terms,:typedefs,:instances}
-	# => @ancestors :: hash of ancestors/descendants per each term handled with any structure relationships
-	# => @alternatives :: has of alternative IDs (includee alt_id and obsoletes)
-	# => @obsoletes :: hash of obsoletes and it's new ids
+	# => @ancestors_index :: hash of ancestors per each term handled with any structure relationships
+	# => @descendants_index :: hash of descendants per each term handled with any structure relationships
+	# => @alternatives_index :: has of alternative IDs (includee alt_id and obsoletes)
+	# => @obsoletes_index :: hash of obsoletes and it's new ids
 	# => @special_tags :: set of special tags to be expanded (:is_a, :obsolete, :alt_id)
 	# => @structureType :: type of ontology structure depending on ancestors relationship. Allowed: {atomic, sparse, circular, hierarchical}
 	# => @ics :: already calculated ICs for handled terms and IC types
@@ -37,6 +39,7 @@ class OBO_Handler
 	@@symbolizable_ids = [:id, :alt_id, :replaced_by, :consider]
 	@@tags_with_trailing_modifiers = [:is_a, :union_of, :disjoint_from, :relationship]
 	@@symbolizable_ids.concat(@@tags_with_trailing_modifiers)
+	
 	#############################################
 	# CONSTRUCTOR
 	#############################################
@@ -241,6 +244,7 @@ class OBO_Handler
 		return finfo, header, stanzas
 	end
 
+
 	# Handle OBO loaded info and stores it into correct container and format
 	# Params:
 	# +header+:: container
@@ -267,6 +271,7 @@ class OBO_Handler
 		return header
 	end
 
+
 	# Symboliza all values into hashs using symbolizable tags as keys
 	# Params:
 	# +item_hash+:: hash to be checked
@@ -289,13 +294,11 @@ class OBO_Handler
 
 
 
-
-
 	#############################################
 	# GENERAL METHODS
 	#############################################
 
-	# 
+	# Include removable terms to current removable terms list
 	# Params:
 	# ++:: 
 	# Return :: 
@@ -732,7 +735,8 @@ class OBO_Handler
 					dicts: @dicts,
 					profiles: @profiles,
 					profilesDict: @profilesDict,
-					items: @items}
+					items: @items,
+					removable_terms: @removable_terms}
 		# Convert to JSON format & write
 		File.open(file, "w") { |f| f.write obj_info.to_json }
 	end
@@ -779,6 +783,7 @@ class OBO_Handler
 		end 
 		jsonInfo[:profiles].map{|id,terms| terms.map!{|term| term.to_sym}}
 		jsonInfo[:profilesDict].map{|term,ids| ids.map!{|id| id.to_sym}}
+		jsonInfo[:removable_terms] = jsonInfo[:removable_terms].map{|term| term.to_sym}
 		# Store info
 		@header = jsonInfo[:header]
 		@stanzas = jsonInfo[:stanzas]
@@ -795,6 +800,7 @@ class OBO_Handler
 		@profiles = jsonInfo[:profiles]
 		@profilesDict = jsonInfo[:profilesDict]
 		@items = jsonInfo[:items]
+		@removable_terms = jsonInfo[:removable_terms]
 	end
 
 
@@ -1246,6 +1252,7 @@ class OBO_Handler
 		self.profiles == other.profiles &&
 		self.profilesDict == other.profilesDict &&
 		(self.items.keys - other.items.keys).empty? &&
+		self.removable_terms == other.removable_terms &&
 		# self.special_tags == other.special_tags &&
 		self.max_freqs == other.max_freqs
     end
@@ -1255,6 +1262,6 @@ class OBO_Handler
 	# ACCESS CONTROL
 	#############################################
 	## ATTRIBUTES
-	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict, :items
+	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict, :items, :removable_terms
 
 end
