@@ -66,8 +66,9 @@ class OBO_Handler
 		@profiles = {}
 		@profilesDict = {}
 		@items = {}
-		@removable_terms = removable_terms.empty? ? [] : removable_terms
+		@removable_terms = []
 		# Load if proceeds
+		add_removable_terms(removable_terms) if !removable_terms.empty?
 		load(file) if load_file
 	end
 
@@ -304,6 +305,7 @@ class OBO_Handler
 	# +terms+:: terms array to be concatenated
 	# Return :: void 
 	def add_removable_terms(terms)
+		terms = terms.map{|term| term.to_sym}
 		@removable_terms.concat(terms)
 	end
 
@@ -314,7 +316,7 @@ class OBO_Handler
 	def add_removable_terms_from_file(file)
 		File.open(excluded_codes_file).each do |line|
 			line.chomp!
-			@removable_terms << line
+			@removable_terms << line.to_sym
 		end
 	end
 
@@ -733,7 +735,7 @@ class OBO_Handler
 		@header = header
 		@stanzas = stanzas
 		@removable_terms.each{|removableID| @stanzas[:terms].delete(removableID)} if !@removable_terms.empty? # Remove if proceed
-		build_index() 
+		self.build_index() 
 	end
 
 
@@ -1374,6 +1376,15 @@ class OBO_Handler
 		end
 		return results
 	end
+
+	#
+	# Params:
+	# ++::
+	# Returns 
+	def is_removable(id)
+		return @removable_terms.include?(id.to_sym)
+	end
+
 
 	############################################
 	# SPECIAL METHODS
