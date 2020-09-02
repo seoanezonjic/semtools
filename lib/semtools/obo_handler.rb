@@ -37,7 +37,8 @@ class OBO_Handler
 	@@basic_tags = {ancestors: [:is_a], obsolete: :is_obsolete, alternative: [:alt_id,:replaced_by,:consider]}
 	@@allowed_calcs = {ics: [:resnick, :resnick_observed, :seco, :zhou, :sanchez], sims: [:resnick, :lin, :jiang_conrath]}
 	@@symbolizable_ids = [:id, :alt_id, :replaced_by, :consider]
-	@@tags_with_trailing_modifiers = [:is_a, :union_of, :disjoint_from, :relationship]
+	@@tags_with_trailing_modifiers = [:is_a, :union_of, :disjoint_from, :relationship, :subsetdef, :synonymtypedef, :property_value]
+	@@multivalue_tags = [:alt_id, :is_a, :subset, :synonym, :xref, :intersection_of, :union_of, :disjoint_from, :relationship, :replaced_by, :consider, :subsetdef, :synonymtypedef, :property_value]
 	@@symbolizable_ids.concat(@@tags_with_trailing_modifiers)
 	
 	#############################################
@@ -175,7 +176,7 @@ class OBO_Handler
 		# Load info
 		info_hash = {}
 		# Only TERMS multivalue tags (future add Typedefs and Instance)
-		multivalue_tags = [:alt_id, :is_a, :subset, :synonym, :xref, :intersection_of, :union_of, :disjoint_from, :relationship, :replaced_by, :consider]
+		# multivalue_tags = [:alt_id, :is_a, :subset, :synonym, :xref, :intersection_of, :union_of, :disjoint_from, :relationship, :replaced_by, :consider]
 		attributes.each do |tag, value|
 			# Check
 			raise EncodingError, 'Info element incorrect format' if (tag.nil?) || (value.nil?)
@@ -188,12 +189,12 @@ class OBO_Handler
 			query = info_hash[tag]
 			if !query.nil? # Tag already exists
 				if !query.kind_of?(Array) # Check that tag is multivalue
-					raise('Attempt to concatenate plain text with another. The tag is not declared as multivalue')
+					raise('Attempt to concatenate plain text with another. The tag is not declared as multivalue. [' + tag.to_s + '](' + query + ')')
 				else
 					query << value	# Add new value to tag
 				end
 			else # New entry
-				if multivalue_tags.include?(tag)
+				if @@multivalue_tags.include?(tag)
 					info_hash[tag] = [value]
 				else
 					info_hash[tag] = value
@@ -300,8 +301,8 @@ class OBO_Handler
 
 	# Include removable terms to current removable terms list
 	# Params:
-	# ++:: 
-	# Return :: 
+	# +terms+:: terms array to be concatenated
+	# Return :: void 
 	def add_removable_terms(terms)
 		@removable_terms.concat(terms)
 	end
@@ -593,7 +594,8 @@ class OBO_Handler
 	# +force+:: force re-calculate the IC. Do not check if it is already calculated
 	# +zhou_k+:: special coeficient for Zhou IC method
 	# Returns the IC calculated
-	def get_IC(term, type: :resnick, force: false, zhou_k: 0.5)
+	def get_IC(termRaw, type: :resnick, force: false, zhou_k: 0.5)
+		term = termRaw.to_sym
 		# Check 
 		raise ArgumentError, "IC type specified (#{type}) is not allowed" if !@@allowed_calcs[:ics].include?(type)
 		# Check if it's already calculated
@@ -620,6 +622,26 @@ class OBO_Handler
 		end			
 		@ics[type][term] = ic
 		return ic
+	end
+
+	# 
+	# Params:
+	# ++:: 
+	# Returns 
+	def get_observed_ics_by_onto_and_freq
+		# Chech there are observed terms
+		if @profiles.empty?
+			resnick = {}
+			resnick_observed = {}
+		else
+			# Calc ICs for all terms
+			observed_terms = @profiles.values.flatten.uniq
+			observed_terms.each{ |term| get_IC(term)}
+			observed_terms.each{ |term| get_IC(term, type: :resnick_observed)}
+			resnick = @ics[:resnick].select{|k,v| observed_terms.include?(k)}
+			resnick_observed = @ics[:resnick_observed].select{|k,v| observed_terms.include?(k)}
+		end
+		return resnick.clone, resnick_observed.clone
 	end
 
 
@@ -819,25 +841,27 @@ class OBO_Handler
 			byValue = {}
 			# Calc per term
 			@stanzas[:terms].each do |term, tags|
-				if @alternatives_index[term].nil? # Avoid alternatives
-					queryTag = tags[tag]
-					if !queryTag.nil?
-						# Pre-process
-						if !select_regex.nil?
-							if queryTag.kind_of?(Array)
-								queryTag = queryTag.map{|value| value.scan(select_regex).first}
-								queryTag.flatten!
-							else
-								queryTag = queryTag.scan(select_regex).first
-							end
-						end
-						if queryTag.kind_of?(Array) # Store
-							byTerm[term] = queryTag
-							queryTag.each{|value| byValue[value] = term}
+				referenceTerm = term
+				if !@alternatives_index[term].nil? # Special case
+					referenceTerm = @alternatives_index[term]
+				end
+				queryTag = tags[tag]
+				if !queryTag.nil?
+					# Pre-process
+					if !select_regex.nil?
+						if queryTag.kind_of?(Array)
+							queryTag = queryTag.map{|value| value.scan(select_regex).first}
+							queryTag.flatten!
 						else
-							byTerm[term] = [queryTag]
-							byValue[queryTag] = term
+							queryTag = queryTag.scan(select_regex).first
 						end
+					end
+					if queryTag.kind_of?(Array) # Store
+						byTerm[referenceTerm] = queryTag
+						queryTag.each{|value| byValue[value] = referenceTerm}
+					else
+						byTerm[referenceTerm] = [queryTag]
+						byValue[queryTag] = referenceTerm
 					end
 				end
 			end
@@ -873,9 +897,45 @@ class OBO_Handler
 	# Params:
 	# ++::
 	# Return ::
+	def translate_names(names)
+		translated = []
+		rejected = []
+		names.each do |name|
+			tr = self.translate_name(name)
+			if tr.nil?
+				rejected << name
+			else
+				translated << tr
+			end
+		end
+		return translated, rejected
+	end
+
+	#
+	# Params:
+	# ++::
+	# Return ::
 	def translate_id(id)
 		name = self.translate(id, :name, byValue: false)
 		return name.nil? ? nil : name.first
+	end
+
+	#
+	# Params:
+	# ++::
+	# Return ::
+	def translate_ids(ids)
+		translated = []
+		rejected = []
+		ids.each do |term_id|
+			tr = self.translate_id(term_id.to_sym)
+			if !tr.nil?
+				translated << tr
+			else
+				rejected << tr
+			end
+		end
+		return translated, rejected
 	end
 
 
@@ -1021,7 +1081,7 @@ class OBO_Handler
 	# Params:
 	# ++::
 	# Returns
-	def get_profiles_terms_frequency(ratio: true, literal: true, asArray: true)
+	def get_profiles_terms_frequency(ratio: true, literal: true, asArray: true, translate: true)
 		n_profiles = @profiles.length
 		if literal
 			freqs = {}
@@ -1034,11 +1094,27 @@ class OBO_Handler
 					end
 				end
 			end
-			freqs.each{|term, freq| freqs[term] = freq.fdiv(n_profiles)} if ratio
-			freqs = freqs.map{|term, freq| [term, freq]} if asArray
+			if (ratio || translate)
+				aux_keys = freqs.keys
+				aux_keys.each do |term| 
+					freqs[term] = freqs[term].fdiv(n_profiles) if ratio
+					if translate
+						tr = self.translate_id(term)
+						freqs[tr] = freqs.delete(term) if !tr.nil?
+					end
+				end
+			end
+			if asArray
+				freqs = freqs.map{|term, freq| [term, freq]}
+				freqs.sort!{|h1, h2| h2[1] <=> h1[1]}
+			end
 		else # Freqs translating alternatives
 			freqs = @meta.select{|id, freqs| freqs[:observed_freq] > 0}.map{|id, freqs| [id, ratio ? freqs[:observed_freq].fdiv(n_profiles) : freqs[:observed_freq]]}
 			freqs = freqs.to_h if !asArray
+			if asArray
+				freqs = freqs.map{|term, freq| [term, freq]}
+				freqs.sort!{|h1, h2| h2[1] <=> h1[1]}
+			end
 		end
 		return freqs
 	end	
@@ -1082,6 +1158,17 @@ class OBO_Handler
 	#
 	# Params:
 	# ++::
+	# Returns
+	def parentals_per_profile
+		cleaned_profiles = self.clean_profiles
+		parentals = @profiles.each{ |id, terms| terms.length - cleaned_profiles[id].length}
+		return parentals
+	end
+
+
+	#
+	# Params:
+	# ++::
 	# Returns 
 	def get_profile_mean_IC(prof, ic_type: :resnick, zhou_k: 0.5)
 		return prof.map{|term| self.get_IC(term, type: ic_type, zhou_k: zhou_k)}.inject(0){|sum,x| sum + x}.fdiv(prof.length)
@@ -1098,7 +1185,7 @@ class OBO_Handler
 			struct_ics[id] = self.get_profile_mean_IC(terms, ic_type: :resnick)
 			observ_ics[id] = self.get_profile_mean_IC(terms, ic_type: :resnick_observed)
 		end
-		return struct_ics, observ_ics
+		return struct_ics.clone, observ_ics.clone
 	end	
 
 	#
@@ -1123,6 +1210,8 @@ class OBO_Handler
 				end
 			end
 			@dicts[:level] = {byTerm: byValue, byValue: byTerm} # Note: in this case, value has multiplicity and term is unique value
+			# Update maximum depth
+			@max_freqs[:max_depth] = byValue.keys.max
 		end
 	end
 
@@ -1201,7 +1290,7 @@ class OBO_Handler
 	def get_childs_table(terms, filter_alternatives = false)
 		expanded_terms = []
 		terms.each do |t|
-			expanded_terms << [[t, self.translate_id(t)], self.get_descendants(t, filter_alternatives)]
+			expanded_terms << [[t, self.translate_id(t)], self.get_descendants(t, filter_alternatives).map{|child| [child, self.translate_id(child)]}]
 		end
 		return expanded_terms
 	end
@@ -1210,12 +1299,24 @@ class OBO_Handler
 	# Params:
 	# ++::
 	# Returns
-	def load_profiles(profiles)
+	def load_profiles(profiles, calc_metadata: true)
 		# Check
-		if !profiles.keys.select{|id| @profiles.include?(id)}.empty?
+		mergeable_profiles = {}
+		if profiles.kind_of? Array
+			profiles.each_with_index do |items, i|
+				mergeable_profiles[i] = items.map {|item| item.to_sym}
+			end
+		elsif !profiles.keys.select{|id| @profiles.include?(id)}.empty? # Assume that !Array => isHash
 			warn('Some profiles given are already stored. Stored version will be replaced')
+		else
+			mergeable_profiles = profiles			
 		end
-		@profiles.merge!(profiles)
+		@profiles.merge!(mergeable_profiles) # Merge
+		mergeable_profiles.each{ |k,v| self.add_observed_terms(terms: v)} # Update
+
+		if calc_metadata
+			self.calc_profiles_dictionary
+		end
 	end
 
 	#
@@ -1235,6 +1336,44 @@ class OBO_Handler
 		@items.merge!(relations)
 	end	
 
+
+	#
+	# Params:
+	# ++::
+	# Returns
+	def compute_relations_to_items(external_item_list, mode, thresold)
+		results = []
+		penalized_terms = {}
+		terms_levels = get_terms_levels(@items_relations.keys)
+		levels = terms_levels.keys.sort
+		levels.reverse_each do |level|
+			terms_levels[level].each do |term|
+				associated_items = @items_relations[term]
+				if mode == :elim 
+					items_to_remove = penalized_terms[term]
+					items_to_remove = [] if items_to_remove.nil?
+					pval = get_fisher_exact_test(
+						external_item_list - items_to_remove, 
+						associated_items - items_to_remove, 
+						((associated_items | external_item_list) - items_to_remove).length
+						)
+					if pval <= thresold
+						parents = get_parents(term) # Save the items for each parent term to remove them later in the fisher test
+						parents.each do |prnt|
+							query = penalized_terms[prnt]
+							if query.nil?
+								penalized_terms[prnt] = @items_relations[term].clone # We need a new array to store the following iterations
+							else
+								query.concat(@items_relations[term])
+							end
+						end
+					end
+				end
+				results << [term, pval]
+			end
+		end
+		return results
+	end
 
 	############################################
 	# SPECIAL METHODS
