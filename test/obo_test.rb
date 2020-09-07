@@ -172,7 +172,7 @@ class TestOBOFunctionalities < Minitest::Test
 	end
 
 	def test_familiars_and_valids
-		assert_equal([ [:Parental,:Child3], [:FakeID] ], @hierarchical.check_ids([:Parental,:FakeID,:Child3])) # Validate ids
+		assert_equal([ [:Parental,:Child2], [:FakeID] ], @hierarchical.check_ids([:Parental,:FakeID,:Child3])) # Validate ids
 		assert_equal([], @hierarchical.get_ancestors(:Parental)) # Ancestors
 		assert_equal([], @hierarchical.get_ancestors(:Parental, true))
 		assert_equal([:Parental], @hierarchical.get_ancestors(:Child2))
@@ -196,10 +196,10 @@ class TestOBOFunctionalities < Minitest::Test
 	end
 
 	def test_profiles
-		@hierarchical.add_profile(:A, [:Child2, :Parental]) # Add profiles
-		@hierarchical.add_profile(:B, [:Child2, :Parental, :FakeID])
-		@hierarchical.add_profile(:C, [:Child2, :Parental, :Child3])
-		@hierarchical.add_profile(:D, [:Child3, :Parental, :Child4])
+		@hierarchical.add_profile(:A, [:Child2, :Parental], substitute: false) # Add profiles
+		@hierarchical.add_profile(:B, [:Child2, :Parental, :FakeID], substitute: false)
+		@hierarchical.add_profile(:C, [:Child2, :Parental, :Child3], substitute: false)
+		@hierarchical.add_profile(:D, [:Child3, :Parental, :Child4], substitute: false)
 		assert_equal([:Child2, :Parental], @hierarchical.get_profile(:A)) # Check storage
 		assert_equal([:Child2, :Parental], @hierarchical.get_profile(:B))
 		assert_equal([2, 2, 3, 3], @hierarchical.get_profiles_sizes) # Check metadata
@@ -222,9 +222,9 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(2, @hierarchical.get_structural_frequency(:Parental))
 		assert_equal(4, @hierarchical.get_observed_frequency(:Parental))
 		assert_equal({Parental: 4.0, Child2: 6.0, Child1: 6.0, Child3: 6.0, Child4: 6.0}, @hierarchical.get_profiles_terms_frequency(literal: false, ratio: false, asArray: false, translate: false)) # Terms frequencies observed
-		assert_equal({Parental: 4.0, Child2: 3.0, Child3: 2.0, Child4: 1.0}, @hierarchical.get_profiles_terms_frequency(literal: true, ratio: false, asArray: false, translate: false)) # Terms frequencies observed
+		assert_equal({:Child2=>3, :Parental=>4, :Child3=>2, :Child4=>1}, @hierarchical.get_profiles_terms_frequency(literal: true, ratio: false, asArray: false, translate: false)) # Terms frequencies observed
 		assert_equal([[:Child2, 1.5], [:Child1, 1.5], [:Child3, 1.5], [:Child4, 1.5], [:Parental, 1.0]], @hierarchical.get_profiles_terms_frequency(literal: false, ratio: true, asArray: true, translate: false)) 
-		assert_equal({Child2: 3, Parental: 4, Child3: 2, Child4: 1}, @hierarchical.get_profiles_terms_frequency(literal: true, ratio: false, asArray: false, translate: false))
+		assert_equal({:Child2=>3, :Parental=>4, :Child3=>2, :Child4=>1}, @hierarchical.get_profiles_terms_frequency(literal: true, ratio: false, asArray: false, translate: false))
 		assert_equal([[:Parental, 1.0], [:Child2, 0.75], [:Child3, 0.5], [:Child4, 0.25]], @hierarchical.get_profiles_terms_frequency(literal: true, ratio: true, asArray: true, translate: false)) 
 		# Remove parentals and alternatives
 		assert_equal([[:Child2], [:Parental]], @hierarchical.remove_ancestors_from_profile(@hierarchical.profiles[:A]))
@@ -246,7 +246,7 @@ class TestOBOFunctionalities < Minitest::Test
 		# Ontology levels
 		assert_equal({1=>[:Parental], 2=>[:Child2, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles)
 		assert_equal({1=>[:Parental, :Parental, :Parental, :Parental], 2=>[:Child2, :Child2, :Child2, :Child3, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles(false))
-		assert_equal({1=>[:Parental], 2=>[:Child1, :Child2, :Child3, :Child4]}, @hierarchical.get_ontology_levels)
+		assert_equal({1=>[:Parental], 2=>[:Child2, :Child1, :Child3, :Child4]}, @hierarchical.get_ontology_levels)
 		# Profiles dictionary
 		@hierarchical.calc_profiles_dictionary
 		assert_equal({Child2: [:A, :B, :C], Parental: [:A, :B, :C, :D], Child3: [:C, :D], Child4: [:D]}, @hierarchical.get_terms_linked_profiles)
@@ -276,7 +276,7 @@ class TestOBOFunctionalities < Minitest::Test
 	def test_term_levels
 		hierarchical = Ontology.new(file: @file_Hierarchical[:file],load_file: true)
 		assert_equal({:total_paths=>1, :largest_path=>2, :shortest_path=>2, :paths=>[[:Child2, :Parental]]}, hierarchical.term_paths[:Child2])
-		assert_equal({1=>[:Parental], 2=>[:Child1, :Child2, :Child3, :Child4]}, hierarchical.get_ontology_levels)
+		assert_equal({1=>[:Parental], 2=>[:Child2, :Child1, :Child3, :Child4]}, hierarchical.get_ontology_levels)
 	end
 
 end

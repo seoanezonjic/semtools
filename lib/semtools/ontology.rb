@@ -774,6 +774,11 @@ class Ontology
 	end
 
 
+	def is_number? string
+  		true if Float(string) rescue false
+	end
+
+
 	# Read a JSON file with an OBO_Handler object stored
 	# Params:
 	# +file+:: with object info
@@ -819,6 +824,7 @@ class Ontology
 			dictionaries[:byValue] = dictionaries[:byValue].to_h
 		end 
 		jsonInfo[:profiles].map{|id,terms| terms.map!{|term| term.to_sym}}
+		jsonInfo[:profiles].keys.map{|id| jsonInfo[:profiles][id.to_s.to_i] = jsonInfo[:profiles].delete(id) if self.is_number?(id.to_s)}
 		jsonInfo[:profilesDict].map{|term,ids| ids.map!{|id| id.to_sym if !id.is_a?(Numeric)}}
 		jsonInfo[:removable_terms] = jsonInfo[:removable_terms].map{|term| term.to_sym}
 		jsonInfo[:special_tags] = jsonInfo[:special_tags].each do |k, v|
@@ -994,12 +1000,16 @@ class Ontology
 	# Params:
 	# +ids+:: to be checked
 	# Return :: two arrays whit allowed and rejected IDs respectively
-	def check_ids(ids)
+	def check_ids(ids, substitute: true)
 		checked_codes = []
 		rejected_codes = []
 		ids.each do |id|
 			if @stanzas[:terms].include? id
-				checked_codes << id
+				if substitute
+					checked_codes << self.get_main_id(id)
+				else
+					checked_codes << id
+				end
 			else
 				rejected_codes << id
 			end
@@ -1013,9 +1023,9 @@ class Ontology
 	# +id+:: assigned to profile
 	# +terms+:: array of terms
 	# Return :: void
-	def add_profile(id, terms)
+	def add_profile(id, terms, substitute: true)
 		warn("Profile assigned to ID (#{id}) is going to be replaced") if @profiles.include? id
-		correct_terms, rejected_terms = self.check_ids(terms)
+		correct_terms, rejected_terms = self.check_ids(terms, substitute: substitute)
 		if !rejected_terms.empty?
 			warn('Given terms contains erroneus IDs. These IDs will be removed')
 		end
@@ -1301,6 +1311,11 @@ class Ontology
 	end
 
 
+	def is_obsolete? term
+		return @obsoletes_index.include?(term)
+	end
+
+
 	# Find paths of a term following it ancestors and stores all possible paths for it and it's parentals.
 	# Also calculates paths metadata and stores into @term_paths
 	# Returns :: void
@@ -1311,8 +1326,15 @@ class Ontology
 		if [:hierarchical, :sparse].include? @structureType
 			terms = @stanzas[:terms].keys
 			terms.each do |term|
+				if self.is_obsolete? term # Special case (obsoletes)
+					obs_term = term
+					term = @obsoletes_index[term]
+					@term_paths[term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} if !@term_paths.include?(term)
+					@term_paths[obs_term] = @term_paths[term]
+					visited_terms << obs_term
+				end
 				if !visited_terms.include?(term)
-					@term_paths[term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []}
+					@term_paths[term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} if !@term_paths.include?(term)
 					parentals = @dicts[:is_a][:byTerm][term]
 					if parentals.nil?
 						@term_paths[term][:paths] << [term]
