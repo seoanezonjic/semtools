@@ -850,6 +850,7 @@ class Ontology
 		@term_paths = jsonInfo[:term_paths]
 	end
 
+
 	# Generate a bidirectinal dictionary set using a specific tag and terms stanzas set
 	# This functions stores calculated dictionary into @dicts field.
 	# This functions stores first value for multivalue tags
@@ -897,9 +898,8 @@ class Ontology
 	end
 
 
-	#
-	#
-	#
+	# Calculates :is_a dictionary without alternatives substitution
+	# Returns :: void
 	def calc_ancestors_dictionary
 		self.calc_dictionary(:is_a, substitute_alternatives: false)
 	end
@@ -1263,8 +1263,9 @@ class Ontology
 
 	# Calculates ontology structural levels for all ontology terms
 	# Params:
-	# ++::
-	# Returns 
+	# +calc_paths+:: calculates term paths if it's not already calculated
+	# +shortest_path+:: if true, level is calculated with shortest path, largest path will be used in other cases
+	# Returns :: void
 	def calc_term_levels(calc_paths: false, shortest_path: true)
 		if @term_paths.empty?
 			if calc_paths
@@ -1294,10 +1295,9 @@ class Ontology
 	end
 
 
-	# 
-	# Params:
-	# ++::
-	# Returns 
+	# Find paths of a term following it ancestors and stores all possible paths for it and it's parentals.
+	# Also calculates paths metadata and stores into @term_paths
+	# Returns :: void
 	def calc_term_paths
 		self.calc_ancestors_dictionary if !@dicts.keys.include?(:is_a) # Calculate direct parentals dictionary if it's not already calculated
 		visited_terms = []
@@ -1315,7 +1315,7 @@ class Ontology
 							if visited_terms.include? direct_parental # Use direct_parental already calculated paths
 								new_paths = @term_paths[direct_parental][:paths].map{|path| [term, path].flatten}
 							else # Calculate new paths
-								self.expand_path(direct_parental,visited_terms)
+								self.expand_path(direct_parental, visited_terms)
 								new_paths = @term_paths[direct_parental][:paths].map{|path| [term, path].flatten}
 							end
 							new_paths.each{|path| @term_paths[term][:paths] << path}
@@ -1335,10 +1335,11 @@ class Ontology
 	end
 
 
-	# 
+	# Recursive function whic finds paths of a term following it ancestors and stores all possible paths for it and it's parentals
 	# Params:
-	# ++::
-	# Returns 
+	# +curr_term+:: current visited term
+	# +visited_terms+:: already expanded terms
+	# Returns :: void
 	def expand_path(curr_term, visited_terms)
 		if !visited_terms.include?(curr_term) # Not already expanded
 			@term_paths[curr_term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} if @term_paths[curr_term].nil?
