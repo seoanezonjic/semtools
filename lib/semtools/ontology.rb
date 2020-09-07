@@ -1315,6 +1315,9 @@ class Ontology
 		return @obsoletes_index.include?(term)
 	end
 
+	def is_alternative? term
+		return @alternatives_index.include?(term)
+	end
 
 	# Find paths of a term following it ancestors and stores all possible paths for it and it's parentals.
 	# Also calculates paths metadata and stores into @term_paths
@@ -1326,13 +1329,14 @@ class Ontology
 		if [:hierarchical, :sparse].include? @structureType
 			terms = @stanzas[:terms].keys
 			terms.each do |term|
-				if self.is_obsolete? term # Special case (obsoletes)
-					obs_term = term
-					term = @obsoletes_index[term]
+				if self.is_obsolete?(term) || self.is_alternative?(term)  # Special case (obsoletes)
+					special_term = term
+					term = self.is_obsolete?(term) ? @obsoletes_index[term] : @alternatives_index[term]
 					@term_paths[term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} if !@term_paths.include?(term)
-					@term_paths[obs_term] = @term_paths[term]
-					visited_terms << obs_term
+					@term_paths[special_term] = @term_paths[term]
+					visited_terms << special_term
 				end
+
 				if !visited_terms.include?(term)
 					@term_paths[term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} if !@term_paths.include?(term)
 					parentals = @dicts[:is_a][:byTerm][term]
