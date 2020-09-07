@@ -33,6 +33,8 @@ class Ontology
 	# => @profiles :: set of terms assigned to an ID
 	# => @profilesDict :: set of profile IDs assigned to a term
 	# => @items :: hash with items relations to terms
+	# => @removable_terms :: array of terms to not be considered
+	# => @term_paths :: metainfo about parental paths of each term
 
 	@@basic_tags = {ancestors: [:is_a], obsolete: :is_obsolete, alternative: [:alt_id,:replaced_by,:consider]}
 	@@allowed_calcs = {ics: [:resnick, :resnick_observed, :seco, :zhou, :sanchez], sims: [:resnick, :lin, :jiang_conrath]}
@@ -67,6 +69,7 @@ class Ontology
 		@profilesDict = {}
 		@items = {}
 		@removable_terms = []
+		@term_paths = {}
 		# Load if proceeds
 		add_removable_terms(removable_terms) if !removable_terms.empty?
 		load(file) if load_file
@@ -431,7 +434,7 @@ class Ontology
 		self.get_index_frequencies
 		self.calc_dictionary(:name)
 		self.calc_dictionary(:synonym, select_regex: /\"(.*)\"/)
-		self.calc_term_levels
+		self.calc_term_levels(calc_paths: true)
 	end
 
 
@@ -764,7 +767,8 @@ class Ontology
 					profiles: @profiles,
 					profilesDict: @profilesDict,
 					items: @items,
-					removable_terms: @removable_terms}
+					removable_terms: @removable_terms,
+					term_paths: @term_paths}
 		# Convert to JSON format & write
 		File.open(file, "w") { |f| f.write obj_info.to_json }
 	end
@@ -793,6 +797,8 @@ class Ontology
 					[term.to_s.to_i, value.map{|term| term.to_sym}]
 				elsif value.is_a? Numeric # Numeric dictionary
 					[term.to_sym, value]
+				elsif value.kind_of?(Array) && flag == :is_a
+					[term.to_sym, value.map{|v| v.to_sym}]
 				else
 					[term.to_sym, value]
 				end
@@ -804,6 +810,8 @@ class Ontology
 					[value, term.to_sym]
 				elsif term.is_a? Numeric # Numeric dictionary
 					[value.to_s.to_sym, term]
+				elsif flag == :is_a
+					[value.to_sym, term.to_sym]
 				else
 					[value.to_s, term.to_sym]
 				end
@@ -813,6 +821,15 @@ class Ontology
 		jsonInfo[:profiles].map{|id,terms| terms.map!{|term| term.to_sym}}
 		jsonInfo[:profilesDict].map{|term,ids| ids.map!{|id| id.to_sym}}
 		jsonInfo[:removable_terms] = jsonInfo[:removable_terms].map{|term| term.to_sym}
+		jsonInfo[:special_tags] = jsonInfo[:special_tags].each do |k, v|
+			if v.kind_of?(Array)
+				jsonInfo[:special_tags][k] = v.map{|tag| tag.to_sym}
+			else
+				jsonInfo[:special_tags][k] = v.to_sym
+			end
+		end
+		jsonInfo[:items].each{|k,v| jsonInfo[:items][k] = v.map{|item| item.to_sym}}
+		jsonInfo[:term_paths].each{|term,info| jsonInfo[:term_paths][term][:paths] = info[:paths].map{|path| path.map{|t| t.to_sym}}}
 		# Store info
 		@header = jsonInfo[:header]
 		@stanzas = jsonInfo[:stanzas]
@@ -830,6 +847,7 @@ class Ontology
 		@profilesDict = jsonInfo[:profilesDict]
 		@items = jsonInfo[:items]
 		@removable_terms = jsonInfo[:removable_terms]
+		@term_paths = jsonInfo[:term_paths]
 	end
 
 	# Generate a bidirectinal dictionary set using a specific tag and terms stanzas set
@@ -839,8 +857,10 @@ class Ontology
 	# Params:
 	# +tag+:: to be used to calculate dictionary
 	# +select_regex+:: gives a regfex that can be used to modify value to be stored
+	# +substitute_alternatives+:: flag used to indicate if alternatives must, or not, be replaced by it official ID
 	# Return :: void. And stores calcualted bidirectional dictonary into dictionaries main container
-	def calc_dictionary(tag, select_regex: nil)
+	def calc_dictionary(tag, select_regex: nil, substitute_alternatives: true)
+		tag = tag.to_sym
 		if @stanzas[:terms].empty?
 			warn('Terms are not already loaded. Aborting dictionary calc') 
 		else
@@ -849,7 +869,7 @@ class Ontology
 			# Calc per term
 			@stanzas[:terms].each do |term, tags|
 				referenceTerm = term
-				if !@alternatives_index[term].nil? # Special case
+				if @alternatives_index.include?(term) && substitute_alternatives # Special case
 					referenceTerm = @alternatives_index[term]
 				end
 				queryTag = tags[tag]
@@ -874,6 +894,14 @@ class Ontology
 			end
 			@dicts[tag] = {byTerm: byTerm, byValue: byValue}
 		end
+	end
+
+
+	#
+	#
+	#
+	def calc_ancestors_dictionary
+		self.calc_dictionary(:is_a, substitute_alternatives: false)
 	end
 
 
@@ -991,7 +1019,11 @@ class Ontology
 		if !rejected_terms.empty?
 			warn('Given terms contains erroneus IDs. These IDs will be removed')
 		end
-		@profiles[id.to_sym] = correct_terms  
+		if id.is_a? Numeric
+			@profiles[id] = correct_terms  			
+		else
+			@profiles[id.to_sym] = correct_terms  
+		end
 	end	
 
 
@@ -1200,7 +1232,7 @@ class Ontology
 	# Returns :: array of parentals for each profile
 	def parentals_per_profile
 		cleaned_profiles = self.clean_profiles
-		parentals = @profiles.each{ |id, terms| terms.length - cleaned_profiles[id].length}
+		parentals = @profiles.map{ |id, terms| terms.length - cleaned_profiles[id].length}
 		return parentals
 	end
 
@@ -1233,15 +1265,20 @@ class Ontology
 	# Params:
 	# ++::
 	# Returns 
-	def calc_term_levels
-		if @meta.empty?
-			warn('Terms metainfo are not already loaded. Aborting dictionary calc') 
-		else
+	def calc_term_levels(calc_paths: false, shortest_path: true)
+		if @term_paths.empty?
+			if calc_paths
+				self.calc_term_paths
+			else
+				warn('Term paths are not already loaded. Aborting dictionary calc') 
+			end
+		end
+		if !@term_paths.empty?
 			byTerm = {}
 			byValue = {}
 			# Calc per term
-			@meta.each do |term, info|
-				level = info[:ancestors].round(0)
+			@term_paths.each do |term, info|
+				level = shortest_path ? info[:shortest_path].round(0) : info[:largest_path].round(0)
 				byTerm[term] = level
 				queryLevels = byValue[level]
 				if queryLevels.nil?
@@ -1253,6 +1290,69 @@ class Ontology
 			@dicts[:level] = {byTerm: byValue, byValue: byTerm} # Note: in this case, value has multiplicity and term is unique value
 			# Update maximum depth
 			@max_freqs[:max_depth] = byValue.keys.max
+		end
+	end
+
+
+	# 
+	# Params:
+	# ++::
+	# Returns 
+	def calc_term_paths
+		self.calc_ancestors_dictionary if !@dicts.keys.include?(:is_a) # Calculate direct parentals dictionary if it's not already calculated
+		visited_terms = []
+		@term_paths = {}
+		if [:hierarchical, :sparse].include? @structureType
+			terms = @stanzas[:terms].keys
+			terms.each do |term|
+				if !visited_terms.include?(term)
+					@term_paths[term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []}
+					parentals = @dicts[:is_a][:byTerm][term]
+					if parentals.nil?
+						@term_paths[term][:paths] << [term]
+					else
+						parentals.each do |direct_parental|
+							if visited_terms.include? direct_parental # Use direct_parental already calculated paths
+								new_paths = @term_paths[direct_parental][:paths].map{|path| [term, path].flatten}
+							else # Calculate new paths
+								self.expand_path(direct_parental,visited_terms)
+								new_paths = @term_paths[direct_parental][:paths].map{|path| [term, path].flatten}
+							end
+							new_paths.each{|path| @term_paths[term][:paths] << path}
+						end
+					end
+					visited_terms << term
+				end
+				# Update metadata
+				@term_paths[term][:total_paths] = @term_paths[term][:paths].length
+				paths_sizes = @term_paths[term][:paths].map{|path| path.length}
+				@term_paths[term][:largest_path] = paths_sizes.max
+				@term_paths[term][:shortest_path] = paths_sizes.min
+			end
+		else
+			warn('Ontology structure must be hierarchical or sparse to calculate term levels. Aborting paths calculation')
+		end
+	end
+
+
+	# 
+	# Params:
+	# ++::
+	# Returns 
+	def expand_path(curr_term, visited_terms)
+		if !visited_terms.include?(curr_term) # Not already expanded
+			@term_paths[curr_term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} if @term_paths[curr_term].nil?
+			direct_parentals = @dicts[:is_a][:byTerm][curr_term]
+			if direct_parentals.nil? # No parents :: End of recurrence
+				@term_paths[curr_term][:paths] << [curr_term]
+			else # Expand and concat
+				direct_parentals.each do |ancestor|
+					self.expand_path(ancestor,visited_terms) if !visited_terms.include?(ancestor)
+					new_paths = @term_paths[ancestor][:paths].map{|path| [curr_term, path].flatten}
+					new_paths.each{|path| @term_paths[curr_term][:paths] << path}
+				end
+			end
+			visited_terms << curr_term
 		end
 	end
 
@@ -1444,7 +1544,9 @@ class Ontology
 		self.profilesDict == other.profilesDict &&
 		(self.items.keys - other.items.keys).empty? &&
 		self.removable_terms == other.removable_terms &&
-		# self.special_tags == other.special_tags &&
+		self.special_tags == other.special_tags &&
+		self.items == other.items &&
+		self.term_paths == other.term_paths &&
 		self.max_freqs == other.max_freqs
     end
 
@@ -1453,6 +1555,6 @@ class Ontology
 	# ACCESS CONTROL
 	#############################################
 	## ATTRIBUTES
-	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict, :items, :removable_terms
+	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict, :items, :removable_terms, :term_paths
 
 end
