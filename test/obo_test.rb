@@ -58,8 +58,8 @@ class TestOBOFunctionalities < Minitest::Test
 		@sparse = Ontology.new(file: @file_Sparse[:file],load_file: true)
 
 		# Freqs variables
-		@hierarchical_freqs_default = {:struct_freq=>2.0, :observed_freq=>-1.0, :max_depth=>1.0}
-		@hierarchical_freqs_updated = {:struct_freq=>2.0, :observed_freq=> 2.0, :max_depth=>1.0}
+		@hierarchical_freqs_default = {:struct_freq=>2.0, :observed_freq=>-1.0, :max_depth=>2.0}
+		@hierarchical_freqs_updated = {:struct_freq=>2.0, :observed_freq=> 2.0, :max_depth=>2.0}
 	end
 
 	#################################
@@ -244,9 +244,9 @@ class TestOBOFunctionalities < Minitest::Test
 												 D: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6)) - Math.log10(6.fdiv(6))).fdiv(3)}
 		assert_equal([expected_profiles_IC_resnick, expected_profiles_IC_resnick_observed], @hierarchical.get_profiles_resnick_dual_ICs)
 		# Ontology levels
-		assert_equal({0=>[:Parental], 1=>[:Child2, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles)
-		assert_equal({0=>[:Parental, :Parental, :Parental, :Parental], 1=>[:Child2, :Child2, :Child2, :Child3, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles(false))
-		assert_equal({0=>[:Parental], 1=>[:Child2, :Child1, :Child3, :Child4]}, @hierarchical.get_ontology_levels)
+		assert_equal({1=>[:Parental], 2=>[:Child2, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles)
+		assert_equal({1=>[:Parental, :Parental, :Parental, :Parental], 2=>[:Child2, :Child2, :Child2, :Child3, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles(false))
+		assert_equal({1=>[:Parental], 2=>[:Child1, :Child2, :Child3, :Child4]}, @hierarchical.get_ontology_levels)
 		# Profiles dictionary
 		@hierarchical.calc_profiles_dictionary
 		assert_equal({Child2: [:A, :B, :C], Parental: [:A, :B, :C, :D], Child3: [:C, :D], Child4: [:D]}, @hierarchical.get_terms_linked_profiles)
@@ -271,6 +271,12 @@ class TestOBOFunctionalities < Minitest::Test
 		hierarchical_cutted = Ontology.new(file: @file_Hierarchical[:file],load_file: true, removable_terms: [:Parental])
 		assert_equal(0, hierarchical_cutted.meta[:Child2][:ancestors])
 		assert_nil(hierarchical_cutted.stanzas[:terms][:Parental])
+	end
+
+	def test_term_levels
+		hierarchical = Ontology.new(file: @file_Hierarchical[:file],load_file: true)
+		assert_equal({:total_paths=>1, :largest_path=>2, :shortest_path=>2, :paths=>[[:Child2, :Parental]]}, hierarchical.term_paths[:Child2])
+		assert_equal({1=>[:Parental], 2=>[:Child1, :Child2, :Child3, :Child4]}, hierarchical.get_ontology_levels)
 	end
 
 end
