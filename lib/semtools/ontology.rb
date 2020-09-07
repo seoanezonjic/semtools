@@ -819,7 +819,7 @@ class Ontology
 			dictionaries[:byValue] = dictionaries[:byValue].to_h
 		end 
 		jsonInfo[:profiles].map{|id,terms| terms.map!{|term| term.to_sym}}
-		jsonInfo[:profilesDict].map{|term,ids| ids.map!{|id| id.to_sym}}
+		jsonInfo[:profilesDict].map{|term,ids| ids.map!{|id| id.to_sym if !id.is_a?(Numeric)}}
 		jsonInfo[:removable_terms] = jsonInfo[:removable_terms].map{|term| term.to_sym}
 		jsonInfo[:special_tags] = jsonInfo[:special_tags].each do |k, v|
 			if v.kind_of?(Array)
@@ -1208,10 +1208,15 @@ class Ontology
 	# Remove alternatives (if official term is present) and ancestors terms of a given profile 
 	# Params:
 	# +profile+:: profile to be cleaned
+	# +remove_alternatives+:: if true, clenaed profiles will replace already stored profiles
 	# Returns :: cleaned profile
-	def clean_profile(profile)
+	def clean_profile(profile, remove_alternatives: true)
 		terms_without_ancestors, _ = self.remove_ancestors_from_profile(profile)
-		terms_without_ancestors_and_alternatices, _ = self.remove_alternatives_from_profile(terms_without_ancestors)
+		if remove_alternatives
+			terms_without_ancestors_and_alternatices, _ = self.remove_alternatives_from_profile(terms_without_ancestors)
+		else
+			terms_without_ancestors_and_alternatices = terms_without_ancestors
+		end
 		return terms_without_ancestors_and_alternatices
 	end
 
@@ -1219,10 +1224,11 @@ class Ontology
 	# Remove alternatives (if official term is present) and ancestors terms of stored profiles 
 	# Params:
 	# +store+:: if true, clenaed profiles will replace already stored profiles
+	# +remove_alternatives+:: if true, clenaed profiles will replace already stored profiles
 	# Returns a hash with cleaned profiles
-	def clean_profiles(store: false)
+	def clean_profiles(store: false, remove_alternatives: true)
 		cleaned_profiles = {}
-		@profiles.each{ |id, terms| cleaned_profiles[id] = self.clean_profile(terms)}
+		@profiles.each{ |id, terms| cleaned_profiles[id] = self.clean_profile(terms, remove_alternatives: remove_alternatives)}
 		@profiles = cleaned_profiles if store
 		return cleaned_profiles
 	end
@@ -1231,7 +1237,7 @@ class Ontology
 	# Calculates number of ancestors present (redundant) in each profile stored
 	# Returns :: array of parentals for each profile
 	def parentals_per_profile
-		cleaned_profiles = self.clean_profiles
+		cleaned_profiles = self.clean_profiles(remove_alternatives: false)
 		parentals = @profiles.map{ |id, terms| terms.length - cleaned_profiles[id].length}
 		return parentals
 	end
