@@ -13,7 +13,7 @@ AUX_FOLDER = File.join(BASE_FOLDER, 'aux_files')
 
 # require 'test/unit'
 require 'minitest/autorun'
-require 'obo_handler'
+require 'ontology'
 
 #########################################################
 # Define TESTS
@@ -31,16 +31,16 @@ class TestOBOParserFunctionalities < Minitest::Test
 
 	def test_expand
 		# Test regular
-		assert_equal([:hierarchical,[:Parental]],OBO_Handler.get_related_ids(:Child2, @load_Hierarchical[2][:terms], :is_a))
+		assert_equal([:hierarchical,[:Parental]],Ontology.get_related_ids(:Child2, @load_Hierarchical[2][:terms], :is_a))
 		# Test with already expanded info
 		aux_expansion = {Parental: [:A]}
-		assert_equal([:hierarchical,[:Parental, :A]],OBO_Handler.get_related_ids(:Child2, @load_Hierarchical[2][:terms], :is_a, aux_expansion))		
+		assert_equal([:hierarchical,[:Parental, :A]],Ontology.get_related_ids(:Child2, @load_Hierarchical[2][:terms], :is_a, aux_expansion))		
 		# Test with alternatives
 		aux_expansion = {Parental: [:A]}
-		assert_equal([:hierarchical,[:Parental, :A]],OBO_Handler.get_related_ids(:Child2, @hierarchical_terms, :is_a, aux_expansion, {B: [:Parental]}))		
+		assert_equal([:hierarchical,[:Parental, :A]],Ontology.get_related_ids(:Child2, @hierarchical_terms, :is_a, aux_expansion, {B: [:Parental]}))		
 		# Test circular
-		assert_equal([:circular,[:C,:B]],OBO_Handler.get_related_ids(:A, @load_Circular[2][:terms], :is_a))
-		assert_equal([:circular,[:B,:A]],OBO_Handler.get_related_ids(:C, @load_Circular[2][:terms], :is_a))
+		assert_equal([:circular,[:C,:B]],Ontology.get_related_ids(:A, @load_Circular[2][:terms], :is_a))
+		assert_equal([:circular,[:B,:A]],Ontology.get_related_ids(:C, @load_Circular[2][:terms], :is_a))
 	end
 
 end
