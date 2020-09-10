@@ -379,13 +379,13 @@ class Ontology
 	# +ic_type+:: ic type to be used. Default: resnick
 	# +bidirectional+:: calculate bidirectional similitude. Default: false
 	# Return :: similitude calculated
-	def compare(termsA:, termsB:, sim_type: :resnick, ic_type: :resnick, bidirectional: false)
+	def compare(termsA, termsB, sim_type: :resnick, ic_type: :resnick, bidirectional: true)
 		# Check
 		raise ArgumentError, "Terms sets given are NIL" if termsA.nil? | termsB.nil?
 		micasA = []
 		# Compare A -> B
 		termsA.each do |tA|
-			micas = termsB.map{|tB| self.get_similarity(termA: tA,termB: tB, type: sim_type, ic_type: ic_type)}
+			micas = termsB.map{|tB| self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type)}
 			# Remove special cases
 			[false,nil].each do |err_value| micas.delete(err_value) end
 			# Obtain maximum value
@@ -394,7 +394,7 @@ class Ontology
 		end
 		means_sim = [micasA.inject{ |sum, el| sum + el }.to_f / micasA.size]
 		# Compare B -> A
-		means_sim << self.compare(termsA: termsB, termsB: termsA, sim_type: sim_type, ic_type: ic_type) if bidirectional
+		means_sim << self.compare(termsB, termsA, sim_type: sim_type, ic_type: ic_type, bidirectional: false) if bidirectional
 		# Return
 		return means_sim.inject{ |sum, el| sum + el }.to_f / means_sim.size
 	end

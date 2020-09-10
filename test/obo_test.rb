@@ -193,6 +193,23 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(0.0, @hierarchical.get_similarity(:Parental, :Child2))
 		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_similarity(:Child2, :Child2))
 		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_similarity(:Child2, :Child3))
+		profA = [:Child2, :Child3]
+		profB = [:Child2]
+		profC = [:Parental]
+		profD = [:Parental, :Child1]
+		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.compare(profB, profB, bidirectional: false))
+		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.compare(profB, profB, bidirectional: true))
+		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.compare(profA, profB, bidirectional: false))
+		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.compare(profA, profB, bidirectional: true))
+		assert_equal(-Math.log10(2.fdiv(2)), @hierarchical.compare(profA, profC, bidirectional: false))
+		assert_equal(-Math.log10(2.fdiv(2)), @hierarchical.compare(profA, profC, bidirectional: true))
+		sim_D_A = (-Math.log10(2.fdiv(2)) -Math.log10(1.fdiv(2))).fdiv(2)
+		sim_A_D = -Math.log10(1.fdiv(2))
+		sim_A_D_bi = [sim_A_D, sim_D_A].inject{ |sum, el| sum + el }.to_f / 2
+		assert_equal(sim_A_D, @hierarchical.compare(profA, profD, bidirectional: false))
+		assert_equal(sim_D_A, @hierarchical.compare(profD, profA, bidirectional: false))
+		assert_equal(sim_A_D_bi, @hierarchical.compare(profD, profA, bidirectional: true))
+		assert_equal(@hierarchical.compare(profA, profD, bidirectional: true), @hierarchical.compare(profD, profA, bidirectional: true))
 	end
 
 	def test_profiles
