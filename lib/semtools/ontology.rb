@@ -48,7 +48,7 @@ class Ontology
 	#############################################
 	
 	# Instantiate a OBO_Handler object
-	# Params:
+	# ===== Parameters
 	# +file+:: with info to be loaded (.obo ; .json)
 	# +load:p+:: activate load process automatically (only for .obo)
 	def initialize(file: nil, load_file: false, removable_terms: [])
@@ -82,8 +82,9 @@ class Ontology
 
 	# Expand a (starting) term using a specific tag and return all extended terms into an array and
 	# the relationship structuture observed (hierarchical or circular). If circular structure is
-	# foumd, extended array will be an unique vector without starting term (no loops) 
-	# Param:
+	# foumd, extended array will be an unique vector without starting term (no loops).
+	# +Note+: we extremly recomend use get_related_ids_by_tag function instead of it (directly)
+	# ===== Parameters
 	# +start+:: term where start to expand
 	# +terms+:: set to be used to expand
 	# +target_tag+:: tag used to expand
@@ -91,8 +92,8 @@ class Ontology
 	# +split_info_char+:: special regex used to split info (if it is necessary)
 	# +split_info_indx+:: special index to take splitted info (if it is necessary)
 	# +alt_ids+:: set of alternative IDs
-	# Returns a vector with the observed structure (string) and the array with extended terms
-	# Note: we extremly recomend use get_related_ids_by_tag function instead of it (directly)
+	# ===== Returns 
+	# A vector with the observed structure (string) and the array with extended terms.
 	def self.get_related_ids(start_id, terms, target_tag, related_ids = {}, alt_ids = {})
 		# Take start_id term available info and already accumulated info
 		current_associations = related_ids[start_id]
@@ -142,14 +143,15 @@ class Ontology
 	# Expand terms using a specific tag and return all extended terms into an array and
 	# the relationship structuture observed (hierarchical or circular). If circular structure is
 	# foumd, extended array will be an unique vector without starting term (no loops) 
-	# Param:
+	# ===== Parameters
 	# +terms+:: set to be used to expand
 	# +target_tag+:: tag used to expand
 	# +split_info_char+:: special regex used to split info (if it is necessary)
 	# +split_info_indx+:: special index to take splitted info (if it is necessary)
 	# +alt_ids+:: set of alternative IDs
 	# +obsoletes+:: integer with the number of obsolete IDs. used to calculate structure type.
-	# Returns a vector with the observed structure (string) and the hash with extended terms
+	# ===== Returns 
+	# A vector with the observed structure (string) and the hash with extended terms
 	def self.get_related_ids_by_tag(terms:,target_tag:, alt_ids: {}, obsoletes: 0)
 		# Define structure type
 		structType = :hierarchical
@@ -173,9 +175,10 @@ class Ontology
 
 
 	# Class method to transform string with <tag : info> into hash structure
-	# Param:
+	# ===== Parameters
 	# +attributes+:: array tuples with info to be transformed into hash format
-	# Return attributes stored into hash structure
+	# ===== Returns 
+	# Attributes stored into hash structure
 	def self.info2hash(attributes, split_char = " ! ", selected_field = 0)
 		# Load info
 		info_hash = {}
@@ -212,9 +215,10 @@ class Ontology
 
 	# Class method to load an OBO format file (based on OBO 1.4 format). Specially focused on load
 	# the Header, the Terms, the Typedefs and the Instances.
-	# Param:
+	# ===== Parameters
 	# +file+:: OBO file to be loaded
-	# Returns hash with FILE, HEADER and STANZAS info
+	# ===== Returns 
+	# Hash with FILE, HEADER and STANZAS info
 	def self.load_obo(file) #TODO: Send to obo_parser class
 		raise("File is not defined") if file.nil?
 		# Data variables
@@ -250,12 +254,13 @@ class Ontology
 
 
 	# Handle OBO loaded info and stores it into correct container and format
-	# Params:
+	# ===== Parameters
 	# +header+:: container
 	# +infoType+:: current ontology item type detected
 	# +stanzas+:: container
 	# +currInfo+:: info to be stored
-	# Returns :: header newly/already stored
+	# ===== Returns 
+	# header newly/already stored
 	def self.process_entity(header, infoType, stanzas, currInfo)
 		info = self.info2hash(currInfo)
 		# Store current info
@@ -277,9 +282,8 @@ class Ontology
 
 
 	# Symboliza all values into hashs using symbolizable tags as keys
-	# Params:
+	# ===== Parameters
 	# +item_hash+:: hash to be checked
-	# Return :: void
 	def self.symbolize_ids(item_hash)
 		@@symbolizable_ids.each do |tag|
 			query = item_hash[tag] 
@@ -303,9 +307,8 @@ class Ontology
 	#############################################
 
 	# Include removable terms to current removable terms list
-	# Params:
+	# ===== Parameters
 	# +terms+:: terms array to be concatenated
-	# Return :: void 
 	def add_removable_terms(terms)
 		terms = terms.map{|term| term.to_sym}
 		@removable_terms.concat(terms)
@@ -314,9 +317,8 @@ class Ontology
 
 	# Include removable terms to current removable terms list loading new
 	# terms from a one column plain text file
-	# Params:
+	# ===== Parameters
 	# +file+:: to be loaded 
-	# Return :: void
 	def add_removable_terms_from_file(file)
 		File.open(excluded_codes_file).each do |line|
 			line.chomp!
@@ -326,10 +328,11 @@ class Ontology
 
 	
 	# Increase observed frequency for a specific term
-	# Params:
+	# ===== Parameters
 	# +term+:: term which frequency is going to be increased
 	# +increas+:: frequency rate to be increased. Default = 1
-	# Return :: true if process ends without errors, false in other cases
+	# ===== Return
+	# true if process ends without errors, false in other cases
 	def add_observed_term(term:,increase: 1.0)
 		# Check
 		raise ArgumentError, "Term given is NIL" if term.nil?
@@ -352,11 +355,12 @@ class Ontology
 
 
 	# Increase the arbitrary frequency of a given term set 
-	# Params:
+	# ===== Parameters
 	# +terms+:: set of terms to be updated
 	# +increase+:: amount to be increased
 	# +transform_to_sym+:: if true, transform observed terms to symbols. Default: false
-	# Return :: true if process ends without errors and false in other cases
+	# ===== Return
+	# true if process ends without errors and false in other cases
 	def add_observed_terms(terms:, increase: 1.0, transform_to_sym: false)
 		# Check
 		raise ArgumentError, 'Terms array given is NIL' if terms.nil?
@@ -378,7 +382,8 @@ class Ontology
 	# +sim_type+:: similitude method to be used. Default: resnick
 	# +ic_type+:: ic type to be used. Default: resnick
 	# +bidirectional+:: calculate bidirectional similitude. Default: false
-	# Return :: similitude calculated
+	# ===== Return
+	# similitude calculated
 	def compare(termsA, termsB, sim_type: :resnick, ic_type: :resnick, bidirectional: true)
 		# Check
 		raise ArgumentError, "Terms sets given are NIL" if termsA.nil? | termsB.nil?
@@ -401,9 +406,10 @@ class Ontology
 
 
 	# Expand alternative IDs arround all already stored terms
-	# Params:
+	# ===== Parameters
 	# +alt_tag+:: tag used to expand alternative IDs
-	# Returns true if process ends without errors and false in other cases
+	# ===== Returns 
+	# true if process ends without errors and false in other cases
 	def get_index_alternatives(alt_tag: @@basic_tags[:alternative][0])
 		# Check input
 		raise('stanzas terms empty')  if @stanzas[:terms].empty?
@@ -426,7 +432,8 @@ class Ontology
 
 
 	# Executes basic expansions of tags (alternatives, obsoletes and parentals) with default values
-	# Returns :: true if eprocess ends without errors and false in other cases
+	# ===== Returns 
+	# true if eprocess ends without errors and false in other cases
 	def build_index()
 		self.get_index_alternatives
 		self.get_index_obsoletes
@@ -439,7 +446,8 @@ class Ontology
 
 
 	# Calculates regular frequencies based on ontology structure (using parentals)
-	# Returns :: true if everything end without errors and false in other cases
+	# ===== Returns 
+	# true if everything end without errors and false in other cases
 	def get_index_frequencies()
 		# Check
 		if @ancestors_index.empty?
@@ -478,11 +486,12 @@ class Ontology
 
 
 	# Expand obsoletes set and link info to their alternative IDs
-	# Params:
+	# ===== Parameters
 	# +obs_tags+:: tags to be used to find obsoletes
 	# +alt_tags+:: tags to find alternative IDs (if are available)
 	# +reset_obsoletes+:: flag to indicate if obsoletes set must be reset. Default: true
-	# Returns true if process ends without errors and false in other cases
+	# ===== Returns 
+	# true if process ends without errors and false in other cases
 	def get_index_obsoletes(obs_tag: @@basic_tags[:obsolete], alt_tags: @@basic_tags[:alternative])
 		if @stanzas[:terms].empty?
 			warn('stanzas terms empty')
@@ -508,11 +517,12 @@ class Ontology
 
 
 	# Expand parentals set and link all info to their alternative IDs. Also launch frequencies process
-	# Params:
+	# ===== Parameters
 	# +tag+:: tag used to expand parentals
 	# +split_info_char+:: special regex used to split info (if it is necessary)
 	# +split_info_indx+:: special index to take splitted info (if it is necessary)
-	# Returns true if process ends without errors and false in other cases
+	# ===== Returns 
+	# true if process ends without errors and false in other cases
 	def get_index_child_parent_relations(tag: @@basic_tags[:ancestors][0])
 		# Check
 		if @stanzas[:terms].nil?
@@ -558,31 +568,34 @@ class Ontology
 
 
 	# Find ancestors of a given term
-	# Params:
+	# ===== Parameters
 	# +term+:: to be checked
 	# +filter_alternatives+:: if true, remove alternatives from final results
-	# Returns an array with all ancestors of given term or false if parents are not available yet
+	# ===== Returns 
+	# an array with all ancestors of given term or false if parents are not available yet
 	def get_ancestors(term, filter_alternatives = false)
 		return self.get_familiar(term, true, filter_alternatives)		
 	end
 
 
 	# Find descendants of a given term
-	# Params:
+	# ===== Parameters
 	# +term+:: to be checked
 	# +filter_alternatives+:: if true, remove alternatives from final results
-	# Returns an array with all descendants of given term or false if parents are not available yet
+	# ===== Returns 
+	# an array with all descendants of given term or false if parents are not available yet
 	def get_descendants(term, filter_alternatives = false)
 		return self.get_familiar(term, false, filter_alternatives)		
 	end
 
 
 	# Find ancestors/descendants of a given term
-	# Params:
+	# ===== Parameters
 	# +term+:: to be checked
 	# +return_ancestors+:: return ancestors if true or descendants if false
 	# +filter_alternatives+:: if true, remove alternatives from final results
-	# Returns an array with all ancestors/descendants of given term or nil if parents are not available yet
+	# ===== Returns 
+	# an array with all ancestors/descendants of given term or nil if parents are not available yet
 	def get_familiar(term, return_ancestors = true, filter_alternatives = false)
 		# Find into parentals
 		familiars = return_ancestors ? @ancestors_index[term] : @descendants_index[term]		
@@ -599,12 +612,13 @@ class Ontology
 
 
 	# Obtain IC of an specific term
-	# Params:
+	# ===== Parameters
 	# +term+:: which IC will be calculated
 	# +type+:: of IC to be calculated. Default: resnick
 	# +force+:: force re-calculate the IC. Do not check if it is already calculated
 	# +zhou_k+:: special coeficient for Zhou IC method
-	# Returns the IC calculated
+	# ===== Returns 
+	# the IC calculated
 	def get_IC(termRaw, type: :resnick, force: false, zhou_k: 0.5)
 		term = termRaw.to_sym
 		# Check 
@@ -637,7 +651,8 @@ class Ontology
 
 
 	# Calculates and return resnick ICs (by ontology and observed frequency) for observed terms
-	# Returns two hashes with resnick and resnick_observed ICs for observed terms
+	# ===== Returns 
+	# two hashes with resnick and resnick_observed ICs for observed terms
 	def get_observed_ics_by_onto_and_freq
 		# Chech there are observed terms
 		if @profiles.empty?
@@ -656,11 +671,12 @@ class Ontology
 
 
 	# Find the IC of the Most Index Content shared Ancestor (MICA) of two given terms
-	# Params:
+	# ===== Parameters
 	# +termA+:: term to be cheked
 	# +termB+:: term to be checked
 	# +ic_type+:: IC formula to be used
-	# Returns the IC of the MICA(termA,termB)
+	# ===== Returns 
+	# the IC of the MICA(termA,termB)
 	def get_ICMICA(termA, termB, ic_type = :resnick)
 		mica = self.get_MICA(termA, termB, ic_type)
 		return mica.first.nil? ? nil : mica.last
@@ -668,11 +684,12 @@ class Ontology
 
 
 	# Find the Most Index Content shared Ancestor (MICA) of two given terms
-	# Params:
+	# ===== Parameters
 	# +termA+:: term to be cheked
 	# +termB+:: term to be checked
 	# +ic_type+:: IC formula to be used
-	# Returns the MICA(termA,termB) and it's IC
+	# ===== Returns 
+	# the MICA(termA,termB) and it's IC
 	def get_MICA(termA, termB, ic_type = :resnick)
 		termA = @alternatives_index[termA] if @alternatives_index.include?(termA)
 		termB = @alternatives_index[termB] if @alternatives_index.include?(termB)
@@ -706,12 +723,13 @@ class Ontology
 
 
 	# Calculate similarity between two given terms
-	# Params:
+	# ===== Parameters
 	# +termsA+:: to be compared
 	# +termsB+:: to be compared
 	# +type+:: similitude formula to be used
 	# +ic_type+:: IC formula to be used
-	# Returns the similarity between both sets or false if frequencies are not available yet
+	# ===== Returns 
+	# the similarity between both sets or false if frequencies are not available yet
 	def get_similarity(termA, termB, type: :resnick, ic_type: :resnick)
 		# Check
 		raise ArgumentError, "SIM type specified (#{type}) is not allowed" if !@@allowed_calcs[:sims].include?(type)
@@ -734,9 +752,8 @@ class Ontology
 
 	# Method used to load information stored into an OBO file and store it into this object.
 	# If a file is specified by input parameter, current @file value is updated
-	# Param
+	# ===== Parameters
 	# +file+:: optional file to update object stored file
-	# Return :: void
 	def load(file)
 		_, header, stanzas = self.class.load_obo(file)
 		@header = header
@@ -747,9 +764,8 @@ class Ontology
 
 
 	# Exports an OBO_Handler object in json format
-	# Params:
+	# ===== Parameters
 	# +file+:: where info will be stored
-	# Return :: void
 	def write(file)
 		# Take object stored info
 		obj_info = {header: @header,
@@ -780,9 +796,10 @@ class Ontology
 
 
 	# Read a JSON file with an OBO_Handler object stored
-	# Params:
+	# ===== Parameters
 	# +file+:: with object info
-	# Return :: OBO_Handler internal fields 
+	# ===== Return
+	# OBO_Handler internal fields 
 	def read(file)
 		# Read file
 		jsonFile = File.open(file)
@@ -861,11 +878,12 @@ class Ontology
 	# This functions stores calculated dictionary into @dicts field.
 	# This functions stores first value for multivalue tags
 	# This function does not handle synonyms for byValue dictionaries
-	# Params:
+	# ===== Parameters
 	# +tag+:: to be used to calculate dictionary
 	# +select_regex+:: gives a regfex that can be used to modify value to be stored
 	# +substitute_alternatives+:: flag used to indicate if alternatives must, or not, be replaced by it official ID
-	# Return :: void. And stores calcualted bidirectional dictonary into dictionaries main container
+	# ===== Return
+	# void. And stores calcualted bidirectional dictonary into dictionaries main container
 	def calc_dictionary(tag, select_regex: nil, substitute_alternatives: true)
 		tag = tag.to_sym
 		if @stanzas[:terms].empty?
@@ -905,18 +923,18 @@ class Ontology
 
 
 	# Calculates :is_a dictionary without alternatives substitution
-	# Returns :: void
 	def calc_ancestors_dictionary
 		self.calc_dictionary(:is_a, substitute_alternatives: false)
 	end
 
 
 	# Translate a given value using an already calcualted dictionary
-	# Params:
+	# ===== Parameters
 	# +toTranslate+:: value to be translated using dictiontionary
 	# +tag+:: used to generate the dictionary
 	# +byValue+:: boolean flag to indicate if dictionary must be used values as keys or terms as keys. Default: values as keys = true
-	# Return :: translation
+	# ===== Return
+	# translation
 	def translate(toTranslate, tag, byValue: true)
 		dict = byValue ? @dicts[tag][:byValue] : @dicts[tag][:byTerm]	
 		toTranslate =  get_main_id(toTranslate) if !byValue
@@ -925,9 +943,10 @@ class Ontology
 
 
 	# Translate a name given
-	# Params:
+	# ===== Parameters
 	# +name+:: to be translated
-	# Return :: translated name or nil if it's not stored into this ontology
+	# ===== Return
+	# translated name or nil if it's not stored into this ontology
 	def translate_name(name)
 		term = self.translate(name, :name)
 		term = self.translate(name, :synonym) if term.nil?
@@ -936,9 +955,10 @@ class Ontology
 
 
 	# Translate several names and return translations and a list of names which couldn't be translated
-	# Params:
+	# ===== Parameters
 	# +names+:: array to be translated
-	# Return :: two arrays with translations and names which couldn't be translated respectively
+	# ===== Return
+	# two arrays with translations and names which couldn't be translated respectively
 	def translate_names(names)
 		translated = []
 		rejected = []
@@ -955,9 +975,10 @@ class Ontology
 
 
 	# Translates a given ID to it assigned name
-	# Params:
+	# ===== Parameters
 	# +id+:: to be translated
-	# Return :: main name or nil if it's not included into this ontology
+	# ===== Return
+	# main name or nil if it's not included into this ontology
 	def translate_id(id)
 		name = self.translate(id, :name, byValue: false)
 		return name.nil? ? nil : name.first
@@ -965,9 +986,10 @@ class Ontology
 
 
 	# Translates several IDs and returns translations and not allowed IDs list
-	# Params:
+	# ===== Parameters
 	# +ids+:: to be translated
-	# Return :: two arrays with translations and names which couldn't be translated respectively
+	# ===== Return
+	# two arrays with translations and names which couldn't be translated respectively
 	def translate_ids(ids)
 		translated = []
 		rejected = []
@@ -983,10 +1005,12 @@ class Ontology
 	end
 
 
-	# Returns the main ID assigned to a given ID. If it's a non alternative/obsolete ID itself will be returned
-	# Params:
+	# ===== Returns 
+	# the main ID assigned to a given ID. If it's a non alternative/obsolete ID itself will be returned
+	# ===== Parameters
 	# +id+:: to be translated
-	# Return :: main ID related to a given ID. Returns nil if given ID is not an allowed ID
+	# ===== Return
+	# main ID related to a given ID. Returns nil if given ID is not an allowed ID
 	def get_main_id(id)
 		return nil if !@stanzas[:terms].include? id
 		new_id = id
@@ -997,9 +1021,10 @@ class Ontology
 
 
 	# Check a pull of IDs and return allowed IDs removing which are not official terms on this ontology
-	# Params:
+	# ===== Parameters
 	# +ids+:: to be checked
-	# Return :: two arrays whit allowed and rejected IDs respectively
+	# ===== Return
+	# two arrays whit allowed and rejected IDs respectively
 	def check_ids(ids, substitute: true)
 		checked_codes = []
 		rejected_codes = []
@@ -1019,10 +1044,9 @@ class Ontology
 
 
 	# Stores a given profile with an specific ID. If ID is already assigend to a profile, it will be replaced
-	# Params:
+	# ===== Parameters
 	# +id+:: assigned to profile
 	# +terms+:: array of terms
-	# Return :: void
 	def add_profile(id, terms, substitute: true)
 		warn("Profile assigned to ID (#{id}) is going to be replaced") if @profiles.include? id
 		correct_terms, rejected_terms = self.check_ids(terms, substitute: substitute)
@@ -1037,26 +1061,32 @@ class Ontology
 	end	
 
 
-	# Returns profiles assigned to a given ID
-	# Params:
+	# ===== Returns 
+	# profiles assigned to a given ID
+	# ===== Parameters
 	# +id+:: profile ID
-	# Return :: specific profile or nil if it's not stored
+	# ===== Return
+	# specific profile or nil if it's not stored
 	def get_profile(id)
 		return @profiles[id]
 	end	
 
 
-	# Returns an array of sizes for all stored profiles
-	# Return :: array of profile sizes
+	# ===== Returns 
+	# an array of sizes for all stored profiles
+	# ===== Return
+	# array of profile sizes
 	def get_profiles_sizes()
 		return @profiles.map{|id,terms| terms.length}
 	end
 
 
-	# Returns mean size of stored profiles
-	# Params:
+	# ===== Returns 
+	# mean size of stored profiles
+	# ===== Parameters
 	# +round_digits+:: number of digits to round result. Default: 4
-	# Returns :: mean size of stored profiles
+	# ===== Returns 
+	# mean size of stored profiles
 	def get_profiles_mean_size(round_digits: 4)
 		sizes = self.get_profiles_sizes
 		return sizes.inject(0){|sum, n| sum + n}.fdiv(@profiles.length).round(round_digits)
@@ -1064,10 +1094,11 @@ class Ontology
 
 
 	# Calculates profiles sizes and returns size assigned to percentile given
-	# Params:
+	# ===== Parameters
 	# +perc+:: percentile to be returned
 	# +increasing_sort+:: flag to indicate if sizes order must be increasing. Default: false
-	# Returns :: values assigned to percentile asked
+	# ===== Returns 
+	# values assigned to percentile asked
 	def get_profile_length_at_percentile(perc=50, increasing_sort: false)
 		prof_lengths = self.get_profiles_sizes.sort
 		prof_lengths.reverse! if !increasing_sort
@@ -1079,19 +1110,21 @@ class Ontology
 
 
 	# Translate a given profile to terms names
-	# Params:
+	# ===== Parameters
 	# +prof+:: array of terms to be translated
-	# Returns :: array of translated terms. Can include nils if some IDs are not allowed
+	# ===== Returns 
+	# array of translated terms. Can include nils if some IDs are not allowed
 	def profile_names(prof)
 		return prof.map{|term| self.translate_id(term)}
 	end
 
 
 	# Trnaslates a bunch of profiles to it sets of term names
-	# Params:
+	# ===== Parameters
 	# +profs+:: array of profiles
 	# +asArray+:: flag to indicate if results must be returned as: true => an array of tuples [ProfID, ArrayOdNames] or ; false => hashs of translations
-	# Returns translated profiles
+	# ===== Returns 
+	# translated profiles
 	def translate_profiles_ids(profs = [], asArray: true)
 		profs = @profiles if profs.empty?
 		profs = profs.each_with_index.map{|terms, index| [index, terms]}.to_h if profs.kind_of?(Array)
@@ -1101,9 +1134,8 @@ class Ontology
 
 
 	# Includes as "observed_terms" all terms included into stored profiles
-	# Params:
+	# ===== Parameters
 	# +reset+:: if true, reset observed freqs alreeady stored befor re-calculate
-	# Returns :: void
 	def add_observed_terms_from_profiles(reset: false)
 		@meta.each{|term, freqs| freqs[:observed_freq] = -1} if reset
 		@profiles.each{|id, terms| self.add_observed_terms(terms: terms)}
@@ -1111,41 +1143,45 @@ class Ontology
 
 
 	# Get a term frequency
-	# Params:
+	# ===== Parameters
 	# +term+:: term to be checked
 	# +type+:: type of frequency to be returned. Allowed: [:struct_freq, :observed_freq]
-	# Returns :: frequency of term given or nil if term is not allowed
+	# ===== Returns 
+	# frequency of term given or nil if term is not allowed
 	def get_frequency(term, type: :struct_freq)
 		queryFreq = @meta[term]
 		return queryFreq.nil? ? nil : queryFreq[type]		
 	end
 
 
-	# Returns structural frequency of a term given
-	# Params:
+	# Geys structural frequency of a term given
+	# ===== Parameters
 	# +term+:: to be checked
-	# Returns :: structural frequency of given term or nil if term is not allowed
+	# ===== Returns 
+	# structural frequency of given term or nil if term is not allowed
 	def get_structural_frequency(term)
 		return self.get_frequency(term, type: :struct_freq)
 	end
 
 
-	# Returns observed frequency of a term given
-	# Params:
+	# Gets observed frequency of a term given
+	# ===== Parameters
 	# +term+:: to be checked
-	# Returns :: observed frequency of given term or nil if term is not allowed
+	# ===== Returns 
+	# observed frequency of given term or nil if term is not allowed
 	def get_observed_frequency(term)
 		return self.get_frequency(term, type: :observed_freq)
 	end
 
 
 	# Calculates frequencies of stored profiles terms
-	# Params:
+	# ===== Parameters
 	# +ratio+:: if true, frequencies will be returned as ratios between 0 and 1.
 	# +literal+:: if true, literal terms will be used to calculate frequencies instead translate alternative terms
 	# +asArray+:: used to transform returned structure format from hash of Term-Frequency to an array of tuples [Term, Frequency]
 	# +translate+:: if true, term IDs will be translated to 
-	# Returns :: stored profiles terms frequencies
+	# ===== Returns 
+	# stored profiles terms frequencies
 	def get_profiles_terms_frequency(ratio: true, literal: true, asArray: true, translate: true)
 		n_profiles = @profiles.length
 		if literal
@@ -1194,9 +1230,10 @@ class Ontology
 
 
 	# Clean a given profile returning cleaned set of terms and removed ancestors term.
-	# Params:
+	# ===== Parameters
 	# +prof+:: array of terms to be checked
-	# Returns two arrays, first is the cleaned profile and second is the removed elements array
+	# ===== Returns 
+	# two arrays, first is the cleaned profile and second is the removed elements array
 	def remove_ancestors_from_profile(prof)
 		ancestors = prof.map{|term| self.get_ancestors(term)}.flatten.uniq
 		redundant = prof.select{|term| ancestors.include?(term)}
@@ -1205,9 +1242,10 @@ class Ontology
 
 
 	# Remove alternative IDs if official ID is present. DOES NOT REMOVE synonyms or alternative IDs of the same official ID
-	# Params:
+	# ===== Parameters
 	# +prof+:: array of terms to be checked
-	# Returns two arrays, first is the cleaned profile and second is the removed elements array
+	# ===== Returns 
+	# two arrays, first is the cleaned profile and second is the removed elements array
 	def remove_alternatives_from_profile(prof)
 		alternatives = prof.select{|term| @alternatives_index.include?(term)}
 		redundant = alternatives.select{|alt_id| prof.include?(@alternatives_index[alt_id])}
@@ -1216,10 +1254,11 @@ class Ontology
 
 
 	# Remove alternatives (if official term is present) and ancestors terms of a given profile 
-	# Params:
+	# ===== Parameters
 	# +profile+:: profile to be cleaned
 	# +remove_alternatives+:: if true, clenaed profiles will replace already stored profiles
-	# Returns :: cleaned profile
+	# ===== Returns 
+	# cleaned profile
 	def clean_profile(profile, remove_alternatives: true)
 		terms_without_ancestors, _ = self.remove_ancestors_from_profile(profile)
 		if remove_alternatives
@@ -1232,10 +1271,11 @@ class Ontology
 
 
 	# Remove alternatives (if official term is present) and ancestors terms of stored profiles 
-	# Params:
+	# ===== Parameters
 	# +store+:: if true, clenaed profiles will replace already stored profiles
 	# +remove_alternatives+:: if true, clenaed profiles will replace already stored profiles
-	# Returns a hash with cleaned profiles
+	# ===== Returns 
+	# a hash with cleaned profiles
 	def clean_profiles(store: false, remove_alternatives: true)
 		cleaned_profiles = {}
 		@profiles.each{ |id, terms| cleaned_profiles[id] = self.clean_profile(terms, remove_alternatives: remove_alternatives)}
@@ -1245,7 +1285,8 @@ class Ontology
 
 
 	# Calculates number of ancestors present (redundant) in each profile stored
-	# Returns :: array of parentals for each profile
+	# ===== Returns 
+	# array of parentals for each profile
 	def parentals_per_profile
 		cleaned_profiles = self.clean_profiles(remove_alternatives: false)
 		parentals = @profiles.map{ |id, terms| terms.length - cleaned_profiles[id].length}
@@ -1254,18 +1295,20 @@ class Ontology
 
 
 	#  Calculates mean IC of a given profile
-	# Params:
+	# ===== Parameters
 	# +prof+:: profile to be checked
 	# +ic_type+:: ic_type to be used
 	# +zhou_k+:: special coeficient for Zhou IC method
-	# Returns :: mean IC for a given profile
+	# ===== Returns 
+	# mean IC for a given profile
 	def get_profile_mean_IC(prof, ic_type: :resnick, zhou_k: 0.5)
 		return prof.map{|term| self.get_IC(term, type: ic_type, zhou_k: zhou_k)}.inject(0){|sum,x| sum + x}.fdiv(prof.length)
 	end	
 
 
 	# Calculates resnick ontology, and resnick observed mean ICs for all profiles stored
-	# Returns :: two hashes with Profiles and IC calculated for resnick and observed resnick respectively
+	# ===== Returns 
+	# two hashes with Profiles and IC calculated for resnick and observed resnick respectively
 	def get_profiles_resnick_dual_ICs
 		struct_ics = {}
 		observ_ics = {}
@@ -1278,10 +1321,9 @@ class Ontology
 
 
 	# Calculates ontology structural levels for all ontology terms
-	# Params:
+	# ===== Parameters
 	# +calc_paths+:: calculates term paths if it's not already calculated
 	# +shortest_path+:: if true, level is calculated with shortest path, largest path will be used in other cases
-	# Returns :: void
 	def calc_term_levels(calc_paths: false, shortest_path: true)
 		if @term_paths.empty?
 			if calc_paths
@@ -1311,17 +1353,18 @@ class Ontology
 	end
 
 
+	# Check if a term given is marked as obsolete
 	def is_obsolete? term
 		return @obsoletes_index.include?(term)
 	end
 
+	# Check if a term given is marked as alternative
 	def is_alternative? term
 		return @alternatives_index.include?(term)
 	end
 
 	# Find paths of a term following it ancestors and stores all possible paths for it and it's parentals.
 	# Also calculates paths metadata and stores into @term_paths
-	# Returns :: void
 	def calc_term_paths
 		self.calc_ancestors_dictionary if !@dicts.keys.include?(:is_a) # Calculate direct parentals dictionary if it's not already calculated
 		visited_terms = []
@@ -1368,10 +1411,9 @@ class Ontology
 
 
 	# Recursive function whic finds paths of a term following it ancestors and stores all possible paths for it and it's parentals
-	# Params:
+	# ===== Parameters
 	# +curr_term+:: current visited term
 	# +visited_terms+:: already expanded terms
-	# Returns :: void
 	def expand_path(curr_term, visited_terms)
 		if !visited_terms.include?(curr_term) # Not already expanded
 			@term_paths[curr_term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} if @term_paths[curr_term].nil?
@@ -1390,15 +1432,17 @@ class Ontology
 	end
 
 
-	# Return ontology levels calculated
-	# Returns :: ontology levels calculated
+	# Gets ontology levels calculated
+	# ===== Returns 
+	# ontology levels calculated
 	def get_ontology_levels
 		return @dicts[:level][:byTerm] # By term, in this case, is Key::Level, Value::Terms
 	end
 
 
 	# Return ontology levels from profile terms
-	# Returns :: hash of term levels (Key: level; Value: array of term IDs)
+	# ===== Returns 
+	# hash of term levels (Key: level; Value: array of term IDs)
 	def get_ontology_levels_from_profiles(uniq = true) # TODO: remove uniq and check dependencies
 		profiles_terms = @profiles.values.flatten
 		profiles_terms.uniq! if uniq
@@ -1417,7 +1461,6 @@ class Ontology
 
 
 	# Calculate profiles dictionary with Key= Term; Value = Profiles
-	# Returns :: void
 	def calc_profiles_dictionary
 		if @profiles.empty?
 			warn('Profiles are not already loaded. Aborting dictionary calc')
@@ -1438,26 +1481,30 @@ class Ontology
 	end
 
 
-	# Return :: profiles dictionary (clone)
+	# Gets profiles dictionary calculated
+	# ===== Return
+	# profiles dictionary (clone)
 	def get_terms_linked_profiles
 		return @profilesDict.clone
 	end	
 
 
 	# Get related profiles to a given term
-	# Params:
+	# ===== Parameters
 	# +term+:: to be checked
-	# Returns :: profiles which contains given term
+	# ===== Returns 
+	# profiles which contains given term
 	def get_term_linked_profiles(term)
 		return @profilesDict[term]
 	end
 
 
-	# Returns metainfo table from a set of terms
-	# Params:
+	# Gets metainfo table from a set of terms
+	# ===== Parameters
 	# +terms+:: IDs to be expanded
 	# +filter_alternatives+:: flag to be used in get_descendants method
-	# Returns :: an array with triplets [TermID, TermName, DescendantsNames]
+	# ===== Returns 
+	# an array with triplets [TermID, TermName, DescendantsNames]
 	def get_childs_table(terms, filter_alternatives = false)
 		expanded_terms = []
 		terms.each do |t|
@@ -1468,10 +1515,9 @@ class Ontology
 
 
 	# Method used to store a pull of profiles
-	# Params:
+	# ===== Parameters
 	# +profiles+:: array/hash of profiles to be stored. If it's an array, numerical IDs will be assigned starting at 1 
 	# +calc_metadata+:: if true, launch calc_profiles_dictionary process
-	# Returns :: void
 	def load_profiles(profiles, calc_metadata: true) # TODO: refactor to use add_profile()
 		# Check
 		mergeable_profiles = {}
@@ -1494,10 +1540,9 @@ class Ontology
 
 
 	# Store specific relations hash given into ITEMS structure
-	# Params:
+	# ===== Parameters
 	# +relations+:: to be stored
 	# +remove_old_relations+:: substitute ITEMS structure instead of merge new relations
-	# Returns :: void
 	def load_item_relations_to_terms(relations, remove_old_relations = false)
 		@items = {} if remove_old_relations
 		if !relations.select{|term, items| !@stanzas[:terms].include?(term)}.empty?
@@ -1513,10 +1558,11 @@ class Ontology
 
 
 	# NO IDEA WHAT THIS DOES. DON'T USE THIS METHODS IS NOT CHECKED
-	# Params:
+	# ===== Parameters
 	# ++::
-	# Returns
-	def compute_relations_to_items(external_item_list, mode, thresold)
+	# ===== Returns
+	# ...
+ 	def compute_relations_to_items(external_item_list, mode, thresold)
 		results = []
 		penalized_terms = {}
 		terms_levels = get_terms_levels(@items_relations.keys)
@@ -1552,13 +1598,22 @@ class Ontology
 
 
 	# Check if a given ID is a removable (blacklist) term
-	# Params:
+	# ===== Parameters
 	# +id+:: to be checked
-	# Returns :: true if given term is a removable (blacklist) term or false in other cases
+	# ===== Returns 
+	# true if given term is a removable (blacklist) term or false in other cases
 	def is_removable(id)
 		return @removable_terms.include?(id.to_sym)
 	end
 
+	# Check if a given ID is a removable (blacklist) term
+	# ===== Parameters
+	# +id+:: to be checked
+	# ===== Returns 
+	# true if given term is a removable (blacklist) term or false in other cases
+	def is_removable? id
+		return @removable_terms.include?(id.to_sym)
+	end
 
 	############################################
 	# SPECIAL METHODS
