@@ -415,7 +415,7 @@ class Ontology
 	# +bidirectional+:: calculate bidirectional similitude. Default: false
 	# ===== Return
 	# Similitudes calculated
-	def compare_profiles(external_profiles:, sim_type: :resnick, ic_type: :resnick, bidirectional: true)
+	def compare_profiles(external_profiles: nil, sim_type: :resnick, ic_type: :resnick, bidirectional: true)
 		profiles_similarity = {} #calculate similarity between patients profile
 		profiles_ids = @profiles.keys
 		while !profiles_ids.empty?
