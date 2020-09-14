@@ -1,13 +1,15 @@
 require 'json'
 
-#########################################################
-# AUTHOR NOTES
-#########################################################
-
-# 1 - Store @profiles as @stanzas[:instances]
-# 2 - Items values (not keys) are imported as strings, not as symbols (maybe add a flag which indicates if values are, or not, symbols?) 
 
 class Ontology
+	#########################################################
+	# AUTHOR NOTES
+	#########################################################
+
+	# 1 - Store @profiles as @stanzas[:instances]
+	# 2 - Items values (not keys) are imported as strings, not as symbols (maybe add a flag which indicates if values are, or not, symbols?) 
+
+
 	#############################################
 	# FIELDS
 	#############################################
@@ -40,7 +42,7 @@ class Ontology
 	@@allowed_calcs = {ics: [:resnick, :resnick_observed, :seco, :zhou, :sanchez], sims: [:resnick, :lin, :jiang_conrath]}
 	@@symbolizable_ids = [:id, :alt_id, :replaced_by, :consider]
 	@@tags_with_trailing_modifiers = [:is_a, :union_of, :disjoint_from, :relationship, :subsetdef, :synonymtypedef, :property_value]
-	@@multivalue_tags = [:alt_id, :is_a, :subset, :synonym, :xref, :intersection_of, :union_of, :disjoint_from, :relationship, :replaced_by, :consider, :subsetdef, :synonymtypedef, :property_value]
+	@@multivalue_tags = [:alt_id, :is_a, :subset, :synonym, :xref, :intersection_of, :union_of, :disjoint_from, :relationship, :replaced_by, :consider, :subsetdef, :synonymtypedef, :property_value, :remark]
 	@@symbolizable_ids.concat(@@tags_with_trailing_modifiers)
 	
 	#############################################
@@ -907,10 +909,13 @@ class Ontology
 						else
 							queryTag = queryTag.scan(select_regex).first
 						end
+						queryTag.compact!
 					end
 					if queryTag.kind_of?(Array) # Store
-						byTerm[referenceTerm] = queryTag
-						queryTag.each{|value| byValue[value] = referenceTerm}
+						if !queryTag.empty?
+							byTerm[referenceTerm] = queryTag
+							queryTag.each{|value| byValue[value] = referenceTerm}
+						end
 					else
 						byTerm[referenceTerm] = [queryTag]
 						byValue[queryTag] = referenceTerm
@@ -1436,7 +1441,15 @@ class Ontology
 	# ===== Returns 
 	# ontology levels calculated
 	def get_ontology_levels
-		return @dicts[:level][:byTerm] # By term, in this case, is Key::Level, Value::Terms
+		return @dicts[:level][:byTerm].clone # By term, in this case, is Key::Level, Value::Terms
+	end
+
+
+	# Gets ontology level of a specific term
+	# ===== Returns 
+	# Term level
+	def get_term_level(term)
+		return @dicts[:level][:byValue][term]
 	end
 
 
@@ -1565,7 +1578,10 @@ class Ontology
  	def compute_relations_to_items(external_item_list, mode, thresold)
 		results = []
 		penalized_terms = {}
-		terms_levels = get_terms_levels(@items_relations.keys)
+		# terms_levels = get_terms_levels(@items_relations.keys)
+		terms_with_items_levels = @items_relations.keys.map{|term| self.get_term_level(term)}.uniq
+		terms_levels = self.get_ontology_levels().select{|k,v| terms_with_items_levels.include?(k)}
+		terms_levels = terms_levels.each{|level,terms| [level, terms.select{|t| @items_relations.keys.include?(t)}] } # Use only items terms. MAYBE IT'S NOT OUR TARGET (line added by fmj)
 		levels = terms_levels.keys.sort
 		levels.reverse_each do |level|
 			terms_levels[level].each do |term|
@@ -1642,7 +1658,7 @@ class Ontology
 	#############################################
 	# ACCESS CONTROL
 	#############################################
-	## ATTRIBUTES
+
 	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict, :items, :removable_terms, :term_paths
 
 end
