@@ -169,6 +169,9 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(:Child2, @hierarchical.translate_name(aux_synonym[:Child2].first))
 		assert_nil(@hierarchical.translate_name("Erroneous name"))
 		assert_equal('All', @hierarchical.translate_id(:Parental))
+		@hierarchical.calc_dictionary(:name, store_tag: :test)
+		assert_equal(@hierarchical.dicts[:name], @hierarchical.dicts[:test])
+		assert_equal({"All"=>[:Parental], "Child1"=>[:Child1], "Child2"=>[:Child2, :Child3, :Child4]}, @hierarchical.calc_dictionary(:name, substitute_alternatives: false, multiterm: true)[:byValue])
 	end
 
 	def test_familiars_and_valids
@@ -210,6 +213,11 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(sim_D_A, @hierarchical.compare(profD, profA, bidirectional: false))
 		assert_equal(sim_A_D_bi, @hierarchical.compare(profD, profA, bidirectional: true))
 		assert_equal(@hierarchical.compare(profA, profD, bidirectional: true), @hierarchical.compare(profD, profA, bidirectional: true))
+		# Store and compare
+		@hierarchical.add_profile(:A,profA, substitute: false)
+		@hierarchical.add_profile(:D,profD, substitute: false)
+		assert_equal(sim_A_D_bi, @hierarchical.compare_profiles[:A][:D])
+		assert_equal(-Math.log10(2.fdiv(2)), @hierarchical.compare_profiles(external_profiles: {C: profC})[:A][:C])
 	end
 
 	def test_profiles

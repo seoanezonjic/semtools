@@ -418,11 +418,19 @@ class Ontology
 	def compare_profiles(external_profiles: nil, sim_type: :resnick, ic_type: :resnick, bidirectional: true)
 		profiles_similarity = {} #calculate similarity between patients profile
 		profiles_ids = @profiles.keys
+		if external_profiles.nil?
+			comp_ids = profiles_ids
+			comp_profiles = @profiles
+		else
+			comp_ids = external_profiles.keys
+			comp_profiles = external_profiles
+		end
+		# Compare
 		while !profiles_ids.empty?
 			curr_id = profiles_ids.shift
 			current_profile = @profiles[curr_id]
-			profiles_ids.each do |id|
-				profile = @profiles[id]
+			comp_ids.each do |id|
+				profile = comp_profiles[id]
 				value = compare(profile, current_profile, sim_type: sim_type, ic_type: ic_type, bidirectional: bidirectional)
 				query = profiles_similarity[curr_id]
 				if query.nil?
@@ -913,10 +921,13 @@ class Ontology
 	# +tag+:: to be used to calculate dictionary
 	# +select_regex+:: gives a regfex that can be used to modify value to be stored
 	# +substitute_alternatives+:: flag used to indicate if alternatives must, or not, be replaced by it official ID
+	# +store_tag+:: flag used to store dictionary. If nil, mandatory tag given will be used
+	# +multiterm+:: if true, byValue will allows multi-term linkage (array)
 	# ===== Return
 	# void. And stores calcualted bidirectional dictonary into dictionaries main container
-	def calc_dictionary(tag, select_regex: nil, substitute_alternatives: true)
+	def calc_dictionary(tag, select_regex: nil, substitute_alternatives: true, store_tag: nil, multiterm: false)
 		tag = tag.to_sym
+		store_tag = tag if store_tag.nil?
 		if @stanzas[:terms].empty?
 			warn('Terms are not already loaded. Aborting dictionary calc') 
 		else
@@ -943,15 +954,27 @@ class Ontology
 					if queryTag.kind_of?(Array) # Store
 						if !queryTag.empty?
 							byTerm[referenceTerm] = queryTag
-							queryTag.each{|value| byValue[value] = referenceTerm}
+							if multiterm
+								queryTag.each do |value|
+									byValue[value] = [] if byValue[value].nil? 
+									byValue[value] << referenceTerm
+								end								
+							else
+								queryTag.each{|value| byValue[value] = referenceTerm}
+							end
 						end
 					else
 						byTerm[referenceTerm] = [queryTag]
-						byValue[queryTag] = referenceTerm
+						if multiterm
+							byValue[queryTag] = [] if byValue[queryTag].nil?
+							byValue[queryTag] << referenceTerm
+						else
+							byValue[queryTag] = referenceTerm
+						end
 					end
 				end
 			end
-			@dicts[tag] = {byTerm: byTerm, byValue: byValue}
+			@dicts[store_tag] = {byTerm: byTerm, byValue: byValue}
 		end
 	end
 
