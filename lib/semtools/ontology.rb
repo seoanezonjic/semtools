@@ -378,7 +378,7 @@ class Ontology
 
 
 	# Compare to terms sets 
-	# Params
+	# ===== Parameters
 	# +termsA+:: set to be compared
 	# +termsB+:: set to be compared
 	# +sim_type+:: similitude method to be used. Default: resnick
@@ -404,6 +404,35 @@ class Ontology
 		means_sim << self.compare(termsB, termsA, sim_type: sim_type, ic_type: ic_type, bidirectional: false) if bidirectional
 		# Return
 		return means_sim.inject{ |sum, el| sum + el }.to_f / means_sim.size
+	end
+
+
+	# Compare internal stored profiles against another set of profiles. If an external set is not provided, internal profiles will be compared with itself 
+	# ===== Parameters
+	# +external_profiles+:: set of external profiles. If nil, internal profiles will be compared with itself
+	# +sim_type+:: similitude method to be used. Default: resnick
+	# +ic_type+:: ic type to be used. Default: resnick
+	# +bidirectional+:: calculate bidirectional similitude. Default: false
+	# ===== Return
+	# Similitudes calculated
+	def compare_profiles(external_profiles:, sim_type: :resnick, ic_type: :resnick, bidirectional: true)
+		profiles_similarity = {} #calculate similarity between patients profile
+		profiles_ids = @profiles.keys
+		while !profiles_ids.empty?
+			curr_id = profiles_ids.shift
+			current_profile = @profiles[curr_id]
+			profiles_ids.each do |id|
+				profile = @profiles[id]
+				value = compare(profile, current_profile, sim_type: sim_type, ic_type: ic_type, bidirectional: bidirectional)
+				query = profiles_similarity[curr_id]
+				if query.nil?
+				  profiles_similarity[curr_id] = {id => value}
+				else
+				  query[id] = value
+				end
+			end    
+		end
+		return profiles_similarity
 	end
 
 
