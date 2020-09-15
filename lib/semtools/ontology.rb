@@ -781,7 +781,7 @@ class Ontology
 					sim = sim_res
 				when :lin
 					sim = (2.0 * sim_res).fdiv(self.get_IC(termA,type: ic_type) + self.get_IC(termB,type: ic_type))
-				when :jiang_conrath
+				when :jiang_conrath # This is not a similarity, this is a disimilarity (distance)
 					sim = (self.get_IC(termA, type: ic_type) + self.get_IC(termB, type: ic_type)) - (2.0 * sim_res)
 			end
 		end
@@ -1665,12 +1665,14 @@ class Ontology
 	end
 
 
-	# Check if a given ID is a removable (blacklist) term
+	# Check if a given ID is a removable (blacklist) term.
+	# +DEPRECATED+ use is_removable? instead
 	# ===== Parameters
 	# +id+:: to be checked
 	# ===== Returns 
 	# true if given term is a removable (blacklist) term or false in other cases
 	def is_removable(id)
+		warn "[DEPRECATION] `is_removable` is deprecated.  Please use `is_removable?` instead."
 		return @removable_terms.include?(id.to_sym)
 	end
 
