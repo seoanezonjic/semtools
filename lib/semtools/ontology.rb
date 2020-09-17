@@ -413,9 +413,10 @@ class Ontology
 	# +sim_type+:: similitude method to be used. Default: resnick
 	# +ic_type+:: ic type to be used. Default: resnick
 	# +bidirectional+:: calculate bidirectional similitude. Default: false
+	# +against_external+:: if true, profiles will be compared against external_profiles. If false, reverse comparisson will be applied
 	# ===== Return
 	# Similitudes calculated
-	def compare_profiles(external_profiles: nil, sim_type: :resnick, ic_type: :resnick, bidirectional: true)
+	def compare_profiles(external_profiles: nil, sim_type: :resnick, ic_type: :resnick, bidirectional: true, against_external: true)
 		profiles_similarity = {} #calculate similarity between patients profile
 		profiles_ids = @profiles.keys
 		if external_profiles.nil?
@@ -425,10 +426,19 @@ class Ontology
 			comp_ids = external_profiles.keys
 			comp_profiles = external_profiles
 		end
+		if against_external
+			main_ids = profiles_ids
+			main_profiles = @profiles
+		else
+			main_ids = comp_ids
+			main_profiles = comp_profiles
+			comp_ids = profiles_ids
+			comp_profiles = @profiles		
+		end
 		# Compare
-		while !profiles_ids.empty?
-			curr_id = profiles_ids.shift
-			current_profile = @profiles[curr_id]
+		while !main_ids.empty?
+			curr_id = main_ids.shift
+			current_profile = main_profiles[curr_id]
 			comp_ids.each do |id|
 				profile = comp_profiles[id]
 				value = compare(profile, current_profile, sim_type: sim_type, ic_type: ic_type, bidirectional: bidirectional)
@@ -873,6 +883,8 @@ class Ontology
 					[value.to_s.to_sym, term]
 				elsif flag == :is_a
 					[value.to_sym, term.to_sym]
+				elsif term.kind_of?(Array)
+					[value.to_sym, term.map{|t| t.to_sym}]
 				else
 					[value.to_s, term.to_sym]
 				end
@@ -1104,6 +1116,7 @@ class Ontology
 	# ===== Parameters
 	# +id+:: assigned to profile
 	# +terms+:: array of terms
+	# +substitute+:: subsstitute flag from check_ids
 	def add_profile(id, terms, substitute: true)
 		warn("Profile assigned to ID (#{id}) is going to be replaced") if @profiles.include? id
 		correct_terms, rejected_terms = self.check_ids(terms, substitute: substitute)
@@ -1116,6 +1129,44 @@ class Ontology
 			@profiles[id.to_sym] = correct_terms  
 		end
 	end	
+
+
+	# Method used to store a pull of profiles
+	# ===== Parameters
+	# +profiles+:: array/hash of profiles to be stored. If it's an array, numerical IDs will be assigned starting at 1 
+	# +calc_metadata+:: if true, launch calc_profiles_dictionary process
+	# +reset_stored+:: if true, remove already stored profiles
+	# +substitute+:: subsstitute flag from check_ids
+	def load_profiles(profiles, calc_metadata: true, reset_stored: false, substitute: false)
+		self.reset_profiles if reset_stored
+		# Check
+		if profiles.kind_of?(Array)
+			profiles.each_with_index do |items, i|
+				self.add_profile(i, items.map {|item| item.to_sym}, substitute: substitute)
+			end
+		else # Hash
+			if !profiles.keys.select{|id| @profiles.include?(id)}.empty?
+				warn('Some profiles given are already stored. Stored version will be replaced')
+			end
+			profiles.each{|id, prof| self.add_profile(id, prof, substitute: substitute)}
+		end
+
+		self.add_observed_terms_from_profiles(reset: true)
+
+		if calc_metadata
+			self.calc_profiles_dictionary
+		end
+	end
+
+
+	# Internal method used to remove already stored profiles and restore observed frequencies
+	def reset_profiles
+		# Clean profiles storage
+		@profiles = {}
+		# Reset frequency observed
+		@meta.each{|term,info| info[:observed_freq] = -1}
+		@max_freqs[:observed_freq] = -1
+	end
 
 
 	# ===== Returns 
@@ -1576,31 +1627,6 @@ class Ontology
 			expanded_terms << [[t, self.translate_id(t)], self.get_descendants(t, filter_alternatives).map{|child| [child, self.translate_id(child)]}]
 		end
 		return expanded_terms
-	end
-
-
-	# Method used to store a pull of profiles
-	# ===== Parameters
-	# +profiles+:: array/hash of profiles to be stored. If it's an array, numerical IDs will be assigned starting at 1 
-	# +calc_metadata+:: if true, launch calc_profiles_dictionary process
-	def load_profiles(profiles, calc_metadata: true) # TODO: refactor to use add_profile()
-		# Check
-		mergeable_profiles = {}
-		if profiles.kind_of? Array
-			profiles.each_with_index do |items, i|
-				mergeable_profiles[i] = items.map {|item| item.to_sym}
-			end
-		elsif !profiles.keys.select{|id| @profiles.include?(id)}.empty? # Assume that !Array => isHash
-			warn('Some profiles given are already stored. Stored version will be replaced')
-		else
-			mergeable_profiles = profiles			
-		end
-		@profiles.merge!(mergeable_profiles) # Merge
-		mergeable_profiles.each{ |k,v| self.add_observed_terms(terms: v)} # Update
-
-		if calc_metadata
-			self.calc_profiles_dictionary
-		end
 	end
 
 
