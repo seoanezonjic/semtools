@@ -342,11 +342,11 @@ class Ontology
 		return false if @removable_terms.include?(term)
 		if @alternatives_index.include?(term)
 			alt_id = @alternatives_index[term]
-			@meta[alt_id] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => -1.0} if @meta[alt_id].nil?
+			@meta[alt_id] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => 0.0} if @meta[alt_id].nil?
 			@meta[term] = @meta[alt_id] 			
 		end
 		# Check if exists
-		@meta[term] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => -1.0} if @meta[term].nil?
+		@meta[term] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => 0.0} if @meta[term].nil?
 		# Add frequency
 		@meta[term][:observed_freq] = 0 if @meta[term][:observed_freq] == -1
 		@meta[term][:observed_freq] += increase
@@ -676,23 +676,50 @@ class Ontology
 		return @ics[type][term] if (@ics[type].include? term) && !force
 		# Calculate
 		ic = - 1
-		case type
-			when :resnick
+		case type # https://arxiv.org/ftp/arxiv/papers/1310/1310.8059.pdf  |||  https://sci-hub.st/https://doi.org/10.1016/j.eswa.2012.01.082
+			###########################################
+			#### STRUCTURE BASED METRICS
+			###########################################
+			# Shortest path
+			# Weighted Link
+			# Hirst and St-Onge Measure
+			# Wu and Palmer
+			# Slimani
+			# Li
+			# Leacock and Chodorow
+			###########################################
+			#### INFORMATION CONTENT METRICS
+			###########################################
+			when :resnick # Resnik P: Using Information Content to Evaluate Semantic Similarity in a Taxonomy
 				# -log(Freq(x) / Max_Freq)
 				ic = -Math.log10(@meta[term][:struct_freq].fdiv(@max_freqs[:struct_freq]))
-			when :resnick_observed
+			when :resnick_observed 
 				# -log(Freq(x) / Max_Freq)
 				ic = -Math.log10(@meta[term][:observed_freq].fdiv(@max_freqs[:observed_freq]))
-			when :seco, :zhou
+			# Lin
+			# Jiang & Conrath
+
+			###########################################
+			#### FEATURE-BASED METRICS
+			###########################################
+			# Tversky
+			# x-similarity
+			# Rodirguez
+
+			###########################################
+			#### HYBRID METRICS
+			###########################################
+			when :seco, :zhou # SECO:: An intrinsic information content metric for semantic similarity in WordNet
 				#  1 - ( log(hypo(x) + 1) / log(max_nodes) )
-				ic = 1 - Math.log10(@meta[term][:struct_freq]).fdiv(Math.log10(@stanzas[:terms].length - @alternatives.length))
-				if :zhou				
+				ic = 1 - Math.log10(@meta[term][:struct_freq]).fdiv(Math.log10(@stanzas[:terms].length - @alternatives_index.length))
+				if :zhou # New Model of Semantic Similarity Measuring in Wordnet				
 					# k*(IC_Seco(x)) + (1-k)*(log(depth(x))/log(max_depth))
 					@ics[:seco][term] = ic # Special store
 					ic = zhou_k * ic + (1.0 - zhou_k) * (Math.log10(@meta[term][:descendants]).fdiv(Math.log10(@max_freqs[:max_depth])))
 				end
-			when :sanchez
+			when :sanchez # Semantic similarity estimation in the biomedical domain: An ontology-basedinformation-theoretic perspective
 				ic = -Math.log10((@meta[term][:descendants].fdiv(@meta[term][:ancestors]) + 1.0).fdiv(@max_freqs[:max_depth] + 1.0))
+			# Knappe
 		end			
 		@ics[type][term] = ic
 		return ic
@@ -1164,8 +1191,8 @@ class Ontology
 		# Clean profiles storage
 		@profiles = {}
 		# Reset frequency observed
-		@meta.each{|term,info| info[:observed_freq] = -1}
-		@max_freqs[:observed_freq] = -1
+		@meta.each{|term,info| info[:observed_freq] = 0}
+		@max_freqs[:observed_freq] = 0
 	end
 
 
