@@ -300,7 +300,32 @@ class Ontology
 	end
 
 
-
+	#
+	# ===== Parameters
+	# +root+:: main term to expand
+	# +ontology+:: to be cutted
+	# +clone+:: if true, given ontology object will not be mutated
+	# +remove_up+:: if true, stores only the root term given an it descendants. If false, only root ancestors will be stored
+	# ===== Returns
+	# An Ontology object with terms after cut the ontology.
+	def self.mutate(root, ontology, clone: true, remove_up: true)
+		ontology = ontology.clone if clone
+		# Obtain affected IDs
+		descendants = ontology.descendants_index[root]
+		descendants << root # Store itself to do not remove it
+		# Remove unnecesary terms
+		ontology.stanzas[:terms] = ontology.stanzas[:terms].select{|id,v| remove_up ? descendants.include?(id) : !descendants.include?(id)}
+		ontology.ics = Hash[@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}]
+		ontology.max_freqs = {:struct_freq => -1.0, :observed_freq => -1.0, :max_depth => -1.0}
+		ontology.dicts = {}
+		ontology.removable_terms = []
+		ontology.term_paths = {}
+		# Recalculate metadata
+		ontology.build_index
+		ontology.add_observed_terms_from_profiles
+		# Finish
+		return ontology
+	end
 
 
 
@@ -1472,7 +1497,12 @@ class Ontology
 			byValue = {}
 			# Calc per term
 			@term_paths.each do |term, info|
-				level = shortest_path ? info[:shortest_path].round(0) : info[:largest_path].round(0)
+				level = shortest_path ? info[:shortest_path] : info[:largest_path]
+				if level.nil?
+					level = -1
+				else
+					level = level.round(0)
+				end
 				byTerm[term] = level
 				queryLevels = byValue[level]
 				if queryLevels.nil?
@@ -1761,11 +1791,35 @@ class Ontology
 		self.max_freqs == other.max_freqs
     end
 
+
+    def clone
+    	copy = Ontology.new
+    	copy.header = self.header.clone
+		copy.stanzas[:terms] = self.stanzas[:terms].clone
+		copy.stanzas[:typedefs] = self.stanzas[:typedefs].clone
+		copy.stanzas[:instances] = self.stanzas[:instances].clone
+		copy.ancestors_index = self.ancestors_index.clone
+		copy.descendants_index = self.descendants_index.clone
+		copy.alternatives_index = self.alternatives_index.clone
+		copy.obsoletes_index = self.obsoletes_index.clone
+		copy.structureType = self.structureType.clone
+		copy.ics = self.ics.clone
+		copy.meta = self.meta.clone
+		copy.dicts = self.dicts.clone
+		copy.profiles = self.profiles.clone
+		copy.profilesDict = self.profilesDict.clone
+		copy.items = self.items.clone
+		copy.removable_terms = self.removable_terms.clone
+		copy.term_paths = self.term_paths.clone
+		copy.max_freqs = self.max_freqs.clone
+		return copy
+    end
+
 	
 	#############################################
 	# ACCESS CONTROL
 	#############################################
 
-	attr_reader :file, :header, :stanzas, :ancestors_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict, :items, :removable_terms, :term_paths
-
+	attr_reader :file, :header, :stanzas, :ancestors_index, :descendants_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict, :items, :removable_terms, :term_paths
+	attr_writer :file, :header, :stanzas, :ancestors_index, :descendants_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict, :items, :removable_terms, :term_paths
 end
