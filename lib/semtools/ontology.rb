@@ -1017,7 +1017,11 @@ class Ontology
 					end
 					if queryTag.kind_of?(Array) # Store
 						if !queryTag.empty?
-							byTerm[referenceTerm] = queryTag
+							if byTerm.include?(referenceTerm)
+								byTerm[referenceTerm] = byTerm[referenceTerm] + queryTag
+							else
+								byTerm[referenceTerm] = queryTag
+							end
 							if multiterm
 								queryTag.each do |value|
 									byValue[value] = [] if byValue[value].nil? 
@@ -1028,7 +1032,11 @@ class Ontology
 							end
 						end
 					else
-						byTerm[referenceTerm] = [queryTag]
+						if byTerm.include?(referenceTerm)
+							byTerm[referenceTerm] << queryTag
+						else
+							byTerm[referenceTerm] = [queryTag]
+						end
 						if multiterm
 							byValue[queryTag] = [] if byValue[queryTag].nil?
 							byValue[queryTag] << referenceTerm
