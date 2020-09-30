@@ -1001,7 +1001,7 @@ class Ontology
 			@stanzas[:terms].each do |term, tags|
 				referenceTerm = term
 				if @alternatives_index.include?(term) && substitute_alternatives # Special case
-					referenceTerm = @alternatives_index[term]
+					referenceTerm = @alternatives_index[term] if !@obsoletes_index.include?(@alternatives_index[term])
 				end
 				queryTag = tags[tag]
 				if !queryTag.nil?
@@ -1136,7 +1136,7 @@ class Ontology
 		return nil if !@stanzas[:terms].include? id
 		new_id = id
 		mainID = @alternatives_index[id]
-		new_id = mainID if !mainID.nil?
+		new_id = mainID if !mainID.nil? & !@obsoletes_index.include?(mainID)
 		return new_id
 	end
 
