@@ -158,12 +158,13 @@ class TestOBOFunctionalities < Minitest::Test
 	#################################
 
 	def test_dictionaries
-		assert_equal({Parental: ['All'], Child2: ['Child2']}, @hierarchical.calc_dictionary(:name)[:byTerm])
+		assert_equal({Parental: ['All'], Child2: ['Child2', 'Child1']}, @hierarchical.calc_dictionary(:name)[:byTerm])
 		aux_synonym = {Child2:["1,6-alpha-mannosyltransferase activity"]}
 		assert_equal(aux_synonym, @hierarchical.calc_dictionary(:synonym, select_regex: /\"(.*)\"/)[:byTerm])
 		assert_equal(:Parental, @hierarchical.translate('All', :name))
-		assert_equal(['Child2'], @hierarchical.translate(:Child2, :name, byValue: false)) # Official term
-		assert_equal(['Child2'], @hierarchical.translate(:Child4, :name, byValue: false)) # Alternative term		
+		assert_equal(['Child2', "Child1"], @hierarchical.translate(:Child2, :name, byValue: false)) # Official term
+		assert_equal(['Child2', "Child1"], @hierarchical.translate(:Child4, :name, byValue: false)) # Alternative term		
+		assert_equal('Child2', @hierarchical.translate_id(:Child2))
 		assert_equal(:Child2, @hierarchical.translate(aux_synonym[:Child2].first, :synonym, byValue: true))
 		assert_equal(:Parental, @hierarchical.translate_name('All'))
 		assert_equal(:Child2, @hierarchical.translate_name(aux_synonym[:Child2].first))

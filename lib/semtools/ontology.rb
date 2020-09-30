@@ -1018,7 +1018,7 @@ class Ontology
 					if queryTag.kind_of?(Array) # Store
 						if !queryTag.empty?
 							if byTerm.include?(referenceTerm)
-								byTerm[referenceTerm] = byTerm[referenceTerm] + queryTag
+								byTerm[referenceTerm] = (byTerm[referenceTerm] + queryTag).uniq
 							else
 								byTerm[referenceTerm] = queryTag
 							end
@@ -1033,7 +1033,7 @@ class Ontology
 						end
 					else
 						if byTerm.include?(referenceTerm)
-							byTerm[referenceTerm] << queryTag
+							byTerm[referenceTerm] = (byTerm[referenceTerm] + [queryTag]).uniq
 						else
 							byTerm[referenceTerm] = [queryTag]
 						end
@@ -1046,6 +1046,23 @@ class Ontology
 					end
 				end
 			end
+			# Check order
+			byTerm.map do |term,values|
+				referenceValue = @stanzas[:terms][term][tag]
+				if !select_regex.nil?
+					if referenceValue.kind_of?(Array)
+						referenceValue = referenceValue.map{|value| value.scan(select_regex).first}
+						referenceValue.flatten!
+					else
+						referenceValue = referenceValue.scan(select_regex).first
+					end
+					referenceValue.compact!
+				end
+				referenceValue = [referenceValue] if !referenceValue.kind_of?(Array)
+				byTerm[term] = referenceValue + (values - referenceValue)
+			end
+
+			# Store
 			@dicts[store_tag] = {byTerm: byTerm, byValue: byValue}
 		end
 	end
