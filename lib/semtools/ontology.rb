@@ -24,7 +24,7 @@ class Ontology
 	# => @stanzas :: OBO stanzas {:terms,:typedefs,:instances}
 	# => @ancestors_index :: hash of ancestors per each term handled with any structure relationships
 	# => @descendants_index :: hash of descendants per each term handled with any structure relationships
-	# => @alternatives_index :: has of alternative IDs (includee alt_id and obsoletes)
+	# => @alternatives_index :: has of alternative IDs (include alt_id and obsoletes)
 	# => @obsoletes_index :: hash of obsoletes and it's new ids
 	# => @special_tags :: set of special tags to be expanded (:is_a, :obsolete, :alt_id)
 	# => @structureType :: type of ontology structure depending on ancestors relationship. Allowed: {atomic, sparse, circular, hierarchical}
@@ -1771,17 +1771,28 @@ class Ontology
 	# ===== Parameters
 	# +relations+:: to be stored
 	# +remove_old_relations+:: substitute ITEMS structure instead of merge new relations
-	def load_item_relations_to_terms(relations, remove_old_relations = false)
+	# +expand+:: if true, already stored keys will be updated with the unique union of both sets
+	def load_item_relations_to_terms(relations, remove_old_relations = false, expand = false)
 		@items = {} if remove_old_relations
 		if !relations.select{|term, items| !@stanzas[:terms].include?(term)}.empty?
 			warn('Some terms specified are not stored into this ontology. These not correct terms will be stored too')
 		end
 		if !remove_old_relations
-			if !relations.select{|term, items| @items.include?(term)}.empty?
+			if !relations.select{|term, items| @items.include?(term)}.empty? && !expand
 				warn('Some terms given are already stored. Stored version will be replaced')
 			end
 		end
-		@items.merge!(relations)
+		if expand
+			relations.each do |k,v|
+				if @items.keys.include?(k)
+					@items[k] = (@items[k] + v).uniq
+				else
+					@items[k] = v
+				end
+			end
+		else
+			@items.merge!(relations)
+		end
 	end	
 
 
@@ -1796,6 +1807,8 @@ class Ontology
 			warn('Specified ID is not calculated. Dict will not be added as a items set')
 		end
 	end
+
+
 
 
 
