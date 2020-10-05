@@ -855,12 +855,12 @@ class Ontology
 	# If a file is specified by input parameter, current @file value is updated
 	# ===== Parameters
 	# +file+:: optional file to update object stored file
-	def load(file)
+	def load(file, build: true)
 		_, header, stanzas = self.class.load_obo(file)
 		@header = header
 		@stanzas = stanzas
 		@removable_terms.each{|removableID| @stanzas[:terms].delete(removableID)} if !@removable_terms.empty? # Remove if proceed
-		self.build_index() 
+		self.build_index() if build
 	end
 
 
@@ -977,6 +977,31 @@ class Ontology
 	end
 
 
+	# Check if a given ID is stored as term into this object
+	# ===== Parameters
+	# +id+:: to be checked 
+	# ===== Return
+	# True if term is allowed or false in other cases
+	def exists? id
+		return stanzas[:terms].include?(id)
+	end
+
+
+	# This method assumes that a text given contains an allowed ID. And will try to obtain it splitting it
+	# ===== Parameters
+	# +text+:: to be checked 
+	# ===== Return
+	# The correct ID if it can be found or nil in other cases
+	def extract_id(text, splitBy: ' ')
+		if self.exists?(text)
+			return text
+		else
+			splittedText = text.to_s.split(splitBy).first.to_sym
+			return self.exists?(splittedText) ? splittedText : nil
+		end
+	end
+
+
 	# Generate a bidirectinal dictionary set using a specific tag and terms stanzas set
 	# This functions stores calculated dictionary into @dicts field.
 	# This functions stores first value for multivalue tags
@@ -987,9 +1012,10 @@ class Ontology
 	# +substitute_alternatives+:: flag used to indicate if alternatives must, or not, be replaced by it official ID
 	# +store_tag+:: flag used to store dictionary. If nil, mandatory tag given will be used
 	# +multiterm+:: if true, byValue will allows multi-term linkage (array)
+	# +self_type_references+:: if true, program assumes that refrences will be between Ontology terms, and it term IDs will be checked
 	# ===== Return
 	# void. And stores calcualted bidirectional dictonary into dictionaries main container
-	def calc_dictionary(tag, select_regex: nil, substitute_alternatives: true, store_tag: nil, multiterm: false)
+	def calc_dictionary(tag, select_regex: nil, substitute_alternatives: true, store_tag: nil, multiterm: false, self_type_references: false)
 		tag = tag.to_sym
 		store_tag = tag if store_tag.nil?
 		if @stanzas[:terms].empty?
@@ -1046,20 +1072,49 @@ class Ontology
 					end
 				end
 			end
+			
+			# Check self-references
+			if self_type_references
+				byTerm.map do |term, references|
+					corrected_references = references.map do |t|
+						checked = self.extract_id(t)
+						if checked.nil?
+							t
+						else
+							byValue[checked] = byValue.delete(t) if checked != t && !byValue.keys.include?(checked) # Update in byValue
+							checked
+						end
+					end
+					byTerm[term] = corrected_references.uniq
+				end
+			end
+
 			# Check order
 			byTerm.map do |term,values|
-				referenceValue = @stanzas[:terms][term][tag]
-				if !select_regex.nil?
-					if referenceValue.kind_of?(Array)
-						referenceValue = referenceValue.map{|value| value.scan(select_regex).first}
-						referenceValue.flatten!
-					else
-						referenceValue = referenceValue.scan(select_regex).first
+				if self.exists?(term)
+					referenceValue = @stanzas[:terms][term][tag]
+					if !referenceValue.nil?
+						if !select_regex.nil?
+							if referenceValue.kind_of?(Array)
+								referenceValue = referenceValue.map{|value| value.scan(select_regex).first}
+								referenceValue.flatten!
+							else
+								referenceValue = referenceValue.scan(select_regex).first
+							end
+							referenceValue.compact!
+						end
+						if self_type_references
+							if referenceValue.kind_of?(Array)
+								aux = referenceValue.map{|t| self.extract_id(t)}
+							else
+								aux = self.extract_id(referenceValue)
+							end
+							referenceValue = aux if !aux.nil?
+						end
+						referenceValue = [referenceValue] if !referenceValue.kind_of?(Array)
+						byTerm[term] = referenceValue + (values - referenceValue)
 					end
-					referenceValue.compact!
 				end
-				referenceValue = [referenceValue] if !referenceValue.kind_of?(Array)
-				byTerm[term] = referenceValue + (values - referenceValue)
 			end
 
 			# Store
@@ -1070,7 +1125,7 @@ class Ontology
 
 	# Calculates :is_a dictionary without alternatives substitution
 	def calc_ancestors_dictionary
-		self.calc_dictionary(:is_a, substitute_alternatives: false)
+		self.calc_dictionary(:is_a, substitute_alternatives: false, self_type_references: true)
 	end
 
 
@@ -1728,6 +1783,20 @@ class Ontology
 		end
 		@items.merge!(relations)
 	end	
+
+
+	# Assign a dictionary already calculated as a items set.
+	# ===== Parameters
+	# +dictID+:: dictionary ID to be stored (:byTerm will be used)
+	def set_items_from_dict(dictID, remove_old_relations = false)
+		@items = {} if remove_old_relations
+		if(@dicts.keys.include?(dictID))
+			@items.merge(@dicts[dictID][:byTerm])
+		else
+			warn('Specified ID is not calculated. Dict will not be added as a items set')
+		end
+	end
+
 
 
 	# NO IDEA WHAT THIS DOES. DON'T USE THIS METHODS IS NOT CHECKED
