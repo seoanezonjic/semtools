@@ -30,6 +30,8 @@ class TestOBOFunctionalities < Minitest::Test
 		@file_Circular = {file: File.join(AUX_FOLDER, "circular_sample.obo"), name: "circular_sample"}
 		@file_Atomic = {file: File.join(AUX_FOLDER, "sparse_sample.obo"), name: "sparse_sample"}
 		@file_Sparse = {file: File.join(AUX_FOLDER, "sparse2_sample.obo"), name: "sparse2_sample"}
+		@file_SH = File.join(AUX_FOLDER, "short_hierarchical_sample.obo")
+		@file_Enr = File.join(AUX_FOLDER, "enrichment_ontology.obo")
 
 		## OBO INFO
 		@load_Header = [{:file=>File.join(AUX_FOLDER, "only_header_sample.obo"), :name=>"only_header_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{}, :typedefs=>{}, :instances=>{}}]
@@ -303,6 +305,35 @@ class TestOBOFunctionalities < Minitest::Test
 		hierarchical = Ontology.new(file: @file_Hierarchical[:file],load_file: true)
 		assert_equal({:total_paths=>1, :largest_path=>2, :shortest_path=>2, :paths=>[[:Child2, :Parental]]}, hierarchical.term_paths[:Child2])
 		assert_equal({1=>[:Parental], 2=>[:Child2, :Child1, :Child3, :Child4]}, hierarchical.get_ontology_levels)
+	end
+
+	def test_expand_items
+		short_hierarchical = Ontology.new(file: @file_SH, load_file: true)
+		enrichment_base = Ontology.new(file: @file_Enr, load_file: true)
+		# Add items
+		initial_items = {root: [:branchA], Child1: [:branchAChild3], Child2: [:branchAChild3, :branchAChild2, :branchB]}
+		exact_expand = {root: [:branchA, :branchAChild3], Child1: [:branchAChild3], Child2: [:branchAChild3, :branchAChild2, :branchB]}
+		onto_expand = {root: [:branchA, :branchAChild1], Child1: [:branchAChild3], Child2: [:branchAChild3, :branchAChild2, :branchB]}
+		onto_cleaned_expand = {root: [:branchAChild1], Child1: [:branchAChild3], Child2: [:branchAChild3, :branchAChild2, :branchB]}
+		short_hierarchical.load_item_relations_to_terms(initial_items)
+		# Expand to parentals (exact match)
+		short_hierarchical.expand_items_to_parentals()
+		assert_equal(exact_expand, short_hierarchical.items)
+		# Expand to parentals (MICAS)
+		short_hierarchical.load_item_relations_to_terms(initial_items, true)
+		short_hierarchical.expand_items_to_parentals(ontology: enrichment_base, clean_profiles: false)
+		assert_equal(onto_expand, short_hierarchical.items)
+		short_hierarchical.load_item_relations_to_terms(initial_items, true)
+		short_hierarchical.expand_items_to_parentals(ontology: enrichment_base)
+		assert_equal(onto_cleaned_expand, short_hierarchical.items)
+		###########################
+		## NOW INCLUDING NOT STORED TERMS
+		###########################
+		initial_items = {Child1: [:branchAChild3], Child2: [:branchAChild2, :branchB]}
+		onto_notroot_items = {root: [:branchA], Child1: [:branchAChild3], Child2: [:branchAChild2, :branchB]}
+		short_hierarchical.load_item_relations_to_terms(initial_items, true)
+		short_hierarchical.expand_items_to_parentals(ontology: enrichment_base, clean_profiles: false)
+		assert_equal(onto_notroot_items, short_hierarchical.items)		
 	end
 
 end

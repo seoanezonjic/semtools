@@ -512,6 +512,14 @@ class Ontology
 		self.get_index_alternatives
 		self.get_index_obsoletes
 		self.get_index_child_parent_relations
+			@alternatives_index.map{|k,v| @alternatives_index[k] = self.extract_id(v)}
+			@alternatives_index.compact!
+			@obsoletes_index.map{|k,v| @obsoletes_index[k] = self.extract_id(v)}
+			@obsoletes_index.compact!
+			@ancestors_index.map{|k,v| @ancestors_index[k] = v.map{|t| self.extract_id(t)}.compact}
+			@ancestors_index.compact!
+			@descendants_index.map{|k,v| @descendants_index[k] = v.map{|t| self.extract_id(t)}.compact}
+			@descendants_index.compact!
 		self.get_index_frequencies
 		self.calc_dictionary(:name)
 		self.calc_dictionary(:synonym, select_regex: /\"(.*)\"/)
@@ -1809,6 +1817,101 @@ class Ontology
 	end
 
 
+	# This method computes childs similarity and impute items to it parentals. To do that Item keys must be this ontology allowed terms.
+	# Similarity will be calculated by text extact similarity unless an ontology object will be provided. In this case, MICAs will be used
+	# ===== Parameters
+	# +ontology+:: (Optional) ontology object which items given belongs
+	# +minimum_childs+:: minimum of childs needed to infer relations to parental. Default: 2
+	# +clean_profiles+:: if true, clena_profiles ontology method will be used over inferred profiles. Only if an ontology object is provided
+	# ===== Returns
+	# void and update items object
+	def expand_items_to_parentals(ontology: nil, minimum_childs: 2, clean_profiles: true)
+		# Check item keys
+		if @items.empty?
+			warn('Items have been not provided yet')
+			return nil
+		end
+		targetKeys = @items.keys.select{|k| self.exists?(k)}
+		if targetKeys.length == 0
+			warn('Any item key is allowed')
+			return nil
+		elsif targetKeys.length < @items.keys.length
+			warn('Some item keys are not allowed')
+		end
+
+		# Expand to parentals
+		targetKeys << targetKeys.map{|t| self.get_ancestors(t, true)}
+		targetKeys.flatten!
+		targetKeys.uniq!
+
+		# Obtain levels (go from leaves to roots)
+		levels = targetKeys.map{|term| self.get_term_level(term)}
+		levels.compact!
+		levels.uniq!
+		levels.sort!
+		levels.reverse!
+		levels.shift # Leaves are not expandable
+
+		# Expand from leaves to roots
+		levels.map do |lvl|
+			curr_keys = targetKeys.select{|k| self.get_term_level(k) == lvl}
+			curr_keys.map do |term_expand|
+				to_infer = []
+				# Obtain childs
+				childs = self.get_descendants(term_expand,true).select{|t| @items.keys.include?(t)}
+				# Expand
+				if childs.length > 0 && minimum_childs == 1 # Special case
+					to_infer = childs.map{|c| @items[c]}.flatten.compact.uniq
+				elsif childs.length >= minimum_childs
+					to_infer = Hash.new(0)
+					# Compare
+					while childs.length > 1
+						curr_term = childs.shift
+						childs.each do |compare_term|
+							pivot_items = @items[curr_term]
+							compare_items = @items[compare_term]
+							if ontology.nil? # Exact match
+								pivot_items.map do |pitem|
+									if compare_items.include?(pitem)
+										to_infer[pitem] += 2
+									end
+								end
+							else # Find MICAs
+								local_infer = Hash.new(0)
+								pivot_items.map do |pitem|
+									micas = compare_items.map{|citem| ontology.get_MICA(pitem, citem)}
+									maxmica = micas[0]
+									micas.each{|mica| maxmica = mica if mica.last > maxmica.last}
+									local_infer[maxmica.first] += 1
+								end
+								compare_items.map do |citem|
+									micas = pivot_items.map{|pitem| ontology.get_MICA(pitem, citem)}
+									maxmica = micas[0]
+									micas.each{|mica| maxmica = mica if mica.last > maxmica.last}
+									local_infer[maxmica.first] += 1
+								end
+								local_infer.each{|t,freq| to_infer[t] += freq if freq >= 2}
+							end
+						end
+					end
+					# Filter infer
+					to_infer = to_infer.select{|k,v| v >= minimum_childs}
+				end
+				# Infer
+				if to_infer.length > 0
+					@items[term_expand] = [] if @items[term_expand].nil?
+					if to_infer.kind_of?(Array)
+						@items[term_expand] = (@items[term_expand] + to_infer).uniq
+					else
+						@items[term_expand] = (@items[term_expand] + to_infer.keys).uniq
+					end
+					@items[term_expand] = ontology.clean_profile(@items[term_expand]) if clean_profiles && !ontology.nil?
+				elsif !@items.include?(term_expand)
+					targetKeys.delete(term_expand)
+				end
+			end
+		end
+	end
 
 
 
