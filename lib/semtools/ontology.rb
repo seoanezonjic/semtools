@@ -39,7 +39,7 @@ class Ontology
 	# => @term_paths :: metainfo about parental paths of each term
 
 	@@basic_tags = {ancestors: [:is_a], obsolete: :is_obsolete, alternative: [:alt_id,:replaced_by,:consider]}
-	@@allowed_calcs = {ics: [:resnick, :resnick_observed, :seco, :zhou, :sanchez], sims: [:resnick, :lin, :jiang_conrath]}
+	@@allowed_calcs = {ics: [:resnik, :resnik_observed, :seco, :zhou, :sanchez], sims: [:resnik, :lin, :jiang_conrath]}
 	@@symbolizable_ids = [:id, :alt_id, :replaced_by, :consider]
 	@@tags_with_trailing_modifiers = [:is_a, :union_of, :disjoint_from, :relationship, :subsetdef, :synonymtypedef, :property_value]
 	@@multivalue_tags = [:alt_id, :is_a, :subset, :synonym, :xref, :intersection_of, :union_of, :disjoint_from, :relationship, :replaced_by, :consider, :subsetdef, :synonymtypedef, :property_value, :remark]
@@ -406,12 +406,12 @@ class Ontology
 	# ===== Parameters
 	# +termsA+:: set to be compared
 	# +termsB+:: set to be compared
-	# +sim_type+:: similitude method to be used. Default: resnick
-	# +ic_type+:: ic type to be used. Default: resnick
+	# +sim_type+:: similitude method to be used. Default: resnik
+	# +ic_type+:: ic type to be used. Default: resnik
 	# +bidirectional+:: calculate bidirectional similitude. Default: false
 	# ===== Return
 	# similitude calculated
-	def compare(termsA, termsB, sim_type: :resnick, ic_type: :resnick, bidirectional: true)
+	def compare(termsA, termsB, sim_type: :resnik, ic_type: :resnik, bidirectional: true)
 		# Check
 		raise ArgumentError, "Terms sets given are NIL" if termsA.nil? | termsB.nil?
 		micasA = []
@@ -435,13 +435,13 @@ class Ontology
 	# Compare internal stored profiles against another set of profiles. If an external set is not provided, internal profiles will be compared with itself 
 	# ===== Parameters
 	# +external_profiles+:: set of external profiles. If nil, internal profiles will be compared with itself
-	# +sim_type+:: similitude method to be used. Default: resnick
-	# +ic_type+:: ic type to be used. Default: resnick
+	# +sim_type+:: similitude method to be used. Default: resnik
+	# +ic_type+:: ic type to be used. Default: resnik
 	# +bidirectional+:: calculate bidirectional similitude. Default: false
 	# +against_external+:: if true, profiles will be compared against external_profiles. If false, reverse comparisson will be applied
 	# ===== Return
 	# Similitudes calculated
-	def compare_profiles(external_profiles: nil, sim_type: :resnick, ic_type: :resnick, bidirectional: true, against_external: true)
+	def compare_profiles(external_profiles: nil, sim_type: :resnik, ic_type: :resnik, bidirectional: true, against_external: true)
 		profiles_similarity = {} #calculate similarity between patients profile
 		profiles_ids = @profiles.keys
 		if external_profiles.nil?
@@ -696,12 +696,12 @@ class Ontology
 	# Obtain IC of an specific term
 	# ===== Parameters
 	# +term+:: which IC will be calculated
-	# +type+:: of IC to be calculated. Default: resnick
+	# +type+:: of IC to be calculated. Default: resnik
 	# +force+:: force re-calculate the IC. Do not check if it is already calculated
 	# +zhou_k+:: special coeficient for Zhou IC method
 	# ===== Returns 
 	# the IC calculated
-	def get_IC(termRaw, type: :resnick, force: false, zhou_k: 0.5)
+	def get_IC(termRaw, type: :resnik, force: false, zhou_k: 0.5)
 		term = termRaw.to_sym
 		# Check 
 		raise ArgumentError, "IC type specified (#{type}) is not allowed" if !@@allowed_calcs[:ics].include?(type)
@@ -723,10 +723,10 @@ class Ontology
 			###########################################
 			#### INFORMATION CONTENT METRICS
 			###########################################
-			when :resnick # Resnik P: Using Information Content to Evaluate Semantic Similarity in a Taxonomy
+			when :resnik # Resnik P: Using Information Content to Evaluate Semantic Similarity in a Taxonomy
 				# -log(Freq(x) / Max_Freq)
 				ic = -Math.log10(@meta[term][:struct_freq].fdiv(@max_freqs[:struct_freq]))
-			when :resnick_observed 
+			when :resnik_observed 
 				# -log(Freq(x) / Max_Freq)
 				ic = -Math.log10(@meta[term][:observed_freq].fdiv(@max_freqs[:observed_freq]))
 			# Lin
@@ -759,23 +759,23 @@ class Ontology
 	end
 
 
-	# Calculates and return resnick ICs (by ontology and observed frequency) for observed terms
+	# Calculates and return resnik ICs (by ontology and observed frequency) for observed terms
 	# ===== Returns 
-	# two hashes with resnick and resnick_observed ICs for observed terms
+	# two hashes with resnik and resnik_observed ICs for observed terms
 	def get_observed_ics_by_onto_and_freq
 		# Chech there are observed terms
 		if @profiles.empty?
-			resnick = {}
-			resnick_observed = {}
+			resnik = {}
+			resnik_observed = {}
 		else
 			# Calc ICs for all terms
 			observed_terms = @profiles.values.flatten.uniq
 			observed_terms.each{ |term| get_IC(term)}
-			observed_terms.each{ |term| get_IC(term, type: :resnick_observed)}
-			resnick = @ics[:resnick].select{|k,v| observed_terms.include?(k)}
-			resnick_observed = @ics[:resnick_observed].select{|k,v| observed_terms.include?(k)}
+			observed_terms.each{ |term| get_IC(term, type: :resnik_observed)}
+			resnik = @ics[:resnik].select{|k,v| observed_terms.include?(k)}
+			resnik_observed = @ics[:resnik_observed].select{|k,v| observed_terms.include?(k)}
 		end
-		return resnick.clone, resnick_observed.clone
+		return resnik.clone, resnik_observed.clone
 	end
 
 
@@ -786,7 +786,7 @@ class Ontology
 	# +ic_type+:: IC formula to be used
 	# ===== Returns 
 	# the IC of the MICA(termA,termB)
-	def get_ICMICA(termA, termB, ic_type = :resnick)
+	def get_ICMICA(termA, termB, ic_type = :resnik)
 		mica = self.get_MICA(termA, termB, ic_type)
 		return mica.first.nil? ? nil : mica.last
 	end
@@ -799,7 +799,7 @@ class Ontology
 	# +ic_type+:: IC formula to be used
 	# ===== Returns 
 	# the MICA(termA,termB) and it's IC
-	def get_MICA(termA, termB, ic_type = :resnick)
+	def get_MICA(termA, termB, ic_type = :resnik)
 		termA = @alternatives_index[termA] if @alternatives_index.include?(termA)
 		termB = @alternatives_index[termB] if @alternatives_index.include?(termB)
 		mica = [nil,-1.0]
@@ -839,7 +839,7 @@ class Ontology
 	# +ic_type+:: IC formula to be used
 	# ===== Returns 
 	# the similarity between both sets or false if frequencies are not available yet
-	def get_similarity(termA, termB, type: :resnick, ic_type: :resnick)
+	def get_similarity(termA, termB, type: :resnik, ic_type: :resnik)
 		# Check
 		raise ArgumentError, "SIM type specified (#{type}) is not allowed" if !@@allowed_calcs[:sims].include?(type)
 		sim = nil
@@ -847,7 +847,7 @@ class Ontology
 		sim_res = get_ICMICA(termA, termB, ic_type)
 		if !sim_res.nil?
 			case type
-				when :resnick
+				when :resnik
 					sim = sim_res
 				when :lin
 					sim = (2.0 * sim_res).fdiv(self.get_IC(termA,type: ic_type) + self.get_IC(termB,type: ic_type))
@@ -1549,20 +1549,20 @@ class Ontology
 	# +zhou_k+:: special coeficient for Zhou IC method
 	# ===== Returns 
 	# mean IC for a given profile
-	def get_profile_mean_IC(prof, ic_type: :resnick, zhou_k: 0.5)
+	def get_profile_mean_IC(prof, ic_type: :resnik, zhou_k: 0.5)
 		return prof.map{|term| self.get_IC(term, type: ic_type, zhou_k: zhou_k)}.inject(0){|sum,x| sum + x}.fdiv(prof.length)
 	end	
 
 
-	# Calculates resnick ontology, and resnick observed mean ICs for all profiles stored
+	# Calculates resnik ontology, and resnik observed mean ICs for all profiles stored
 	# ===== Returns 
-	# two hashes with Profiles and IC calculated for resnick and observed resnick respectively
-	def get_profiles_resnick_dual_ICs
+	# two hashes with Profiles and IC calculated for resnik and observed resnik respectively
+	def get_profiles_resnik_dual_ICs
 		struct_ics = {}
 		observ_ics = {}
 		@profiles.each do |id, terms|
-			struct_ics[id] = self.get_profile_mean_IC(terms, ic_type: :resnick)
-			observ_ics[id] = self.get_profile_mean_IC(terms, ic_type: :resnick_observed)
+			struct_ics[id] = self.get_profile_mean_IC(terms, ic_type: :resnik)
+			observ_ics[id] = self.get_profile_mean_IC(terms, ic_type: :resnik_observed)
 		end
 		return struct_ics.clone, observ_ics.clone
 	end	
