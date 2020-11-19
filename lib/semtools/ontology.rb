@@ -52,7 +52,8 @@ class Ontology
 	# Instantiate a OBO_Handler object
 	# ===== Parameters
 	# +file+:: with info to be loaded (.obo ; .json)
-	# +load:p+:: activate load process automatically (only for .obo)
+	# +load_file+:: activate load process automatically (only for .obo)
+	# +removable_terms+: term to be removed from calcs
 	def initialize(file: nil, load_file: false, removable_terms: [])
 		# Initialize object variables
 		@header = nil
@@ -867,8 +868,14 @@ class Ontology
 		_, header, stanzas = self.class.load_obo(file)
 		@header = header
 		@stanzas = stanzas
-		@removable_terms.each{|removableID| @stanzas[:terms].delete(removableID)} if !@removable_terms.empty? # Remove if proceed
+		self.remove_removable()
+		# @removable_terms.each{|removableID| @stanzas[:terms].delete(removableID)} if !@removable_terms.empty? # Remove if proceed
 		self.build_index() if build
+	end
+
+	# 
+	def remove_removable()
+		@removable_terms.each{|removableID| @stanzas[:terms].delete(removableID)} if !@removable_terms.empty? # Remove if proceed
 	end
 
 
