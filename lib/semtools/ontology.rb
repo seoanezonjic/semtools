@@ -415,6 +415,7 @@ class Ontology
 	def compare(termsA, termsB, sim_type: :resnik, ic_type: :resnik, bidirectional: true)
 		# Check
 		raise ArgumentError, "Terms sets given are NIL" if termsA.nil? | termsB.nil?
+		raise ArgumentError, "Set given is empty. Aborting similarity calc" if termsA.empty? | termsB.empty?
 		micasA = []
 		# Compare A -> B
 		termsA.each do |tA|
