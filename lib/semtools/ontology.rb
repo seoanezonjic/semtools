@@ -440,27 +440,21 @@ class Ontology
 	# +sim_type+:: similitude method to be used. Default: resnik
 	# +ic_type+:: ic type to be used. Default: resnik
 	# +bidirectional+:: calculate bidirectional similitude. Default: false
-	# +against_external+:: if true, profiles will be compared against external_profiles. If false, reverse comparisson will be applied
 	# ===== Return
 	# Similitudes calculated
-	def compare_profiles(external_profiles: nil, sim_type: :resnik, ic_type: :resnik, bidirectional: true, against_external: true)
+	def compare_profiles(external_profiles: nil, sim_type: :resnik, ic_type: :resnik, bidirectional: true)
 		profiles_similarity = {} #calculate similarity between patients profile
 		profiles_ids = @profiles.keys
 		if external_profiles.nil?
 			comp_ids = profiles_ids
 			comp_profiles = @profiles
+			main_ids = comp_ids
+			main_profiles = comp_profiles
 		else
 			comp_ids = external_profiles.keys
 			comp_profiles = external_profiles
-		end
-		if against_external
 			main_ids = profiles_ids
 			main_profiles = @profiles
-		else
-			main_ids = comp_ids
-			main_profiles = comp_profiles
-			comp_ids = profiles_ids
-			comp_profiles = @profiles		
 		end
 		# Compare
 		while !main_ids.empty?
