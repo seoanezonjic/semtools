@@ -462,7 +462,7 @@ class Ontology
 			current_profile = main_profiles[curr_id]
 			comp_ids.each do |id|
 				profile = comp_profiles[id]
-				value = compare(profile, current_profile, sim_type: sim_type, ic_type: ic_type, bidirectional: bidirectional)
+				value = compare(current_profile, profile, sim_type: sim_type, ic_type: ic_type, bidirectional: bidirectional)
 				query = profiles_similarity[curr_id]
 				if query.nil?
 				  profiles_similarity[curr_id] = {id => value}
