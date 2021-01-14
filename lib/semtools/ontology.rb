@@ -426,11 +426,15 @@ class Ontology
 			micasA << micas.max if micas.length > 0
 			micasA << 0 if micas.length <= 0
 		end
-		means_sim = [micasA.inject{ |sum, el| sum + el }.to_f / micasA.size]
+		means_sim = micasA.inject{ |sum, el| sum + el }.to_f / micasA.size
 		# Compare B -> A
-		means_sim << self.compare(termsB, termsA, sim_type: sim_type, ic_type: ic_type, bidirectional: false) if bidirectional
+		if bidirectional
+			means_simA = means_sim * micasA.size
+			means_simB = self.compare(termsB, termsA, sim_type: sim_type, ic_type: ic_type, bidirectional: false) * termsB.size
+			means_sim = (means_simA + means_simB) / (termsA.size + termsB.size)
+		end
 		# Return
-		return means_sim.inject{ |sum, el| sum + el }.to_f / means_sim.size
+		return means_sim
 	end
 
 
