@@ -948,7 +948,7 @@ class Ontology
 				elsif term.is_a? Numeric # Numeric dictionary
 					[value.to_s.to_sym, term]
 				elsif flag == :is_a
-					[value.to_sym, term.to_sym]
+					[value.to_sym, term.map{|v| v.to_sym}]
 				elsif term.kind_of?(Array)
 					[value.to_sym, term.map{|t| t.to_sym}]
 				else
@@ -1139,7 +1139,7 @@ class Ontology
 
 	# Calculates :is_a dictionary without alternatives substitution
 	def calc_ancestors_dictionary
-		self.calc_dictionary(:is_a, substitute_alternatives: false, self_type_references: true)
+		self.calc_dictionary(:is_a, substitute_alternatives: false, self_type_references: true, multiterm: true)
 	end
 
 
