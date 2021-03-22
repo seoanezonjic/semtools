@@ -148,8 +148,19 @@ class TestOBOFunctionalities < Minitest::Test
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
 		#file: File.join(AUX_FOLDER, "testjson.json"
 		obo = Ontology.new()
-		obo.read(File.join(AUX_FOLDER, "testjson.json"))
-		# Import
+		obo.read(File.join(AUX_FOLDER, "testjson.json"), build: true)
+		assert_equal(@hierarchical, obo)
+		# Remove generated files
+		File.delete(File.join(AUX_FOLDER, "testjson.json"))
+	end
+
+	def test_export_import2
+		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
+		obo = Ontology.new()
+		obo.read(File.join(AUX_FOLDER, "testjson.json"), build: true)
+		@hierarchical.build_index
+		@hierarchical.get_IC(:Child2)
+		obo.get_IC(:Child2)
 		assert_equal(@hierarchical, obo)
 		# Remove generated files
 		File.delete(File.join(AUX_FOLDER, "testjson.json"))
@@ -290,7 +301,7 @@ class TestOBOFunctionalities < Minitest::Test
 		# Export/import
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
 		obo = Ontology.new()
-		obo.read(File.join(AUX_FOLDER, "testjson.json"))
+		obo.read(File.join(AUX_FOLDER, "testjson.json"), build: false)
 		assert_equal(@hierarchical, obo)
 		File.delete(File.join(AUX_FOLDER, "testjson.json"))
 	end
