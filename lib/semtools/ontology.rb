@@ -1948,17 +1948,17 @@ class Ontology
     # ++::
     # ===== Returns
     # ...
-     def compute_relations_to_items(external_item_list, mode, thresold)
+    def compute_relations_to_items(external_item_list, mode, thresold)
         results = []
         penalized_terms = {}
-        # terms_levels = get_terms_levels(@items_relations.keys)
-        terms_with_items_levels = @items_relations.keys.map{|term| self.get_term_level(term)}.uniq
+        # terms_levels = get_terms_levels(@items.keys)
+        terms_with_items_levels = @items.keys.map{|term| self.get_term_level(term)}.uniq
         terms_levels = self.get_ontology_levels().select{|k,v| terms_with_items_levels.include?(k)}
-        terms_levels = terms_levels.each{|level,terms| [level, terms.select{|t| @items_relations.keys.include?(t)}] } # Use only items terms. MAYBE IT'S NOT OUR TARGET (line added by fmj)
+        #terms_levels = terms_levels.each{|level,terms| [level, terms.select{|t| @items.keys.include?(t)}] } # Use only items terms. MAYBE IT'S NOT OUR TARGET (line added by fmj)
         levels = terms_levels.keys.sort
         levels.reverse_each do |level|
             terms_levels[level].each do |term|
-                associated_items = @items_relations[term]
+                associated_items = @items[term]
                 if mode == :elim 
                     items_to_remove = penalized_terms[term]
                     items_to_remove = [] if items_to_remove.nil?
@@ -1972,9 +1972,9 @@ class Ontology
                         parents.each do |prnt|
                             query = penalized_terms[prnt]
                             if query.nil?
-                                penalized_terms[prnt] = @items_relations[term].clone # We need a new array to store the following iterations
+                                penalized_terms[prnt] = @items[term].clone # We need a new array to store the following iterations
                             else
-                                query.concat(@items_relations[term])
+                                query.concat(@items[term])
                             end
                         end
                     end

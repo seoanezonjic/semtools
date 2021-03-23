@@ -4,6 +4,7 @@
 # @description script to calculate similitude between disease names
 
 
+
 #########################################################
 # AUTHOR NOTES
 #########################################################
