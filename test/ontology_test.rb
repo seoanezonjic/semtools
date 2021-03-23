@@ -159,6 +159,8 @@ class TestOBOFunctionalities < Minitest::Test
 		obo = Ontology.new()
 		obo.read(File.join(AUX_FOLDER, "testjson.json"), build: true)
 		@hierarchical.build_index
+		jsonObo = Ontology.new(file: File.join(AUX_FOLDER, "testjson.json"), load_file: true)
+		assert_equal(@hierarchical,jsonObo)
 		@hierarchical.get_IC(:Child2)
 		obo.get_IC(:Child2)
 		assert_equal(@hierarchical, obo)

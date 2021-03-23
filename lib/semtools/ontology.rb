@@ -52,10 +52,11 @@ class Ontology
     # Instantiate a OBO_Handler object
     # ===== Parameters
     # +file+:: with info to be loaded (.obo ; .json)
-    # +load_file+:: activate load process automatically (only for .obo)
+    # +load_file+:: activate load process automatically
     # +removable_terms+: term to be removed from calcs
     # +build+: flag to launch metainfo calculation
-    def initialize(file: nil, load_file: false, removable_terms: [], build: true)
+    # +file_format+: force format type despite file extension. Can be :obo or :json
+    def initialize(file: nil, load_file: false, removable_terms: [], build: true, file_format: nil)
         # Initialize object variables
         @header = nil
         @stanzas = {terms: {}, typedefs: {}, instances: {}}
@@ -74,9 +75,19 @@ class Ontology
         @items = {}
         @removable_terms = []
         @term_paths = {}
-        # Load if proceeds
         add_removable_terms(removable_terms) if !removable_terms.empty?
-        load(file, build: build) if load_file
+        # Load if proceeds
+        if load_file
+            fformat = file_format
+            fformat = File.extname(file) if fformat.nil? && !file.nil?
+            if fformat == :obo || fformat == ".obo"
+                load(file, build: build)
+            elsif fformat == :json || fformat == ".json"
+                self.read(file, build: build)
+            elsif !fformat.nil?
+                warn 'Format not allowed. Loading process will not be performed'
+            end
+        end
     end
 
 
