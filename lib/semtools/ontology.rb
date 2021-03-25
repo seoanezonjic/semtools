@@ -1810,14 +1810,16 @@ class Ontology
     # +expand+:: if true, already stored keys will be updated with the unique union of both sets
     def load_item_relations_to_terms(relations, remove_old_relations = false, expand = false)
         @items = {} if remove_old_relations
+        relations = relations.transform_keys{|k| k.to_sym}
         if !relations.select{|term, items| !@stanzas[:terms].include?(term)}.empty?
             warn('Some terms specified are not stored into this ontology. These not correct terms will be stored too')
         end
-        if !remove_old_relations
-            if !relations.select{|term, items| @items.include?(term)}.empty? && !expand
-                warn('Some terms given are already stored. Stored version will be replaced')
-            end
-        end
+        # if !remove_old_relations
+        #     if !relations.select{|term, items| @items.include?(term)}.empty? && !expand
+        #         warn('Some terms given are already stored. Stored version will be replaced')
+        #     end
+        # end
+
         if expand
             relations.each do |k,v|
                 if @items.keys.include?(k)
