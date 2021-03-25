@@ -1822,8 +1822,9 @@ class Ontology
 
         if expand
             relations.each do |k,v|
-                if @items.keys.include?(k)
-                    @items[k] = (@items[k] + v).uniq
+                entry = @items[k]
+                if entry.nil?
+                    @items[k] = entry + v.select{|id| !entry.include?(id)}
                 else
                     @items[k] = v
                 end
