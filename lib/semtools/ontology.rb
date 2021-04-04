@@ -1536,6 +1536,7 @@ class Ontology
     # ===== Returns 
     # cleaned profile
     def clean_profile(profile, remove_alternatives: true)
+        warn('Estructure is circular, behaviour could not be which is expected') if @structureType == :circular
         terms_without_ancestors, _ = self.remove_ancestors_from_profile(profile)
         if remove_alternatives
             terms_without_ancestors_and_alternatices, _ = self.remove_alternatives_from_profile(terms_without_ancestors)
@@ -1543,6 +1544,30 @@ class Ontology
             terms_without_ancestors_and_alternatices = terms_without_ancestors
         end
         return terms_without_ancestors_and_alternatices
+    end
+
+
+    # Remove terms from a given profile using hierarchical info and scores set given  
+    # ===== Parameters
+    # +profile+:: profile to be cleaned
+    # +scores+:: hash with terms by keys and numerical values (scores)
+    # +byMax+:: if true, maximum scored term will be keeped, if false, minimum will be keeped
+    # ===== Returns 
+    # cleaned profile
+    def clean_profile_by_score(profile, scores, byMax: true)
+        scores = scores.sort_by{|term,score| score}
+        keep = profile.map do |term| 
+            parentals = [self.get_ancestors(term), self.get_descendants(term)].flatten
+            targetable = parentals.select{|parent| profile.include?(parent)}
+            if targetable.empty? 
+                term
+            else
+                targetable << term
+                targets = scores.select{|term,score| targetable.include?(term)}.to_h
+                byMax ? targets.keys.last : targets.keys.first
+            end
+        end
+        return keep.uniq
     end
 
 
@@ -1810,21 +1835,32 @@ class Ontology
     # +expand+:: if true, already stored keys will be updated with the unique union of both sets
     def load_item_relations_to_terms(relations, remove_old_relations = false, expand = false)
         @items = {} if remove_old_relations
-        relations = relations.transform_keys{|k| k.to_sym}
         if !relations.select{|term, items| !@stanzas[:terms].include?(term)}.empty?
             warn('Some terms specified are not stored into this ontology. These not correct terms will be stored too')
         end
-        # if !remove_old_relations
-        #     if !relations.select{|term, items| @items.include?(term)}.empty? && !expand
-        #         warn('Some terms given are already stored. Stored version will be replaced')
-        #     end
-        # end
-
+        if !remove_old_relations
+            if !relations.select{|term, items| @items.include?(term)}.empty? && !expand
+                warn('Some terms given are already stored. Stored version will be replaced')
+            end
+        end
         if expand
-            relations.each do |k,v|
-                entry = @items[k]
-                if entry.nil?
-                    @items[k] = entry + v.select{|id| !entry.include?(id)}
+            relations.each do |k,v| # MUST UPDATE THIS USING A CONCAT SPECIFIC FUNCTION
+                if @items.keys.include?(k)
+                    if v.kind_of?(Array)
+                        @items[k] = (@items[k] + v).uniq
+                    elsif v.kind_of?(Hash)
+                        @items.merge!(relations) do |k, oldV, newV| 
+                           if oldV.kind_of?(Array)
+                             return (oldV + newV).uniq
+                           else
+                             oldV = [oldV,newV]
+                           end  
+                        end
+                    elsif @items[k].kind_of?(Array) # We suppose a single value/object from here
+                        @items[k] = (@items[k] + [v]).uniq
+                    else
+                        @items[k] = [@items[k],v]
+                    end 
                 else
                     @items[k] = v
                 end
@@ -1832,7 +1868,33 @@ class Ontology
         else
             @items.merge!(relations)
         end
-    end    
+    end 
+
+    # Internal function to concat two elements.
+    # ===== Parameters
+    # +itemA+:: item to be concatenated
+    # +itemB+:: item to be concatenated
+    def concatItems(itemA,itemB)
+        # A is Array :: RETURN ARRAY
+            # A_array : B_array
+            # A_array : B_hash => NOT ALLOWED
+            # A_array : B_single => NOT ALLOWED
+        # A is Hash :: RETURN HASH
+            # A_hash : B_array => NOT ALLOWED
+            # A_hash : B_hash
+            # A_hash : B_single => NOT ALLOWED
+        # A is single element => RETURN ARRAY
+            # A_single : B_array
+            # A_single : B_hash => NOT ALLOWED
+            # A_single : B_single
+        if itemA.kind_of? Array
+
+        elsif itemA.kind_of? Hash
+
+        else
+
+        end
+    end      
 
 
     # Assign a dictionary already calculated as a items set.
@@ -1951,20 +2013,13 @@ class Ontology
     # ++::
     # ===== Returns
     # ...
-     def compute_relations_to_items(external_item_list, total_items, mode, thresold)
-        terms_levels = {}
-        @items.each do |term, items| 
-          level = self.get_term_level(term)
-          query = terms_levels[level]
-          if query.nil?
-            terms_levels[level] = [term]
-          else
-            query << term
-          end
-        end
-
+    def compute_relations_to_items(external_item_list, mode, thresold)
         results = []
         penalized_terms = {}
+        # terms_levels = get_terms_levels(@items.keys)
+        terms_with_items_levels = @items.keys.map{|term| self.get_term_level(term)}.uniq
+        terms_levels = self.get_ontology_levels().select{|k,v| terms_with_items_levels.include?(k)}
+        #terms_levels = terms_levels.each{|level,terms| [level, terms.select{|t| @items.keys.include?(t)}] } # Use only items terms. MAYBE IT'S NOT OUR TARGET (line added by fmj)
         levels = terms_levels.keys.sort
         levels.reverse_each do |level|
             terms_levels[level].each do |term|
@@ -1975,11 +2030,10 @@ class Ontology
                     pval = get_fisher_exact_test(
                         external_item_list - items_to_remove, 
                         associated_items - items_to_remove, 
-                        #((associated_items | external_item_list) - items_to_remove).length
-                        total_items
+                        ((associated_items | external_item_list) - items_to_remove).length
                         )
                     if pval <= thresold
-                        parents = get_ancestors(term) # Save the items for each parent term to remove them later in the fisher test
+                        parents = get_parents(term) # Save the items for each parent term to remove them later in the fisher test
                         parents.each do |prnt|
                             query = penalized_terms[prnt]
                             if query.nil?

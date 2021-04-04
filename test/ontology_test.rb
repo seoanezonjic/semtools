@@ -272,6 +272,14 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal([[:Child2, :Child3], [:Parental]], @hierarchical.remove_ancestors_from_profile(@hierarchical.profiles[:C]))
 		assert_equal([[:Child2, :Parental], [:Child3]], @hierarchical.remove_alternatives_from_profile(@hierarchical.profiles[:C]))
 		assert_equal({A: [:Child2], B: [:Child2], C: [:Child2], D: [:Child3, :Child4]}, @hierarchical.clean_profiles)
+		# Remove by scores
+		prof = [:Parental,:Child2]
+		scores = {Parental: 3, Child2: 7}
+		assert_equal([:Child2],@hierarchical.clean_profile_by_score(prof,scores, byMax: true))
+		assert_equal([:Parental],@hierarchical.clean_profile_by_score(prof,scores, byMax: false))
+		scores2 = {Child2: 7}
+		assert_equal([:Child2],@hierarchical.clean_profile_by_score(prof,scores2, byMax: true))
+		assert_equal([:Child2],@hierarchical.clean_profile_by_score(prof,scores2, byMax: false))
 		# ICs
 		expected_A_IC_resnik = (-Math.log10(1.fdiv(2))-Math.log10(2.fdiv(2))).fdiv(2) 
 		assert_equal(expected_A_IC_resnik, @hierarchical.get_profile_mean_IC(@hierarchical.profiles[:A]))
