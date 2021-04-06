@@ -168,6 +168,20 @@ class TestOBOFunctionalities < Minitest::Test
 		File.delete(File.join(AUX_FOLDER, "testjson.json"))
 	end
 
+	def test_go_export_import
+		@go = Ontology.new(file: File.join(AUX_FOLDER, "go-basic_sample.obo"), load_file: true)
+		# Add extra info to instance
+		@go.build_index
+		# Export object to JSON
+		@go.write(File.join(AUX_FOLDER, "gotestjson.json"))
+		#file: File.join(AUX_FOLDER, "testjson.json"
+		obo = Ontology.new()
+		obo.read(File.join(AUX_FOLDER, "gotestjson.json"), build: true)
+		assert_equal(@go, obo)
+		# Remove generated files
+		File.delete(File.join(AUX_FOLDER, "gotestjson.json"))
+	end
+	
 	#################################
 	# METADATA FUNCTIONALITIES
 	#################################
