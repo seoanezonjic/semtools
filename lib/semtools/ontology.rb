@@ -1552,22 +1552,29 @@ class Ontology
     # +profile+:: profile to be cleaned
     # +scores+:: hash with terms by keys and numerical values (scores)
     # +byMax+:: if true, maximum scored term will be keeped, if false, minimum will be keeped
+    # +remove_without_score+:: if true, terms without score will be removed. Default: true
     # ===== Returns 
     # cleaned profile
-    def clean_profile_by_score(profile, scores, byMax: true)
-        scores = scores.sort_by{|term,score| score}
-        keep = profile.map do |term| 
-            parentals = [self.get_ancestors(term), self.get_descendants(term)].flatten
-            targetable = parentals.select{|parent| profile.include?(parent)}
-            if targetable.empty? 
-                term
+    def clean_profile_by_score(profile, scores, byMax: true, remove_without_score: true)
+        scores = scores.sort_by{|term,score| score}.to_h
+        keep = profile.map do |term|
+            if scores.include?(term)
+                parentals = [self.get_ancestors(term), self.get_descendants(term)].flatten
+                targetable = parentals.select{|parent| profile.include?(parent)}
+                if targetable.empty? 
+                    term
+                else
+                    targetable << term
+                    targets = scores.select{|term,score| targetable.include?(term)}.to_h
+                    byMax ? targets.keys.last : targets.keys.first
+                end
+            elsif remove_without_score
+                nil
             else
-                targetable << term
-                targets = scores.select{|term,score| targetable.include?(term)}.to_h
-                byMax ? targets.keys.last : targets.keys.first
+                term
             end
         end
-        return keep.uniq
+        return keep.compact.uniq
     end
 
 
