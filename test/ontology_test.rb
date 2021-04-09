@@ -214,6 +214,10 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal([:Child2], @hierarchical.get_descendants(:Parental, true))
 		assert_equal([[[:Parental, "All"], [[:Child1, "Child2"], [:Child2, "Child2"], [:Child3, "Child2"], [:Child4, "Child2"]]]], @hierarchical.get_childs_table([:Parental])) # Expanded info
 		assert_equal([[[:Parental, "All"], [[:Child2,"Child2"]]]], @hierarchical.get_childs_table([:Parental], true))
+		assert_equal([:Parental], @hierarchical.get_direct_ancentors(:Child1))
+		assert_equal(nil, @hierarchical.get_direct_descendants(:Child1))
+		assert_equal([:Child1,:Child2,:Child3,:Child4], @hierarchical.get_direct_descendants(:Parental))
+		assert_equal([:Child2], @hierarchical.get_direct_descendants(:Parental, remove_alternatives: true))
 	end
 
 	def test_similarities

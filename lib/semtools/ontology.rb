@@ -2014,6 +2014,55 @@ class Ontology
     end
 
 
+    # Return direct ancestors/descendants of a given term
+    # ===== Parameters
+    # +term+:: which are requested
+    # +relation+:: can be :ancestor or :descendant 
+    # +remove_alternatives+:: if true, alternatives will be removed
+    # ===== Returns
+    # Direct ancestors/descendants of given term or nil if any error occurs
+    def get_direct_related(term, relation, remove_alternatives: false)
+        if !@dicts.keys.include?(:is_a)
+            warn("Hierarchy dictionary is not already calculated. Returning nil")
+            return nil
+        end 
+        target = nil
+        case relation
+            when :ancestor
+                target = :byTerm
+            when :descendant
+                target = :byValue
+            else
+                warn('Relation type not allowed. Returning nil')
+        end
+        return nil if target.nil? 
+        query = @dicts[:is_a][target][term]
+        return query if query.nil?
+        query, _ = remove_alternatives_from_profile(query) if remove_alternatives
+        return query
+    end
+
+
+    # Return direct ancestors of a given term
+    # ===== Parameters
+    # +term+:: which ancestors are requested
+    # +remove_alternatives+:: if true, alternatives will be removed
+    # ===== Returns
+    # Direct ancestors of given term or nil if any error occurs
+    def get_direct_ancentors(term, remove_alternatives: false)
+        return self.get_direct_related(term, :ancestor, remove_alternatives: remove_alternatives)
+    end
+
+    # Return direct descendants of a given term
+    # ===== Parameters
+    # +term+:: which descendants are requested
+    # +remove_alternatives+:: if true, alternatives will be removed
+    # ===== Returns
+    # Direct descendants of given term or nil if any error occurs
+    def get_direct_descendants(term, remove_alternatives: false)
+        return self.get_direct_related(term, :descendant, remove_alternatives: remove_alternatives)        
+    end
+
 
     # NO IDEA WHAT THIS DOES. DON'T USE THIS METHODS IS NOT CHECKED
     # ===== Parameters
