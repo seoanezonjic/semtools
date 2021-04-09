@@ -321,13 +321,19 @@ class TestOBOFunctionalities < Minitest::Test
 		# Profiles dictionary
 		@hierarchical.calc_profiles_dictionary
 		assert_equal({Child2: [:A, :B, :C], Parental: [:A, :B, :C, :D], Child3: [:C, :D], Child4: [:D]}, @hierarchical.get_terms_linked_profiles)
+		
 		# Handle items
 		items_rel = {Parental: ['a','b'], Child3: ['c']}
 		items_rel_sym = {Parental: [:a, :b], Child3: [:c]}
+		items_rel_concat = {Parental: [:a,:b,'a','b'], Child3: [:c,'c']}
 
 		@hierarchical.load_item_relations_to_terms(items_rel)
 		assert_equal(items_rel, @hierarchical.items)
 		@hierarchical.load_item_relations_to_terms(items_rel_sym)
+		assert_equal(items_rel_sym, @hierarchical.items)
+		@hierarchical.load_item_relations_to_terms(items_rel,false,true)
+		assert_equal(items_rel_concat, @hierarchical.items)
+		@hierarchical.load_item_relations_to_terms(items_rel_sym,true,true) # here third must no be relevant
 		assert_equal(items_rel_sym, @hierarchical.items)
 
 		# Export/import

@@ -1851,27 +1851,28 @@ class Ontology
             end
         end
         if expand
-            relations.each do |k,v| # MUST UPDATE THIS USING A CONCAT SPECIFIC FUNCTION
-                if @items.keys.include?(k)
-                    if v.kind_of?(Array)
-                        @items[k] = (@items[k] + v).uniq
-                    elsif v.kind_of?(Hash)
-                        @items.merge!(relations) do |k, oldV, newV| 
-                           if oldV.kind_of?(Array)
-                             return (oldV + newV).uniq
-                           else
-                             oldV = [oldV,newV]
-                           end  
-                        end
-                    elsif @items[k].kind_of?(Array) # We suppose a single value/object from here
-                        @items[k] = (@items[k] + [v]).uniq
-                    else
-                        @items[k] = [@items[k],v]
-                    end 
-                else
-                    @items[k] = v
-                end
-            end
+            @items = self.concatItems(@items,relations)
+            # relations.each do |k,v| # MUST UPDATE THIS USING A CONCAT SPECIFIC FUNCTION
+            #     if @items.keys.include?(k)
+            #         if v.kind_of?(Array)
+            #             @items[k] = (@items[k] + v).uniq
+            #         elsif v.kind_of?(Hash)
+            #             @items.merge!(relations) do |k, oldV, newV| 
+            #                if oldV.kind_of?(Array)
+            #                  return (oldV + newV).uniq
+            #                else
+            #                  oldV = [oldV,newV]
+            #                end  
+            #             end
+            #         elsif @items[k].kind_of?(Array) # We suppose a single value/object from here
+            #             @items[k] = (@items[k] + [v]).uniq
+            #         else
+            #             @items[k] = [@items[k],v]
+            #         end 
+            #     else
+            #         @items[k] = v
+            #     end
+            # end
         else
             @items.merge!(relations)
         end
@@ -1881,6 +1882,8 @@ class Ontology
     # ===== Parameters
     # +itemA+:: item to be concatenated
     # +itemB+:: item to be concatenated
+    # ===== Returns
+    # Concatenated objects
     def concatItems(itemA,itemB)
         # A is Array :: RETURN ARRAY
             # A_array : B_array
@@ -1894,13 +1897,19 @@ class Ontology
             # A_single : B_array
             # A_single : B_hash => NOT ALLOWED
             # A_single : B_single
-        if itemA.kind_of? Array
-
-        elsif itemA.kind_of? Hash
-
-        else
-
+        concatenated = nil
+        if itemA.kind_of?(Array) && itemB.kind_of?(Array)
+            concatenated = (itemA + itemB).uniq
+        elsif itemA.kind_of?(Hash) && itemB.kind_of?(Hash)
+            concatenated = itemA.merge(itemB) do |k, oldV, newV| 
+                self.concatItems(oldV,newV)
+            end
+        elsif itemB.kind_of?(Array)
+            concatenated = ([itemA] + itemB).uniq
+        elsif ![Array, Hash].include?(itemB.class)
+            concatenated = [itemA,itemB].uniq
         end
+        return concatenated
     end      
 
 
