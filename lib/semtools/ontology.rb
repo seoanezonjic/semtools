@@ -2073,18 +2073,26 @@ class Ontology
     end
 
 
-    # NO IDEA WHAT THIS DOES. DON'T USE THIS METHODS IS NOT CHECKED
+
+# NO IDEA WHAT THIS DOES. DON'T USE THIS METHODS IS NOT CHECKED
     # ===== Parameters
     # ++::
     # ===== Returns
     # ...
-    def compute_relations_to_items(external_item_list, mode, thresold)
+    def compute_relations_to_items(external_item_list, total_items, mode, thresold)
+        terms_levels = {}
+        @items.each do |term, items| 
+          level = self.get_term_level(term)
+          query = terms_levels[level]
+          if query.nil?
+            terms_levels[level] = [term]
+          else
+            query << term
+          end
+        end
+
         results = []
         penalized_terms = {}
-        # terms_levels = get_terms_levels(@items.keys)
-        terms_with_items_levels = @items.keys.map{|term| self.get_term_level(term)}.uniq
-        terms_levels = self.get_ontology_levels().select{|k,v| terms_with_items_levels.include?(k)}
-        #terms_levels = terms_levels.each{|level,terms| [level, terms.select{|t| @items.keys.include?(t)}] } # Use only items terms. MAYBE IT'S NOT OUR TARGET (line added by fmj)
         levels = terms_levels.keys.sort
         levels.reverse_each do |level|
             terms_levels[level].each do |term|
@@ -2095,10 +2103,11 @@ class Ontology
                     pval = get_fisher_exact_test(
                         external_item_list - items_to_remove, 
                         associated_items - items_to_remove, 
-                        ((associated_items | external_item_list) - items_to_remove).length
+                        #((associated_items | external_item_list) - items_to_remove).length
+                        total_items
                         )
                     if pval <= thresold
-                        parents = get_parents(term) # Save the items for each parent term to remove them later in the fisher test
+                        parents = get_ancestors(term) # Save the items for each parent term to remove them later in the fisher test
                         parents.each do |prnt|
                             query = penalized_terms[prnt]
                             if query.nil?
@@ -2114,7 +2123,6 @@ class Ontology
         end
         return results
     end
-
 
     # Check if a given ID is a removable (blacklist) term.
     # +DEPRECATED+ use is_removable? instead
