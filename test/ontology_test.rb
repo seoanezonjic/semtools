@@ -168,19 +168,17 @@ class TestOBOFunctionalities < Minitest::Test
 		File.delete(File.join(AUX_FOLDER, "testjson.json"))
 	end
 
-	# def test_go_export_import
- #            @go = Ontology.new(file: File.join(AUX_FOLDER, "go-basic_sample.obo"), load_file: true)
- #            # Add extra info to instance
- #            @go.build_index
- #            # Export object to JSON
- #            @go.write(File.join(AUX_FOLDER, "gotestjson.json"))
- #            #file: File.join(AUX_FOLDER, "testjson.json"
- #            obo = Ontology.new()
- #            obo.read(File.join(AUX_FOLDER, "gotestjson.json"), build: true)
- #            assert_equal(@go, obo)
- #            # Remove generated files
- #            File.delete(File.join(AUX_FOLDER, "gotestjson.json"))
- #    end
+	def test_go_export_import
+            @go = Ontology.new(file: File.join(AUX_FOLDER, "go-onlyOne.obo"), load_file: true)
+            # @go = Ontology.new(file: File.join(AUX_FOLDER, "go-basic_sample.obo"), load_file: true)
+            # Export object to JSON
+            @go.write(File.join(AUX_FOLDER, "gotestjson.json"))
+            #file: File.join(AUX_FOLDER, "testjson.json"
+            obo = Ontology.new(file: File.join(AUX_FOLDER, "gotestjson.json"), load_file: true)
+            assert_equal(@go, obo)
+            # Remove generated files
+            File.delete(File.join(AUX_FOLDER, "gotestjson.json"))
+    end
 	#################################
 	# METADATA FUNCTIONALITIES
 	#################################
@@ -215,7 +213,7 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal([[[:Parental, "All"], [[:Child1, "Child2"], [:Child2, "Child2"], [:Child3, "Child2"], [:Child4, "Child2"]]]], @hierarchical.get_childs_table([:Parental])) # Expanded info
 		assert_equal([[[:Parental, "All"], [[:Child2,"Child2"]]]], @hierarchical.get_childs_table([:Parental], true))
 		assert_equal([:Parental], @hierarchical.get_direct_ancentors(:Child1))
-		assert_equal(nil, @hierarchical.get_direct_descendants(:Child1))
+		assert_nil(@hierarchical.get_direct_descendants(:Child1))
 		assert_equal([:Child1,:Child2,:Child3,:Child4], @hierarchical.get_direct_descendants(:Parental))
 		assert_equal([:Child2], @hierarchical.get_direct_descendants(:Parental, remove_alternatives: true))
 	end

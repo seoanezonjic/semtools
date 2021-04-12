@@ -76,6 +76,7 @@ class Ontology
         @removable_terms = []
         @term_paths = {}
         add_removable_terms(removable_terms) if !removable_terms.empty?
+        load_file = true unless file.nil? # This should remove load_file argument, keep it for old scripts
         # Load if proceeds
         if load_file
             fformat = file_format
@@ -502,6 +503,7 @@ class Ontology
         # Take all alternative IDs
         alt_ids2add = {}
         @stanzas[:terms].each do |id, tags|
+            id = tags[:id] # Take always real ID in case of alternative terms simulted
             alt_ids = tags[alt_tag]
             if !alt_ids.nil?
                 alt_ids = alt_ids - @removable_terms
@@ -933,6 +935,16 @@ class Ontology
         jsonFile = File.open(file)
         jsonInfo = JSON.parse(jsonFile.read, :symbolize_names => true)
         # Pre-process (Symbolize some hashs values)
+        if !jsonInfo[:header].nil?
+            aux = jsonInfo[:header].map do |entry,info|
+                if info.kind_of?(Array) 
+                    [entry,info.map{|item| item.to_sym}]
+                else
+                    [entry,info]
+                end
+            end
+            jsonInfo[:header] = aux.to_h
+        end
         jsonInfo[:stanzas][:terms].map{|id,info| self.class.symbolize_ids(info)} # STANZAS
         jsonInfo[:stanzas][:typedefs].map{|id,info| self.class.symbolize_ids(info)}
         jsonInfo[:stanzas][:instances].map{|id,info| self.class.symbolize_ids(info)}
@@ -1145,7 +1157,8 @@ class Ontology
                             else
                                 aux = self.extract_id(referenceValue)
                             end
-                            referenceValue = aux if !aux.nil?
+                            aux.compact! unless aux.nil?
+                            referenceValue = aux unless aux.nil?
                         end
                         referenceValue = [referenceValue] if !referenceValue.kind_of?(Array)
                         byTerm[term] = referenceValue + (values - referenceValue)
