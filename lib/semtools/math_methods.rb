@@ -2,6 +2,7 @@
 #to cmpute fisher exact test
 #Fisher => http://www.biostathandbook.com/fishers.html
 def get_fisher_exact_test(listA, listB, all_elements_count, tail ='two_sided', weigths=nil, partial_weigths=true)
+	#puts '-', listA.inspect, listB.inspect, '-'
 	listA_listB = listA & listB
 	listA_nolistB = listA - listB
 	nolistA_listB = listB - listA
@@ -25,6 +26,7 @@ def get_fisher_exact_test(listA, listB, all_elements_count, tail ='two_sided', w
 			all_elements_count = weigths.values.inject(0){|sum, n| sum + n}.ceil
 		end
 	end
+	#puts [listA_listB_count, listA_nolistB_count, nolistA_listB_count, nolistA_nolistB_count, all_elements_count].inspect
 	if tail == 'two_sided'
 		accumulated_prob = get_two_tail(listA_listB_count, listA_nolistB_count, nolistA_listB_count, nolistA_nolistB_count, all_elements_count)
 	elsif tail == 'less' 

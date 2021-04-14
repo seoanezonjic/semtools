@@ -1,4 +1,5 @@
 require 'json'
+require 'colorize'
 
 
 class Ontology
@@ -1129,7 +1130,7 @@ class Ontology
                         if checked.nil?
                             t
                         else
-                            byValue[checked] = byValue.delete(t) if checked != t && !byValue.keys.include?(checked) # Update in byValue
+                            byValue[checked] = byValue.delete(t) if checked != t && byValue[checked].nil? # Update in byValue
                             checked
                         end
                     end
@@ -1692,7 +1693,7 @@ class Ontology
     # Find paths of a term following it ancestors and stores all possible paths for it and it's parentals.
     # Also calculates paths metadata and stores into @term_paths
     def calc_term_paths
-        self.calc_ancestors_dictionary if !@dicts.keys.include?(:is_a) # Calculate direct parentals dictionary if it's not already calculated
+        self.calc_ancestors_dictionary if @dicts[:is_a].nil? # Calculate direct parentals dictionary if it's not already calculated
         visited_terms = []
         @term_paths = {}
         if [:hierarchical, :sparse].include? @structureType
@@ -1931,7 +1932,7 @@ class Ontology
     # +dictID+:: dictionary ID to be stored (:byTerm will be used)
     def set_items_from_dict(dictID, remove_old_relations = false)
         @items = {} if remove_old_relations
-        if(@dicts.keys.include?(dictID))
+        if !@dicts[dictID].nil?
             @items.merge(@dicts[dictID][:byTerm])
         else
             warn('Specified ID is not calculated. Dict will not be added as a items set')
@@ -1980,7 +1981,7 @@ class Ontology
             curr_keys.map do |term_expand|
                 to_infer = []
                 # Obtain childs
-                childs = self.get_descendants(term_expand,true).select{|t| @items.keys.include?(t)}
+                childs = self.get_descendants(term_expand,true).select{|t| !@items[t].nil?}
                 # Expand
                 if childs.length > 0 && minimum_childs == 1 # Special case
                     to_infer = childs.map{|c| @items[c]}.flatten.compact.uniq
@@ -2044,7 +2045,7 @@ class Ontology
     # ===== Returns
     # Direct ancestors/descendants of given term or nil if any error occurs
     def get_direct_related(term, relation, remove_alternatives: false)
-        if !@dicts.keys.include?(:is_a)
+        if @dicts[:is_a].nil?
             warn("Hierarchy dictionary is not already calculated. Returning nil")
             return nil
         end 
@@ -2183,7 +2184,7 @@ class Ontology
         levels = terms_levels.keys.sort
         levels.reverse_each do |level|
             terms_levels[level].each do |term|
-                associated_items = @items[term]
+                associated_items = item_list[term]
                 items_to_remove = penalized_terms[term]
                 items_to_remove = [] if items_to_remove.nil?
                 pval = get_fisher_exact_test(
@@ -2254,7 +2255,7 @@ class Ontology
                     current_ratio = rates[child]
                     query_child = item_weigths_per_term[child]
                     query_child.transform_values!{|weight| weight * current_ratio}
-                    pvals[child] = get_fisher_exact_test(external_item_list, @items[child], total_items, 
+                    pvals[child] = get_fisher_exact_test(external_item_list, item_weigths_per_term[child].keys, total_items, 
                                       'two_sided', item_weigths_per_term[child], true)
                 end
             else
