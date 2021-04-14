@@ -2087,12 +2087,62 @@ class Ontology
 
 
 
-# NO IDEA WHAT THIS DOES. DON'T USE THIS METHODS IS NOT CHECKED
+#============================================================================
+#============================================================================
+
+    # NO IDEA WHAT THIS DOES. DON'T USE THIS METHODS IS NOT CHECKED
     # ===== Parameters
     # ++::
     # ===== Returns
     # ...
-    def compute_relations_to_items(external_item_list, total_items, mode, thresold)
+     def compute_relations_to_items(external_item_list, total_items, mode, thresold)
+        terms_levels = list_terms_per_level_from_items 
+        connect_familiars!(terms_levels)
+        item_list_with_transf_parental = get_item_list_parental(terms_levels)
+        results = []
+        if mode == :elim 
+            results = compute_relations_elim(terms_levels, external_item_list, total_items, thresold, item_list_with_transf_parental)
+        elsif mode == :weight
+            results = compute_relations_weight(terms_levels, external_item_list, total_items, thresold, item_list_with_transf_parental)
+        end
+        return results
+    end
+
+    def get_item_list_parental(terms_levels)
+        transfered_list = {}
+        parent_dict = @dicts[:is_a][:byTerm]
+        levels = terms_levels.keys.sort
+        while levels.length > 1
+            level = levels.pop
+            terms_levels[level].each do |term|
+                parents = parent_dict[term]
+                if parents.nil?
+                    next
+                elsif parents.length == 1
+                    parent = parents.first
+                else
+                    parent = (parents | terms_levels[level - 1]).first
+                end
+                term_it = @items[term]
+                parent_it = @items[parent]
+                curr_it = transfered_list[term]
+                parent_all_items = merge_groups([term_it, parent_it, curr_it])
+                transfered_list[parent] = parent_all_items if !parent_all_items.empty?
+                term_all_items = merge_groups([term_it, curr_it])
+                transfered_list[term] = term_all_items if !term_all_items.empty?
+            end
+        end
+        terms_levels[levels.first].each do |term| # Rescue lower level terms that not have children so they cannot receive items
+            transfered_list[term] = @items[term] if transfered_list[term].nil?
+        end
+        return transfered_list
+    end
+
+    def merge_groups(groups)
+        return groups.compact.inject([]){|it, a| it | a}
+    end
+
+    def list_terms_per_level_from_items
         terms_levels = {}
         @items.each do |term, items| 
           level = self.get_term_level(term)
@@ -2103,31 +2153,53 @@ class Ontology
             query << term
           end
         end
+        return terms_levels
+    end
 
+    def connect_familiars!(terms_levels)
+        levels = terms_levels.keys.sort
+        while levels.length > 1 # Process when current level has a parental level
+            level = levels.pop
+            parental_level = level - 1
+            parental_terms = terms_levels[parental_level]
+            if parental_terms.nil? # The queried parent level not exists but there is a parental level above of the non existant
+                parental_terms = [] # Initialize required parental level
+                terms_levels[parental_level] = parental_terms
+                levels << parental_level
+            end
+            terms_levels[level].each do |term|
+                path_info = @term_paths[term]
+                shortest_path_length = path_info[:shortest_path] 
+                path = path_info[:paths].select{|p| p.length == shortest_path_length}.first
+                parental = path[1] # the first elements is the term itself
+                parental_terms << parental if !parental_terms.include?(parental)
+            end
+        end
+    end
+
+    def compute_relations_elim(terms_levels, external_item_list, total_items, thresold, item_list)
         results = []
         penalized_terms = {}
         levels = terms_levels.keys.sort
         levels.reverse_each do |level|
             terms_levels[level].each do |term|
                 associated_items = @items[term]
-                if mode == :elim 
-                    items_to_remove = penalized_terms[term]
-                    items_to_remove = [] if items_to_remove.nil?
-                    pval = get_fisher_exact_test(
-                        external_item_list - items_to_remove, 
-                        associated_items - items_to_remove, 
-                        #((associated_items | external_item_list) - items_to_remove).length
-                        total_items
-                        )
-                    if pval <= thresold
-                        parents = get_ancestors(term) # Save the items for each parent term to remove them later in the fisher test
-                        parents.each do |prnt|
-                            query = penalized_terms[prnt]
-                            if query.nil?
-                                penalized_terms[prnt] = @items[term].clone # We need a new array to store the following iterations
-                            else
-                                query.concat(@items[term])
-                            end
+                items_to_remove = penalized_terms[term]
+                items_to_remove = [] if items_to_remove.nil?
+                pval = get_fisher_exact_test(
+                    external_item_list - items_to_remove, 
+                    associated_items - items_to_remove, 
+                    #((associated_items | external_item_list) - items_to_remove).length
+                    total_items
+                    )
+                if pval <= thresold
+                    parents = get_ancestors(term) # Save the items for each parent term to remove them later in the fisher test
+                    parents.each do |prnt|
+                        query = penalized_terms[prnt]
+                        if query.nil?
+                            penalized_terms[prnt] = item_list[term].clone # We need a new array to store the following iterations
+                        else
+                            query.concat(item_list[term])
                         end
                     end
                 end
@@ -2136,6 +2208,79 @@ class Ontology
         end
         return results
     end
+
+    def compute_relations_weight(terms_levels, external_item_list, total_items, thresold, item_list)
+        pvals = {}
+        item_weigths_per_term = Hash.new { |hash, key|  Hash.new(1) } #https://mensfeld.pl/2016/09/ruby-hash-default-value-be-cautious-when-you-use-it/
+        levels = terms_levels.keys.sort
+        levels.reverse_each do |level|
+            terms_levels[level].each do |term|
+                associated_items = item_list[term]
+                #initialize observed items in item_weigths_per_term list
+                add_items_to_weigthed_list(term, associated_items, item_weigths_per_term) if !associated_items.nil?
+                children = @dicts[:is_a][:byValue][term]
+                if children.nil?
+                    children = []
+                else
+                    children = children.select{|ch| item_weigths_per_term[ch].length > 0} # Only use children with items associated to them OR transfered to them
+                end
+                computeTermSig(term, children, external_item_list, total_items, pvals, item_weigths_per_term)
+            end
+        end
+        return pvals.to_a     
+    end
+
+    def add_items_to_weigthed_list(term, associated_items, weigthed_list)
+        term_weigthing = weigthed_list[term]
+        associated_items.each{|ai| term_weigthing[ai] = 1}
+        weigthed_list[term] = term_weigthing
+    end
+
+    def computeTermSig(term, children, external_item_list, total_items, pvals, item_weigths_per_term)
+        associated_items = item_weigths_per_term[term].keys
+        pval = get_fisher_exact_test(external_item_list, associated_items, total_items, 
+                                    'two_sided', item_weigths_per_term[term], true)
+        pvals[term] = pval
+        if children.length > 0
+            rates = {}
+            sig_child = 0
+            children.each do |child|
+                ratio = sigRatio(pvals[child], pval)
+                rates[child] = ratio 
+                sig_child += 1 if ratio >= 1
+            end
+            if sig_child == 0 # CASE 1
+                children.each do |child|
+                    current_ratio = rates[child]
+                    query_child = item_weigths_per_term[child]
+                    query_child.transform_values!{|weight| weight * current_ratio}
+                    pvals[child] = get_fisher_exact_test(external_item_list, @items[child], total_items, 
+                                      'two_sided', item_weigths_per_term[child], true)
+                end
+            else
+                ancs = get_ancestors(term, filter_alternatives = true)
+                ancs << term
+                rates.each do |ch, ratio|# CASE 2
+                    if ratio >= 1 # The child is better than parent
+                        ancs.each do |anc|
+                            query_anc = item_weigths_per_term[anc]
+                            associated_items.each do |item|
+                                query_anc[item] /= ratio # /= --> query_anc[item]/ratio
+                            end
+                        end
+                    end
+                end
+                computeTermSig(term, children - rates.keys, external_item_list, total_items, pvals, item_weigths_per_term)
+            end
+        end
+    end
+
+    def sigRatio(pvalA, pvalB)
+        return Math.log(pvalA)/Math.log(pvalB)
+    end
+
+#============================================================================
+#============================================================================
 
     # Check if a given ID is a removable (blacklist) term.
     # +DEPRECATED+ use is_removable? instead

@@ -1,7 +1,7 @@
 # TODO: Make a pull request to https://rubygems.org/gems/ruby-statistics, with all the statistic code implemented here.
 #to cmpute fisher exact test
 #Fisher => http://www.biostathandbook.com/fishers.html
-def get_fisher_exact_test(listA, listB, all_elements_count, tail ='two_sided', weigths=nil)
+def get_fisher_exact_test(listA, listB, all_elements_count, tail ='two_sided', weigths=nil, partial_weigths=true)
 	listA_listB = listA & listB
 	listA_nolistB = listA - listB
 	nolistA_listB = listB - listA
@@ -16,8 +16,14 @@ def get_fisher_exact_test(listA, listB, all_elements_count, tail ='two_sided', w
 		listA_listB_count = listA_listB.map{|i| weigths[i]}.inject(0){|sum, n| sum + n}.ceil
 		listA_nolistB_count = listA_nolistB.map{|i| weigths[i]}.inject(0){|sum, n| sum + n}.ceil
 		nolistA_listB_count = nolistA_listB.map{|i| weigths[i]}.inject(0){|sum, n| sum + n}.ceil
-		nolistA_nolistB_count = (weigths.keys - (listA | listB)).map{|i| weigths[i]}.inject(0){|sum, n| sum + n}.ceil
-		all_elements_count = weigths.values.inject(0){|sum, n| sum + n}.ceil
+
+		if partial_weigths
+			nolistA_nolistB_count = all_elements_count - (listA | listB).length
+			all_elements_count = nolistA_nolistB_count + listA_listB_count + listA_nolistB_count + nolistA_listB_count
+		else
+			nolistA_nolistB_count = (weigths.keys - (listA | listB)).map{|i| weigths[i]}.inject(0){|sum, n| sum + n}.ceil
+			all_elements_count = weigths.values.inject(0){|sum, n| sum + n}.ceil
+		end
 	end
 	if tail == 'two_sided'
 		accumulated_prob = get_two_tail(listA_listB_count, listA_nolistB_count, nolistA_listB_count, nolistA_nolistB_count, all_elements_count)
