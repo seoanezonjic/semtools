@@ -181,7 +181,7 @@ class TestOBOFunctionalities < Minitest::Test
     end
 
     # def test_go_export_import_several_records
-    #     @go = Ontology.new(file: File.join(AUX_FOLDER, "go-basic_sample.obo"), load_file: true)
+    #     @go = Ontology.new(file: File.join(AUX_FOLDER, "partial_go.obo"), load_file: true)
     #     # @go = Ontology.new(file: File.join(AUX_FOLDER, "go-basic_sample.obo"), load_file: true)
     #     # Export object to JSON
     #     @go.write(File.join(AUX_FOLDER, "gotestjsonFull.json"))
