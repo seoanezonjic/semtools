@@ -2103,7 +2103,7 @@ class Ontology
         if mode == :elim 
             results = compute_relations_elim(terms_levels, external_item_list, total_items, thresold, item_list_with_transf_parental)
         elsif mode == :weight
-            results = compute_relations_weight(terms_levels, external_item_list, total_items, thresold, item_list_with_transf_parental)
+            results = compute_relations_weight(terms_levels, external_item_list, total_items, item_list_with_transf_parental)
         end
         return results
     end
@@ -2209,7 +2209,7 @@ class Ontology
         return results
     end
 
-    def compute_relations_weight(terms_levels, external_item_list, total_items, thresold, item_list)
+    def compute_relations_weight(terms_levels, external_item_list, total_items, item_list)
         pvals = {}
         item_weigths_per_term = Hash.new { |hash, key|  Hash.new(1) } #https://mensfeld.pl/2016/09/ruby-hash-default-value-be-cautious-when-you-use-it/
         levels = terms_levels.keys.sort
