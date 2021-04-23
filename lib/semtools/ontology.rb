@@ -39,7 +39,7 @@ class Ontology
     # => @removable_terms :: array of terms to not be considered
     # => @term_paths :: metainfo about parental paths of each term
 
-    @@basic_tags = {ancestors: [:is_a], obsolete: :is_obsolete, alternative: [:alt_id,:replaced_by,:consider]}
+    @@basic_tags = {ancestors: [:is_a], obsolete: :is_obsolete, alternative: [:replaced_by,:consider,:alt_id]}
     @@allowed_calcs = {ics: [:resnik, :resnik_observed, :seco, :zhou, :sanchez], sims: [:resnik, :lin, :jiang_conrath]}
     @@symbolizable_ids = [:id, :alt_id, :replaced_by, :consider]
     @@tags_with_trailing_modifiers = [:is_a, :union_of, :disjoint_from, :relationship, :subsetdef, :synonymtypedef, :property_value]
@@ -498,21 +498,23 @@ class Ontology
     # +alt_tag+:: tag used to expand alternative IDs
     # ===== Returns 
     # true if process ends without errors and false in other cases
-    def get_index_alternatives(alt_tag: @@basic_tags[:alternative][0])
+    def get_index_alternatives(alt_tag: @@basic_tags[:alternative].last)
         # Check input
         raise('stanzas terms empty')  if @stanzas[:terms].empty?
         # Take all alternative IDs
         alt_ids2add = {}
         @stanzas[:terms].each do |id, tags|
-            id = tags[:id] # Take always real ID in case of alternative terms simulted
-            alt_ids = tags[alt_tag]
-            if !alt_ids.nil?
-                alt_ids = alt_ids - @removable_terms
-                # Update info
-                alt_ids.each do |alt_term|
-                    @alternatives_index[alt_term] = id
-                    alt_ids2add[alt_term] = @stanzas[:terms][id] if !@stanzas[:terms].include?(alt_term)
-                    @ancestors_index[alt_term] = @ancestors_index[id] if !@ancestors_index[id].nil?
+            if id == tags[:id] # Avoid simulated alternative terms
+                # id = tags[:id] # Take always real ID in case of alternative terms simulted
+                alt_ids = tags[alt_tag]
+                if !alt_ids.nil?
+                    alt_ids = alt_ids - @removable_terms - [id]
+                    # Update info
+                    alt_ids.each do |alt_term|
+                        @alternatives_index[alt_term] = id
+                        alt_ids2add[alt_term] = @stanzas[:terms][id] if !@stanzas[:terms].include?(alt_term)
+                        @ancestors_index[alt_term] = @ancestors_index[id] if !@ancestors_index[id].nil?
+                    end
                 end
             end
         end
@@ -524,10 +526,11 @@ class Ontology
     # ===== Returns 
     # true if eprocess ends without errors and false in other cases
     def build_index()
-        self.get_index_alternatives
         self.get_index_obsoletes
+        self.get_index_alternatives
         self.get_index_child_parent_relations
             @alternatives_index.map{|k,v| @alternatives_index[k] = self.extract_id(v)}
+            # @alternatives_index.map {|k,v| @alternatives_index[k] = self.stanzas[:terms][v][:id] if k == v} unless self.stanzas[:terms].empty?
             @alternatives_index.compact!
             @obsoletes_index.map{|k,v| @obsoletes_index[k] = self.extract_id(v)}
             @obsoletes_index.compact!
@@ -596,6 +599,7 @@ class Ontology
             # Check obsoletes
             @stanzas[:terms].each do |id, term_tags|
                 next if term_tags.nil?
+                next if self.is_alternative?(id)
                 query = term_tags[obs_tag]
                 if !query.nil? && query == 'true' # Obsolete tag presence 
                     next if !@obsoletes_index[id].nil? # Already stored
@@ -938,7 +942,7 @@ class Ontology
         # Pre-process (Symbolize some hashs values)
         if !jsonInfo[:header].nil?
             aux = jsonInfo[:header].map do |entry,info|
-                if info.kind_of?(Array) 
+                if info.kind_of?(Array) && @@symbolizable_ids.include?(entry) 
                     [entry,info.map{|item| item.to_sym}]
                 else
                     [entry,info]

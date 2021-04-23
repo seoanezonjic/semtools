@@ -169,28 +169,25 @@ class TestOBOFunctionalities < Minitest::Test
 	end
 
     def test_go_export_import
-        @go = Ontology.new(file: File.join(AUX_FOLDER, "go-onlyOne.obo"), load_file: true)
-        # @go = Ontology.new(file: File.join(AUX_FOLDER, "go-basic_sample.obo"), load_file: true)
+        @go = Ontology.new(file: File.join(AUX_FOLDER, "go-basic_sample.obo"), load_file: true)
         # Export object to JSON
         @go.write(File.join(AUX_FOLDER, "gotestjson.json"))
-        #file: File.join(AUX_FOLDER, "testjson.json"
         obo = Ontology.new(file: File.join(AUX_FOLDER, "gotestjson.json"), load_file: true)
         assert_equal(@go, obo)
         # Remove generated files
         File.delete(File.join(AUX_FOLDER, "gotestjson.json"))
     end
 
-    # def test_go_export_import_several_records
-    #     @go = Ontology.new(file: File.join(AUX_FOLDER, "partial_go.obo"), load_file: true)
-    #     # @go = Ontology.new(file: File.join(AUX_FOLDER, "go-basic_sample.obo"), load_file: true)
-    #     # Export object to JSON
-    #     @go.write(File.join(AUX_FOLDER, "gotestjsonFull.json"))
-    #     #file: File.join(AUX_FOLDER, "testjson.json"
-    #     obo = Ontology.new(file: File.join(AUX_FOLDER, "gotestjsonFull.json"), load_file: true)
-    #     assert_equal(@go, obo)
-    #     # Remove generated files
-    #     File.delete(File.join(AUX_FOLDER, "gotestjsonFull.json"))
-    # end
+    def test_go_export_import_several_records
+        @go = Ontology.new(file: File.join(AUX_FOLDER, "partial_go.obo"), load_file: true)
+        # Export object to JSON
+        @go.write(File.join(AUX_FOLDER, "gotestjsonFull.json"))
+        #file: File.join(AUX_FOLDER, "testjson.json"
+        obo = Ontology.new(file: File.join(AUX_FOLDER, "gotestjsonFull.json"), load_file: true)
+        assert_equal(@go, obo)
+        # Remove generated files
+        File.delete(File.join(AUX_FOLDER, "gotestjsonFull.json"))
+    end
 
 	#################################
 	# METADATA FUNCTIONALITIES
