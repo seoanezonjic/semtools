@@ -553,8 +553,6 @@ class Ontology
         if @ancestors_index.empty?
             warn('ancestors_index object is empty') 
         else
-            # Prepare useful variables
-            alternative_terms = @alternatives_index.keys
             # Per each term, add frequencies
             @stanzas[:terms].each do |id, tags|            
                 if @alternatives_index.include?(id)
@@ -573,8 +571,8 @@ class Ontology
                         @meta[id] = query 
                     end
                     # Store metadata
-                    query[:ancestors] = @ancestors_index.include?(id) ? @ancestors_index[id].count{|anc| !alternative_terms.include?(anc)}.to_f : 0.0
-                    query[:descendants] = @descendants_index.include?(id) ? @descendants_index[id].count{|desc| !alternative_terms.include?(desc)}.to_f : 0.0
+                    query[:ancestors] = @ancestors_index.include?(id) ? @ancestors_index[id].count{|anc| !@alternatives_index.include?(anc)}.to_f : 0.0
+                    query[:descendants] = @descendants_index.include?(id) ? @descendants_index[id].count{|desc| !@alternatives_index.include?(desc)}.to_f : 0.0
                     query[:struct_freq] = query[:descendants] + 1.0
                     # Update maximums
                     @max_freqs[:struct_freq] = query[:struct_freq] if @max_freqs[:struct_freq] < query[:struct_freq]  
