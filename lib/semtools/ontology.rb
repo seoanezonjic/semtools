@@ -530,7 +530,7 @@ class Ontology
         self.get_index_alternatives
         self.get_index_child_parent_relations
             @alternatives_index.map{|k,v| @alternatives_index[k] = self.extract_id(v)}
-            # @alternatives_index.map {|k,v| @alternatives_index[k] = self.stanzas[:terms][v][:id] if k == v} unless self.stanzas[:terms].empty?
+            ## @alternatives_index.map {|k,v| @alternatives_index[k] = self.stanzas[:terms][v][:id] if k == v} unless self.stanzas[:terms].empty?
             @alternatives_index.compact!
             @obsoletes_index.map{|k,v| @obsoletes_index[k] = self.extract_id(v)}
             @obsoletes_index.compact!
@@ -1696,44 +1696,46 @@ class Ontology
 
     # Find paths of a term following it ancestors and stores all possible paths for it and it's parentals.
     # Also calculates paths metadata and stores into @term_paths
-    def calc_term_paths
+    def calc_term_paths(only_main_terms=false)
         self.calc_ancestors_dictionary if @dicts[:is_a].nil? # Calculate direct parentals dictionary if it's not already calculated
-        visited_terms = []
+        visited_terms = {} # PEDRO: To keep track of visited data, hash accesions are fast than array includes. I don't understant why use this variable instead of check @term_paths to see if the data is calculated
         @term_paths = {}
         if [:hierarchical, :sparse].include? @structureType
-            terms = @stanzas[:terms].keys
-            terms.each do |term|
-                if self.is_obsolete?(term) || self.is_alternative?(term)  # Special case (obsoletes)
+            @stanzas[:terms].each do |term, t_attributes|
+                if !only_main_terms && (self.is_obsolete?(term) || self.is_alternative?(term))  # Special case (obsoletes)
                     special_term = term
                     term = self.is_obsolete?(term) ? @obsoletes_index[term] : @alternatives_index[term]
                     @term_paths[term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} if !@term_paths.include?(term)
                     @term_paths[special_term] = @term_paths[term]
-                    visited_terms << special_term
+                    visited_terms[special_term] = true
                 end
 
                 if !visited_terms.include?(term)
-                    @term_paths[term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} if !@term_paths.include?(term)
+                    # PEDRO: This code is very similar to expand_path method, but cannot be replaced by it (test fail). We must work to use this method here
+                    path_attr = @term_paths[term]
+                    if path_attr.nil?
+                        path_attr = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} # create new path data
+                        @term_paths[term] = path_attr #save path data container
+                    end
                     parentals = @dicts[:is_a][:byTerm][term]
                     if parentals.nil?
-                        @term_paths[term][:paths] << [term]
+                        path_attr[:paths] << [term]
                     else
                         parentals.each do |direct_parental|
-                            if visited_terms.include? direct_parental # Use direct_parental already calculated paths
-                                new_paths = @term_paths[direct_parental][:paths].map{|path| [term, path].flatten}
-                            else # Calculate new paths
-                                self.expand_path(direct_parental, visited_terms)
-                                new_paths = @term_paths[direct_parental][:paths].map{|path| [term, path].flatten}
-                            end
-                            new_paths.each{|path| @term_paths[term][:paths] << path}
+                            self.expand_path(direct_parental)
+                            new_paths = @term_paths[direct_parental][:paths]
+                            path_attr[:paths].concat(new_paths.map{|path| path.clone.unshift(term)})
                         end
                     end
-                    visited_terms << term
+                    @ancestors_index[term].each{|anc| visited_terms[anc] = true} if @ancestors_index.include?(term)
+                    visited_terms[term] = true
                 end
                 # Update metadata
-                @term_paths[term][:total_paths] = @term_paths[term][:paths].length
-                paths_sizes = @term_paths[term][:paths].map{|path| path.length}
-                @term_paths[term][:largest_path] = paths_sizes.max
-                @term_paths[term][:shortest_path] = paths_sizes.min
+                path_attr = @term_paths[term]
+                path_attr[:total_paths] = path_attr[:paths].length
+                paths_sizes = path_attr[:paths].map{|path| path.length}
+                path_attr[:largest_path] = paths_sizes.max
+                path_attr[:shortest_path] = paths_sizes.min
             end
         else
             warn('Ontology structure must be hierarchical or sparse to calculate term levels. Aborting paths calculation')
@@ -1745,20 +1747,25 @@ class Ontology
     # ===== Parameters
     # +curr_term+:: current visited term
     # +visited_terms+:: already expanded terms
-    def expand_path(curr_term, visited_terms)
-        if !visited_terms.include?(curr_term) # Not already expanded
-            @term_paths[curr_term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} if @term_paths[curr_term].nil?
+    def expand_path(curr_term)
+        if !@term_paths.include?(curr_term)
+            path_attr = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []}
+            @term_paths[curr_term] = path_attr
             direct_parentals = @dicts[:is_a][:byTerm][curr_term]
             if direct_parentals.nil? # No parents :: End of recurrence
-                @term_paths[curr_term][:paths] << [curr_term]
+                path_attr[:paths] << [curr_term]
             else # Expand and concat
                 direct_parentals.each do |ancestor|
-                    self.expand_path(ancestor,visited_terms) if !visited_terms.include?(ancestor)
-                    new_paths = @term_paths[ancestor][:paths].map{|path| [curr_term, path].flatten}
-                    new_paths.each{|path| @term_paths[curr_term][:paths] << path}
+                    path_attr_parental = @term_paths[ancestor]
+                    if path_attr_parental.nil? # Calculate new paths
+                        self.expand_path(ancestor) 
+                        new_paths = @term_paths[ancestor][:paths]
+                    else # Use direct_parental paths already calculated 
+                        new_paths = path_attr_parental[:paths] 
+                    end
+                    path_attr[:paths].concat(new_paths.map{|path| path.clone.unshift(curr_term)})
                 end
             end
-            visited_terms << curr_term
         end
     end
 
@@ -2102,7 +2109,9 @@ class Ontology
     # ...
      def compute_relations_to_items(external_item_list, total_items, mode, thresold)
         terms_levels = list_terms_per_level_from_items 
+        #puts terms_levels.inspect.yellow
         connect_familiars!(terms_levels)
+        #puts terms_levels.inspect.blue
         item_list_with_transf_parental = get_item_list_parental(terms_levels)
         results = []
         if mode == :elim 
@@ -2242,6 +2251,9 @@ class Ontology
     end
 
     def computeTermSig(term, children, external_item_list, total_items, pvals, item_weigths_per_term)
+        #puts term.to_s.red
+        #puts @term_paths[term].inspect
+        #puts @dicts[:is_a][:byValue][term].inspect.light_blue
         associated_items = item_weigths_per_term[term].keys
         pval = get_fisher_exact_test(external_item_list, associated_items, total_items, 
                                     'two_sided', item_weigths_per_term[term], true)

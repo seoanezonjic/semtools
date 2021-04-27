@@ -189,6 +189,17 @@ class TestOBOFunctionalities < Minitest::Test
         File.delete(File.join(AUX_FOLDER, "gotestjsonFull.json"))
     end
 
+    def test_go_several_records_compare_structure
+        @go = Ontology.new(file: File.join(AUX_FOLDER, "partial_go.obo"), load_file: true)
+        # Export object to JSON
+        #@go.write(File.join(AUX_FOLDER, "gotestjsonFull.json"))
+        #file: File.join(AUX_FOLDER, "testjson.json"
+        obo = Ontology.new(file: File.join(AUX_FOLDER, "partial_go.json"), load_file: true)
+        assert_equal(@go, obo)
+        # Remove generated files
+        #File.delete(File.join(AUX_FOLDER, "gotestjsonFull.json"))
+    end
+
 	#################################
 	# METADATA FUNCTIONALITIES
 	#################################
