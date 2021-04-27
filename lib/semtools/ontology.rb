@@ -1785,6 +1785,26 @@ class Ontology
         return @dicts[:level][:byValue][term]
     end
 
+    # nil, term not found, [] term exists but not has parents
+    def get_parental_path(term, length_path = :shortest_path, level = 0)
+        path = nil
+        path_attr = @term_paths[term]
+        if !path_attr.nil?
+            path_length = path_attr[length_path]
+            all_paths = path_attr[:paths]
+            if all_paths.empty?
+                path = []
+            else
+                path = all_paths.select{|pt| pt.length == path_length}.first
+                if level > 0 # we want the term and his ascendants until a specific level
+                    pos = path_length - (level + 1)
+                    path = path[pos..path_length]
+                end
+                path.shift # Discard the term itself
+            end
+        end
+        return path
+    end
 
     # Return ontology levels from profile terms
     # ===== Returns 
