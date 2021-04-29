@@ -1562,6 +1562,17 @@ class Ontology
         return terms_without_ancestors_and_alternatices
     end
 
+    # Replace alternatives,  remove obsolete and ancestors terms of a given profile 
+    # ===== Parameters
+    # +profile+:: profile to be cleaned
+    # ===== Returns 
+    # cleaned profile
+    def clean_profile_hard(profile)
+        profile = profile.select{|t| !t.is_obsolete?(t)}
+        profile = check_ids(profile).uniq
+        profile = clean_profile(profile, true)
+        return profile
+    end
 
     # Remove terms from a given profile using hierarchical info and scores set given  
     # ===== Parameters
@@ -1682,7 +1693,7 @@ class Ontology
     end
 
 
-    # Check if a term given is marked as obsolete
+    # Check if a term given is marked as obsolete. If the term is an alternative to other id, is moved to @alternatives_index
     def is_obsolete? term
         return @obsoletes_index.include?(term)
     end
