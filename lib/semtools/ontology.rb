@@ -433,12 +433,16 @@ class Ontology
         micasA = []
         # Compare A -> B
         termsA.each do |tA|
-            micas = termsB.map{|tB| self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type)}
-            # Remove special cases
-            [false,nil].each do |err_value| micas.delete(err_value) end
-            # Obtain maximum value
-            micasA << micas.max if micas.length > 0
-            micasA << 0 if micas.length <= 0
+            micas = []
+            termsB.each do |tB| 
+               value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type)
+               micas << value if !value.nil? && !value
+            end            
+            if !micas.empty
+                micasA << micas.max  > 0 # Obtain maximum value
+            else
+                micasA << 0
+            end
         end
         means_sim = micasA.inject{ |sum, el| sum + el }.to_f / micasA.size
         # Compare B -> A
@@ -1568,7 +1572,7 @@ class Ontology
     # ===== Returns 
     # cleaned profile
     def clean_profile_hard(profile)
-        profile = profile.select{|t| !t.is_obsolete?(t)}
+        profile = profile.select{|t| !is_obsolete?(t)}
         profile = check_ids(profile).uniq
         profile = clean_profile(profile, true)
         return profile
