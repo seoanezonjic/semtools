@@ -438,13 +438,13 @@ class Ontology
                value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type)
                micas << value if !value.nil? && !value
             end            
-            if !micas.empty
-                micasA << micas.max  > 0 # Obtain maximum value
+            if !micas.empty?
+                micasA << micas.max # Obtain maximum value
             else
                 micasA << 0
             end
         end
-        means_sim = micasA.inject{ |sum, el| sum + el }.to_f / micasA.size
+        means_sim = micasA.inject{ |sum, el| sum + el }.fdiv(micasA.size)
         # Compare B -> A
         if bidirectional
             means_simA = means_sim * micasA.size
@@ -724,12 +724,14 @@ class Ontology
     # the IC calculated
     def get_IC(termRaw, type: :resnik, force: false, zhou_k: 0.5)
         term = termRaw.to_sym
+        curr_ics = @ics[type] 
         # Check 
         raise ArgumentError, "IC type specified (#{type}) is not allowed" if !@@allowed_calcs[:ics].include?(type)
         # Check if it's already calculated
-        return @ics[type][term] if (@ics[type].include? term) && !force
+        return curr_ics[term] if (curr_ics.include? term) && !force
         # Calculate
         ic = - 1
+        term_meta = @meta[term]
         case type # https://arxiv.org/ftp/arxiv/papers/1310/1310.8059.pdf  |||  https://sci-hub.st/https://doi.org/10.1016/j.eswa.2012.01.082
             ###########################################
             #### STRUCTURE BASED METRICS
@@ -746,10 +748,10 @@ class Ontology
             ###########################################
             when :resnik # Resnik P: Using Information Content to Evaluate Semantic Similarity in a Taxonomy
                 # -log(Freq(x) / Max_Freq)
-                ic = -Math.log10(@meta[term][:struct_freq].fdiv(@max_freqs[:struct_freq]))
+                ic = -Math.log10(term_meta[:struct_freq].fdiv(@max_freqs[:struct_freq]))
             when :resnik_observed 
                 # -log(Freq(x) / Max_Freq)
-                ic = -Math.log10(@meta[term][:observed_freq].fdiv(@max_freqs[:observed_freq]))
+                ic = -Math.log10(term_meta[:observed_freq].fdiv(@max_freqs[:observed_freq]))
             # Lin
             # Jiang & Conrath
 
@@ -765,17 +767,17 @@ class Ontology
             ###########################################
             when :seco, :zhou # SECO:: An intrinsic information content metric for semantic similarity in WordNet
                 #  1 - ( log(hypo(x) + 1) / log(max_nodes) )
-                ic = 1 - Math.log10(@meta[term][:struct_freq]).fdiv(Math.log10(@stanzas[:terms].length - @alternatives_index.length))
+                ic = 1 - Math.log10(term_meta[:struct_freq]).fdiv(Math.log10(@stanzas[:terms].length - @alternatives_index.length))
                 if :zhou # New Model of Semantic Similarity Measuring in Wordnet                
                     # k*(IC_Seco(x)) + (1-k)*(log(depth(x))/log(max_depth))
                     @ics[:seco][term] = ic # Special store
-                    ic = zhou_k * ic + (1.0 - zhou_k) * (Math.log10(@meta[term][:descendants]).fdiv(Math.log10(@max_freqs[:max_depth])))
+                    ic = zhou_k * ic + (1.0 - zhou_k) * (Math.log10(term_meta[:descendants]).fdiv(Math.log10(@max_freqs[:max_depth])))
                 end
             when :sanchez # Semantic similarity estimation in the biomedical domain: An ontology-basedinformation-theoretic perspective
-                ic = -Math.log10((@meta[term][:descendants].fdiv(@meta[term][:ancestors]) + 1.0).fdiv(@max_freqs[:max_depth] + 1.0))
+                ic = -Math.log10((term_meta[:descendants].fdiv(term_meta[:ancestors]) + 1.0).fdiv(@max_freqs[:max_depth] + 1.0))
             # Knappe
         end            
-        @ics[type][term] = ic
+        curr_ics[term] = ic
         return ic
     end
 
@@ -808,8 +810,8 @@ class Ontology
     # ===== Returns 
     # the IC of the MICA(termA,termB)
     def get_ICMICA(termA, termB, ic_type = :resnik)
-        mica = self.get_MICA(termA, termB, ic_type)
-        return mica.first.nil? ? nil : mica.last
+        term, ic = self.get_MICA(termA, termB, ic_type)
+        return term.nil? ? nil : ic
     end
 
 
@@ -831,19 +833,16 @@ class Ontology
         else    
             # Obtain ancestors (include itselfs too)
             anc_A = self.get_ancestors(termA) 
-            anc_B = self.get_ancestors(termB)
-
-            if !(anc_A.empty? && anc_B.empty?)
+            if !anc_A.empty? 
                 anc_A << termA
-                anc_B << termB
-                # Find shared ancestors
-                shared_ancestors = anc_A & anc_B
-                # Find MICA
-                if shared_ancestors.length > 0
+                anc_B = self.get_ancestors(termB)
+                if !anc_B.empty?
+                    anc_B << termB                    
+                    shared_ancestors = anc_A & anc_B # Find shared ancestors
+                    # Find MICA
                     shared_ancestors.each do |anc|
                         ic = self.get_IC(anc, type: ic_type)
-                        # Check
-                        mica = [anc,ic] if ic > mica[1]
+                        mica = [anc,ic] if ic > mica.last
                     end
                 end
             end
