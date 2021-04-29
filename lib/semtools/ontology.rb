@@ -1574,7 +1574,7 @@ class Ontology
     def clean_profile_hard(profile)
         profile = profile.select{|t| !is_obsolete?(t)}
         profile = check_ids(profile).uniq
-        profile = clean_profile(profile, true)
+        profile = clean_profile(profile)
         return profile
     end
 
