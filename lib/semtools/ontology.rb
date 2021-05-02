@@ -435,13 +435,13 @@ class Ontology
         termsA.each do |tA|
             micas = []
             termsB.each do |tB| 
-               value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type)
-               micas << value if !value.nil? && !value
-            end            
+                value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type)
+                micas << value if value.class == Float
+            end
             if !micas.empty?
                 micasA << micas.max # Obtain maximum value
             else
-                micasA << 0
+                micasA << 0 
             end
         end
         means_sim = micasA.inject{ |sum, el| sum + el }.fdiv(micasA.size)
@@ -449,7 +449,7 @@ class Ontology
         if bidirectional
             means_simA = means_sim * micasA.size
             means_simB = self.compare(termsB, termsA, sim_type: sim_type, ic_type: ic_type, bidirectional: false) * termsB.size
-            means_sim = (means_simA + means_simB) / (termsA.size + termsB.size)
+            means_sim = (means_simA + means_simB).fdiv(termsA.size + termsB.size)
         end
         # Return
         return means_sim
@@ -724,7 +724,7 @@ class Ontology
     # the IC calculated
     def get_IC(termRaw, type: :resnik, force: false, zhou_k: 0.5)
         term = termRaw.to_sym
-        curr_ics = @ics[type] 
+        curr_ics = @ics[type]
         # Check 
         raise ArgumentError, "IC type specified (#{type}) is not allowed" if !@@allowed_calcs[:ics].include?(type)
         # Check if it's already calculated
@@ -833,17 +833,13 @@ class Ontology
         else    
             # Obtain ancestors (include itselfs too)
             anc_A = self.get_ancestors(termA) 
-            if !anc_A.empty? 
+            anc_B = self.get_ancestors(termB)
+            if !(anc_A.empty? && anc_B.empty?)
                 anc_A << termA
-                anc_B = self.get_ancestors(termB)
-                if !anc_B.empty?
-                    anc_B << termB                    
-                    shared_ancestors = anc_A & anc_B # Find shared ancestors
-                    # Find MICA
-                    shared_ancestors.each do |anc|
-                        ic = self.get_IC(anc, type: ic_type)
-                        mica = [anc,ic] if ic > mica.last
-                    end
+                anc_B << termB
+                (anc_A & anc_B).each do |anc| # Find MICA in shared ancestors
+                    ic = self.get_IC(anc, type: ic_type)
+                    mica = [anc,ic] if ic > mica[1]
                 end
             end
         end
@@ -863,9 +859,8 @@ class Ontology
         # Check
         raise ArgumentError, "SIM type specified (#{type}) is not allowed" if !@@allowed_calcs[:sims].include?(type)
         sim = nil
-        # Launch comparissons
-        sim_res = get_ICMICA(termA, termB, ic_type)
-        if !sim_res.nil?
+        mica, sim_res = get_MICA(termA, termB, ic_type)
+        if !mica.nil?
             case type
                 when :resnik
                     sim = sim_res
@@ -1565,14 +1560,9 @@ class Ontology
         return terms_without_ancestors_and_alternatices
     end
 
-    # Replace alternatives,  remove obsolete and ancestors terms of a given profile 
-    # ===== Parameters
-    # +profile+:: profile to be cleaned
-    # ===== Returns 
-    # cleaned profile
     def clean_profile_hard(profile)
-        profile = profile.select{|t| !is_obsolete?(t)}
         profile, _ = check_ids(profile)
+        profile = profile.select{|t| !is_obsolete?(t)}
         profile = clean_profile(profile.uniq)
         return profile
     end
@@ -1696,7 +1686,7 @@ class Ontology
     end
 
 
-    # Check if a term given is marked as obsolete. If the term is an alternative to other id, is moved to @alternatives_index
+    # Check if a term given is marked as obsolete
     def is_obsolete? term
         return @obsoletes_index.include?(term)
     end
