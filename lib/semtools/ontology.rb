@@ -432,11 +432,23 @@ class Ontology
         raise ArgumentError, "Set given is empty. Aborting similarity calc" if termsA.empty? | termsB.empty?
         micasA = []
         # Compare A -> B
+        isolated_call = defined?(@mica_index).nil? # compare method is not called from compare_profiles method
         termsA.each do |tA|
             micas = []
-            termsB.each do |tB| 
-                value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type)
-                micas << value if value.class == Float
+            termsB.each do |tB|
+                if isolated_call
+                    value = nil
+                else
+                    value = @mica_index.dig(tA, tB)
+                end
+                if value.nil?
+                    value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type)
+                    if !isolated_call
+                        value = true if value.nil? # We use true to save that the operation was made but there is not mica value
+                        add2nestHash(@mica_index, tA, tB, value)
+                    end
+                end
+                micas << value if value.class == Float 
             end
             if !micas.empty?
                 micasA << micas.max # Obtain maximum value
@@ -455,6 +467,14 @@ class Ontology
         return means_sim
     end
 
+    def add2nestHash(h, key1, key2, val)
+        query1 = h[key1]
+        if query1.nil?
+            h[key1] = {key2 => val} 
+        else
+            query1[key2] = val
+        end
+    end
 
     # Compare internal stored profiles against another set of profiles. If an external set is not provided, internal profiles will be compared with itself 
     # ===== Parameters
@@ -479,6 +499,7 @@ class Ontology
             main_profiles = @profiles
         end
         # Compare
+        @mica_index = {}
         while !main_ids.empty?
             curr_id = main_ids.shift
             current_profile = main_profiles[curr_id]
