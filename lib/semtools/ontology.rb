@@ -432,7 +432,6 @@ class Ontology
         raise ArgumentError, "Set given is empty. Aborting similarity calc" if termsA.empty? | termsB.empty?
         micasA = []
         # Compare A -> B
-        #isolated_call = defined?(@mica_index).nil? # compare method is not called from compare_profiles method
         termsA.each do |tA|
             micas = []
             termsB.each do |tB|
@@ -674,10 +673,10 @@ class Ontology
                 end
             end
             # Store alternatives
-            @alternatives_index.each do |id,alt|
-                anc[id] = anc[alt] if anc.include?(alt)
-                des[id] = des[alt] if des.include?(alt)
-            end
+            # @alternatives_index.each do |id,alt|
+            #     anc[id] = anc[alt] if anc.include?(alt)
+            #     des[id] = des[alt] if des.include?(alt)
+            # end
             # Check structure
             if ![:atomic,:sparse].include? structType
                 structType = structType == :circular ? :circular : :hierarchical
@@ -1732,7 +1731,6 @@ class Ontology
                     @term_paths[special_term] = @term_paths[term]
                     visited_terms[special_term] = true
                 end
-
                 if !visited_terms.include?(term)
                     # PEDRO: This code is very similar to expand_path method, but cannot be replaced by it (test fail). We must work to use this method here
                     path_attr = @term_paths[term]
@@ -1749,8 +1747,8 @@ class Ontology
                             new_paths = @term_paths[direct_parental][:paths]
                             path_attr[:paths].concat(new_paths.map{|path| path.clone.unshift(term)})
                         end
-                    end
-                    @ancestors_index[term].each{|anc| visited_terms[anc] = true} if @ancestors_index.include?(term)
+                    end                    
+                    anc = @ancestors_index[term].each{|anc| visited_terms[anc] = true} if @ancestors_index.include?(term)
                     visited_terms[term] = true
                 end
                 # Update metadata
