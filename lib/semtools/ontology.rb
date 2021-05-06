@@ -426,24 +426,24 @@ class Ontology
     # +bidirectional+:: calculate bidirectional similitude. Default: false
     # ===== Return
     # similitude calculated
-    def compare(termsA, termsB, sim_type: :resnik, ic_type: :resnik, bidirectional: true)
+    def compare(termsA, termsB, sim_type: :resnik, ic_type: :resnik, bidirectional: true, store_mica: false)
         # Check
         raise ArgumentError, "Terms sets given are NIL" if termsA.nil? | termsB.nil?
         raise ArgumentError, "Set given is empty. Aborting similarity calc" if termsA.empty? | termsB.empty?
         micasA = []
         # Compare A -> B
-        isolated_call = defined?(@mica_index).nil? # compare method is not called from compare_profiles method
+        #isolated_call = defined?(@mica_index).nil? # compare method is not called from compare_profiles method
         termsA.each do |tA|
             micas = []
             termsB.each do |tB|
-                if isolated_call
-                    value = nil
-                else
+                if store_mica
                     value = @mica_index.dig(tA, tB)
+                else
+                    value = nil
                 end
                 if value.nil?
                     value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type)
-                    if !isolated_call
+                    if store_mica
                         value = true if value.nil? # We use true to save that the operation was made but there is not mica value
                         add2nestHash(@mica_index, tA, tB, value)
                     end
@@ -460,7 +460,7 @@ class Ontology
         # Compare B -> A
         if bidirectional
             means_simA = means_sim * micasA.size
-            means_simB = self.compare(termsB, termsA, sim_type: sim_type, ic_type: ic_type, bidirectional: false) * termsB.size
+            means_simB = self.compare(termsB, termsA, sim_type: sim_type, ic_type: ic_type, bidirectional: false, store_mica: store_mica) * termsB.size
             means_sim = (means_simA + means_simB).fdiv(termsA.size + termsB.size)
         end
         # Return
@@ -505,7 +505,7 @@ class Ontology
             current_profile = main_profiles[curr_id]
             comp_ids.each do |id|
                 profile = comp_profiles[id]
-                value = compare(current_profile, profile, sim_type: sim_type, ic_type: ic_type, bidirectional: bidirectional)
+                value = compare(current_profile, profile, sim_type: sim_type, ic_type: ic_type, bidirectional: bidirectional, store_mica: true)
                 query = profiles_similarity[curr_id]
                 if query.nil?
                   profiles_similarity[curr_id] = {id => value}
