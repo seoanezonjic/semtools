@@ -1846,6 +1846,85 @@ class Ontology
         return levels_filtered
     end
 
+    def get_profile_ontology_distribution_tables
+      cohort_ontology_levels = get_ontology_levels_from_profiles(uniq=false)
+      uniq_cohort_ontology_levels = get_ontology_levels_from_profiles
+      hpo_ontology_levels = get_ontology_levels
+      total_ontology_terms = hpo_ontology_levels.values.flatten.length
+      total_cohort_terms = cohort_ontology_levels.values.flatten.length
+      total_uniq_cohort_terms = uniq_cohort_ontology_levels.values.flatten.length
+
+      ontology_levels = []
+      distribution_percentage = []
+      hpo_ontology_levels.each do |level, terms|
+        cohort_terms = cohort_ontology_levels[level]
+        uniq_cohort_terms = uniq_cohort_ontology_levels[level]
+        if cohort_terms.nil? || uniq_cohort_terms.nil?
+          num = 0
+          u_num = 0
+        else
+          num = cohort_terms.length
+          u_num = uniq_cohort_terms.length
+        end
+        ontology_levels << [level, terms.length, num]
+        distribution_percentage << [
+          level,
+          (terms.length.fdiv(total_ontology_terms)*100).round(3),
+          (num.fdiv(total_cohort_terms)*100).round(3),
+          (u_num.fdiv(total_uniq_cohort_terms)*100).round(3)
+        ]
+      end
+      ontology_levels.sort! { |x,y| x.first <=> y.first }
+      distribution_percentage.sort! { |x,y| x.first <=> y.first }
+      return ontology_levels, distribution_percentage
+    end
+
+    def get_dataset_specifity_index(mode)
+        ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables
+        if mode == 'uniq'
+            observed_distribution = 3
+        elsif mode == 'weigthed'
+            observed_distribution = 2
+        end
+        max_terms = distribution_percentage.map{|row| row[1]}.max
+        maxL = nil 
+        distribution_percentage.each do |level_info|
+            maxL = level_info.first if level_info[1] == max_terms
+        end
+        diffL = distribution_percentage.map{|l| [l[0], l[observed_distribution] - l[1]]}
+        diffL.select!{|dL| dL.last > 0}
+        lowSection = diffL.select{|dL| dL.first <= maxL}
+        highSection = diffL.select{|dL| dL.first > maxL}
+        dsi = nil
+        if highSection.empty?
+            dsi = 0
+        else
+            accumulated_weigth = 0
+            accumulated_weigthed_diffL = 0
+            hss = get_weigthed_level_contribution(highSection, maxL)
+            lss = get_weigthed_level_contribution(lowSection, maxL)
+            dsi = hss.fdiv(lss)
+        end
+        return dsi
+    end
+
+    def get_weigthed_level_contribution(section, maxL)
+        accumulated_weigth = 0
+        accumulated_weigthed_diffL = 0
+        section.each do |level, diff|
+            weightL = maxL - level 
+            if weightL >= 0
+                weightL += 1
+            else
+                weightL = weightL.abs
+            end
+            accumulated_weigth += weightL
+            accumulated_weigthed_diffL += diff * weightL
+        end
+        weigthed_contribution = accumulated_weigthed_diffL.fdiv(accumulated_weigth)
+        return weigthed_contribution
+    end
+
 
     # Calculate profiles dictionary with Key= Term; Value = Profiles
     def calc_profiles_dictionary
