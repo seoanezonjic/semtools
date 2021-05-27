@@ -1901,15 +1901,14 @@ class Ontology
         else
             accumulated_weigth = 0
             accumulated_weigthed_diffL = 0
-            hss = get_weigthed_level_contribution(highSection, maxL)
-            lss = get_weigthed_level_contribution(lowSection, maxL)
+            hss = get_weigthed_level_contribution(highSection, maxL, ontology_levels.length - maxL)
+            lss = get_weigthed_level_contribution(lowSection, maxL, maxL)
             dsi = hss.fdiv(lss)
         end
         return dsi
     end
 
-    def get_weigthed_level_contribution(section, maxL)
-        accumulated_weigth = 0
+    def get_weigthed_level_contribution(section, maxL, nLevels)
         accumulated_weigthed_diffL = 0
         section.each do |level, diff|
             weightL = maxL - level 
@@ -1918,10 +1917,9 @@ class Ontology
             else
                 weightL = weightL.abs
             end
-            accumulated_weigth += weightL
             accumulated_weigthed_diffL += diff * weightL
         end
-        weigthed_contribution = accumulated_weigthed_diffL.fdiv(accumulated_weigth)
+        weigthed_contribution = accumulated_weigthed_diffL.fdiv(nLevels)
         return weigthed_contribution
     end
 
