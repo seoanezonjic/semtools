@@ -45,7 +45,7 @@ class Ontology
     @@tags_with_trailing_modifiers = [:is_a, :union_of, :disjoint_from, :relationship, :subsetdef, :synonymtypedef, :property_value]
     @@multivalue_tags = [:alt_id, :is_a, :subset, :synonym, :xref, :intersection_of, :union_of, :disjoint_from, :relationship, :replaced_by, :consider, :subsetdef, :synonymtypedef, :property_value, :remark]
     @@symbolizable_ids.concat(@@tags_with_trailing_modifiers)
-    
+
     #############################################
     # CONSTRUCTOR
     #############################################
@@ -553,14 +553,14 @@ class Ontology
         self.get_index_obsoletes
         self.get_index_alternatives
         self.get_index_child_parent_relations
-            @alternatives_index.map{|k,v| @alternatives_index[k] = self.extract_id(v)}
+            @alternatives_index.each{|k,v| @alternatives_index[k] = self.extract_id(v)}
             ## @alternatives_index.map {|k,v| @alternatives_index[k] = self.stanzas[:terms][v][:id] if k == v} unless self.stanzas[:terms].empty?
             @alternatives_index.compact!
-            @obsoletes_index.map{|k,v| @obsoletes_index[k] = self.extract_id(v)}
+            @obsoletes_index.each{|k,v| @obsoletes_index[k] = self.extract_id(v)}
             @obsoletes_index.compact!
-            @ancestors_index.map{|k,v| @ancestors_index[k] = v.map{|t| self.extract_id(t)}.compact}
+            @ancestors_index.each{|k,v| @ancestors_index[k] = v.map{|t| self.extract_id(t)}.compact}
             @ancestors_index.compact!
-            @descendants_index.map{|k,v| @descendants_index[k] = v.map{|t| self.extract_id(t)}.compact}
+            @descendants_index.each{|k,v| @descendants_index[k] = v.map{|t| self.extract_id(t)}.compact}
             @descendants_index.compact!
         self.get_index_frequencies
         self.calc_dictionary(:name)
