@@ -88,7 +88,18 @@ def expand_profiles(profiles, ontology, unwanted_terms = [])
 	    	profiles[disease_id] << ontology.get_ancestors(term).difference(unwanted_terms)
 	  end
 	end
-end		
+end	
+
+def write_similarity_profile_list(input, onto_obj, similarity_type)
+  similarity_file = File.basename(input, ".*")+'_semantic_similarity_list'  
+  File.open(similarity_file, 'w') do |file|
+    onto_obj.profiles.each do |profile_query_key, profile_query_value|
+      onto_obj.profiles.each do |profile_search_key, profile_search_value|
+        file.puts([profile_query_key, profile_search_key, onto_obj.compare(profile_query_value, profile_search_value, sim_type: similarity_type)].join("\t"))
+      end
+    end 
+  end
+end
 
 ####################################################################################
 ## OPTPARSE
@@ -102,7 +113,7 @@ OptionParser.new do |opts|
     options[:input_file] = item
   end
 
-  options[:output_file] = nil
+  options[:output_file] = "results"
   opts.on("-o", "--output_file PATH", "Output filepath") do |item|
     options[:output_file] = item
   end
@@ -113,23 +124,22 @@ OptionParser.new do |opts|
   end
 
   options[:ontology_file] = nil
-  opts.on("-O", "--ontology_file PATH", "Path to ontology file") do |item|
+  opts.on("-O PATH", "--ontology_file PATH", "Path to ontology file") do |item|
   	options[:ontology_file] = item
   end
 
   options[:term_filter] = nil
-  opts.on("-T", "--term_filter STRING", "If specified, only terms that are descendants of the specified term will be kept on a profile when cleaned") do |item|
+  opts.on("-T STRING", "--term_filter STRING", "If specified, only terms that are descendants of the specified term will be kept on a profile when cleaned") do |item|
   	options[:term_filter] = item.to_sym
   end
 
   options[:translate] = nil
-  opts.on("-t", "--translate STRING", "Translate to 'names' or to 'codes'") do |item|
+  opts.on("-t STRING", "--translate STRING", "Translate to 'names' or to 'codes'") do |item|
   	options[:translate] = item
   end
   
-  options[:similarity] = false
-  opts.on("-s", "--similarity", "Calculate similarity between profile IDs") do
-  	options[:similarity] = true
+  opts.on("-s method", "--similarity method", "Calculate similarity between profile IDs computed by 'resnik', 'lin' or 'jiang_conrath' methods. ") do |sim_method|
+  	options[:similarity] = sim_method.to_sym
   end
 
   options[:clean_profiles] = false
@@ -138,17 +148,17 @@ OptionParser.new do |opts|
   end
 
   options[:removed_path] = nil
-  opts.on("-r", "--removed_path PATH", "Desired path to write removed profiles file") do |item|
+  opts.on("-r PATH", "--removed_path PATH", "Desired path to write removed profiles file") do |item|
   	options[:removed_path] = item
   end
 
   options[:untranslated_path] = nil
-  opts.on("-u", "--untranslated_path PATH", "Desired path to write untranslated terms file") do |item|
+  opts.on("-u PATH", "--untranslated_path PATH", "Desired path to write untranslated terms file") do |item|
     options[:untranslated_path] = item
   end
 
   options[:keyword] = nil
-  opts.on("-k", "--keyword STRING", "regex used to get xref terms in the ontology file") do |item|
+  opts.on("-k STRING", "--keyword STRING", "regex used to get xref terms in the ontology file") do |item|
     options[:keyword] = item
   end
 
@@ -162,9 +172,9 @@ OptionParser.new do |opts|
     options[:unwanted_terms] = item
   end
 
-  options[:separator] = nil
-  opts.on("-S", "--separator STRING", "Separator used for the terms profile") do |item|
-    options[:separator] = item
+  options[:separator] = ";"
+  opts.on("-S character", "--separator character", "Separator used for the terms profile") do |sep|
+    options[:separator] = sep
   end     
 
 end.parse!    
@@ -204,20 +214,10 @@ if options[:expand_profiles]
   expanded_profiles = expand_profiles(ontology.profiles, ontology, options[:unwanted_terms])
 end 
 
-if options[:similarity]
-  i = 0
-  similarity_file = File.basename(options[:input_file], ".*")+'_semantic_similarity'
-  File.open(similarity_file, 'w') do |file|
-    while i < (ontology.profiles.size - 1) 
-      file.puts([ontology.profiles.keys[i], ontology.profiles.keys[i+1], ontology.compare(ontology.profiles.values[i], ontology.profiles.values[i+1])].join("\t"))
-      i += 1
-    end
-  end
+if !options[:similarity].nil?
+  write_similarity_profile_list(input = options[:input_file], onto_obj=ontology, similarity_type = options[:similarity])
 end 
 
-ontology.profiles.values.each do |value|
-    puts value.empty?
-end    
 
 if options[:IC]
   ontology.add_observed_terms_from_profiles
