@@ -1642,12 +1642,25 @@ class Ontology
     end
 
 
-    def get_profile_redundancy
+    def get_profile_redundancy()
       profile_sizes = self.get_profiles_sizes
       parental_terms_per_profile = self.parentals_per_profile# clean_profiles
       parental_terms_per_profile = parental_terms_per_profile.map{|item| item[0]}
       profile_sizes, parental_terms_per_profile = profile_sizes.zip(parental_terms_per_profile).sort_by{|i| i.first}.reverse.transpose
       return profile_sizes, parental_terms_per_profile
+    end
+
+    def compute_term_list_and_childs()
+      suggested_childs = {}
+      total_terms = 0
+      terms_with_more_specific_childs = 0
+      @profiles.each do |id, terms|
+        total_terms += terms.length
+        more_specific_childs = self.get_childs_table(terms, true)
+        terms_with_more_specific_childs += more_specific_childs.select{|hpo_record| !hpo_record.last.empty?}.length #Exclude phenotypes with no childs
+        suggested_childs[id] = more_specific_childs  
+      end
+      return suggested_childs, terms_with_more_specific_childs.fdiv(total_terms)
     end
 
     #  Calculates mean IC of a given profile
