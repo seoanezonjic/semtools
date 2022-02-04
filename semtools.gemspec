@@ -31,6 +31,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
   
   spec.add_dependency "text"
+  spec.add_dependency "expcalc"
 
   spec.add_development_dependency "rake"
   spec.add_development_dependency "rspec"
