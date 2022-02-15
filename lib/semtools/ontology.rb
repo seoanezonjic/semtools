@@ -202,6 +202,7 @@ class Ontology
         # Only TERMS multivalue tags (future add Typedefs and Instance)
         # multivalue_tags = [:alt_id, :is_a, :subset, :synonym, :xref, :intersection_of, :union_of, :disjoint_from, :relationship, :replaced_by, :consider]
         attributes.each do |tag, value|
+            value.gsub!(/{source=[\\\":A-Za-z0-9\/\.\-, =]+} /, '') if tag == 'is_a' # To delete "source" attributes in is_a tag of MONDO ontology
             # Check
             raise EncodingError, 'Info element incorrect format' if (tag.nil?) || (value.nil?)
             # Prepare
@@ -721,7 +722,9 @@ class Ontology
     # an array with all ancestors/descendants of given term or nil if parents are not available yet
     def get_familiar(term, return_ancestors = true, filter_alternatives = false)
         # Find into parentals
-        familiars = return_ancestors ? @ancestors_index[term] : @descendants_index[term]        
+        puts return_ancestors.inspect
+        familiars = return_ancestors ? @ancestors_index[term] : @descendants_index[term]    
+        puts familiars.inspect    
         if !familiars.nil?
             familiars = familiars.clone
             if filter_alternatives

@@ -122,7 +122,10 @@ def download(source, key, output)
         output_path = file_name
       end
     end
-    Down::NetHttp.download(url, destination: output_path, max_redirects: 5) if !url.nil?
+    if !url.nil?
+      Down::NetHttp.download(url, destination: output_path, max_redirects: 5)
+      File.chmod(0644, output_path) # Correct file permissions set by down gem
+    end
   end
 end
 
