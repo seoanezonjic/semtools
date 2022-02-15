@@ -1,8 +1,10 @@
 #! /usr/bin/env ruby
 ROOT_PATH = File.dirname(__FILE__)
 $LOAD_PATH.unshift(File.expand_path(File.join(ROOT_PATH, '..', 'lib')))
+EXTERNAL_DATA = File.expand_path(File.join(ROOT_PATH, '..', 'external_data'))
 
 require 'optparse'
+require 'down'
 require 'semtools'
 
 ######################################################################################
@@ -103,12 +105,50 @@ def write_similarity_profile_list(input, onto_obj, similarity_type)
   end
 end
 
+def download(source, key, output)
+  source_list = load_tabular_file(source).to_h
+  external_data = File.dirname(source)
+  if key == 'list'
+    Dir.glob(File.join(external_data,'*.obo')){|f| puts f}
+  else
+    url = source_list[key]
+    if !output.nil?
+      output_path = output
+    else
+      file_name = key + '.obo'
+      if File.writable?(external_data)
+        output_path = File.join(external_data, file_name)
+      else
+        output_path = file_name
+      end
+    end
+    Down::NetHttp.download(url, destination: output_path, max_redirects: 5) if !url.nil?
+  end
+end
+
+def get_ontology_file(path, source)
+  if !File.exists?(path)
+    ont_index = load_tabular_file(source).to_h
+    if !ont_index[path].nil?
+      path = File.join(File.dirname(source), path + '.obo')
+    else
+      abort("Input ontology file not exists")
+    end
+  end
+  return path
+end
+
 ####################################################################################
 ## OPTPARSE
 ####################################################################################
 options = {}
 OptionParser.new do |opts|
   opts.banner = "Usage: #{File.basename(__FILE__)} [options]"
+
+  options[:download] = nil
+  opts.on("-d", "--download STRING", "Download obo file from official resource. MONDO, GO and NPO are possible values.") do |item|
+    options[:download] = item
+  end
 
   options[:input_file] = nil
   opts.on("-i", "--input_file PATH", "Filepath of profile data") do |item|
@@ -189,6 +229,15 @@ end.parse!
 ####################################################################################
 ## MAIN
 ####################################################################################
+ont_index_file = File.join(EXTERNAL_DATA, 'ontologies.txt')
+if !options[:download].nil?
+  download(ont_index_file, options[:download], options[:output_file])
+  Process.exit
+end
+
+if !options[:ontology_file].nil?
+  options[:ontology_file] = get_ontology_file(options[:ontology_file], ont_index_file)
+end
 ontology = Ontology.new(file: options[:ontology_file], load_file: true)
 ontology.calc_dictionary(:xref, select_regex: /(#{options[:keyword]})/, store_tag: :IDs, multiterm: true, substitute_alternatives: false)
 
