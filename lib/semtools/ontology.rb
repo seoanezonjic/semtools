@@ -722,9 +722,7 @@ class Ontology
     # an array with all ancestors/descendants of given term or nil if parents are not available yet
     def get_familiar(term, return_ancestors = true, filter_alternatives = false)
         # Find into parentals
-        puts return_ancestors.inspect
         familiars = return_ancestors ? @ancestors_index[term] : @descendants_index[term]    
-        puts familiars.inspect    
         if !familiars.nil?
             familiars = familiars.clone
             if filter_alternatives
