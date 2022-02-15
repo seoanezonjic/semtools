@@ -1580,9 +1580,12 @@ class Ontology
         return terms_without_ancestors_and_alternatices
     end
 
-    def clean_profile_hard(profile)
+    def clean_profile_hard(profile, options = {})
         profile, _ = check_ids(profile)
         profile = profile.select{|t| !is_obsolete?(t)}
+        if !options[:term_filter].nil?
+            profile.select! {|term| get_ancestors(term).include?(options[:term_filter])}
+        end 
         profile = clean_profile(profile.uniq)
         return profile
     end

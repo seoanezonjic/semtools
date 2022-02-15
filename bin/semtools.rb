@@ -1,4 +1,6 @@
 #! /usr/bin/env ruby
+ROOT_PATH = File.dirname(__FILE__)
+$LOAD_PATH.unshift(File.expand_path(File.join(ROOT_PATH, '..', 'lib')))
 
 require 'optparse'
 require 'semtools'
@@ -113,7 +115,7 @@ OptionParser.new do |opts|
     options[:input_file] = item
   end
 
-  options[:output_file] = "results"
+  options[:output_file] = nil
   opts.on("-o", "--output_file PATH", "Output filepath") do |item|
     options[:output_file] = item
   end
@@ -147,7 +149,7 @@ OptionParser.new do |opts|
   	options[:clean_profiles] = true
   end
 
-  options[:removed_path] = nil
+  options[:removed_path] = 'rejected_profs'
   opts.on("-r PATH", "--removed_path PATH", "Desired path to write removed profiles file") do |item|
   	options[:removed_path] = item
   end
@@ -173,9 +175,14 @@ OptionParser.new do |opts|
   end
 
   options[:separator] = ";"
-  opts.on("-S character", "--separator character", "Separator used for the terms profile") do |sep|
+  opts.on("-S STRING", "--separator STRING", "Separator used for the terms profile") do |sep|
     options[:separator] = sep
   end     
+
+  options[:childs] = []
+  opts.on("-C STRING", "--separator STRING", "Term code list (comma separated) to generate child list") do |item|
+    options[:childs] = item.split(',').map{|t| t.to_sym}
+  end   
 
 end.parse!    
 
@@ -183,9 +190,12 @@ end.parse!
 ## MAIN
 ####################################################################################
 ontology = Ontology.new(file: options[:ontology_file], load_file: true)
-data = load_tabular_file(options[:input_file])
-store_profiles(data, ontology, options[:separator]) unless options[:translate] == 'codes'
 ontology.calc_dictionary(:xref, select_regex: /(#{options[:keyword]})/, store_tag: :IDs, multiterm: true, substitute_alternatives: false)
+
+if !options[:input_file].nil?
+  data = load_tabular_file(options[:input_file])
+  store_profiles(data, ontology, options[:separator]) unless options[:translate] == 'codes'
+end
 
 if options[:translate] == 'codes'
   profiles = {}
@@ -200,9 +210,7 @@ end
 if options[:clean_profiles]
 	removed_profiles = clean_profiles(ontology.profiles, ontology, options)	
 	if !removed_profiles.nil? && !removed_profiles.empty?
-      rejected_file = File.basename(options[:input_file], ".*")+'_excluded_patients'
-      file = File.join(options[:removed_path], rejected_file)
-      File.open(file, 'w') do |f|
+      File.open(options[:removed_path], 'w') do |f|
           removed_profiles.each do |profile|
               f.puts profile
           end
@@ -234,8 +242,19 @@ if options[:translate] == 'names'
   translate(ontology, 'names', options)  
 end
 
-File.open(options[:output_file], 'w') do |file|
-  ontology.profiles.each do |id, terms|
-    file.puts([id, terms.join("|")].join("\t"))
+if !options[:childs].empty?
+  all_childs = []
+  options[:childs].each do |term|
+   childs = ontology.get_descendants(term)
+   all_childs = all_childs | childs
   end
-end         
+  all_childs.each{|c| puts c}
+end
+
+if !options[:output_file].nil?
+  File.open(options[:output_file], 'w') do |file|
+    ontology.profiles.each do |id, terms|
+      file.puts([id, terms.join("|")].join("\t"))
+    end
+  end         
+end
