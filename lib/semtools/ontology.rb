@@ -1,3 +1,4 @@
+require 'expcalc'
 require 'json'
 require 'colorize'
 
