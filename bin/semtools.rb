@@ -157,40 +157,9 @@ def get_stats(stats)
   return report_stats
 end
 
-def ontology_stats(data_profiles)
-  stats = Hash.new(0)
-  data = []
-  data_profiles.each_value{|ont_ids| data << ont_ids.size}
-  stats[:average] = data.sum().fdiv(data.size)
-  sum_devs = data.sum{|element| (element - stats[:avg]) ** 2}
-  stats[:variance] = sum_devs.fdiv(data.size)
-  stats[:standardDeviation] = stats[:variance] ** 0.5
-  stats[:max] = data.max
-  stats[:min] = data.min
 
-  stats[:count] = data.size
-  data.each do |value|
-    stats[:countNonZero] += 1 if value != 0
-  end
 
-  stats[:q1] = get_quantiles(data,0.25)
-  stats[:median] = get_quantiles(data,0.5)
-  stats[:q3] = get_quantiles(data,0.75)
-  return stats
 
-end
-
-def get_quantiles(values, position=0.5)
-  values.sort!
-  n_items = values.size
-  quantile_coor = n_items * position - 1
-  if n_items % 2 == 0
-    quantile_value = (values[quantile_coor.to_i] + values[quantile_coor.to_i + 1]).fdiv(2)   
-  else
-    quantile_value = values[quantile_coor.ceil]
-  end
-  return quantile_value
-end
 
 
 ####################################################################################
@@ -369,9 +338,7 @@ if !options[:output_file].nil?
 end
 
 if options[:statistics]
-  stats_data = ontology_stats(ontology.profiles)
-  report_stats = get_stats(stats_data)
-  report_stats.each do |stat|
+  get_stats(ontology.profile_stats).each do |stat|
     puts stat.join("\t")
   end
 end

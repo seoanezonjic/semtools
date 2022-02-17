@@ -2439,6 +2439,28 @@ class Ontology
         return Math.log(pvalA)/Math.log(pvalB)
     end
 
+    def profile_stats
+      stats = Hash.new(0)
+      data = @profiles.values.map{|ont_ids| ont_ids.size}
+      stats[:average] = data.sum().fdiv(data.size)
+      sum_devs = data.sum{|element| (element - stats[:avg]) ** 2}
+      stats[:variance] = sum_devs.fdiv(data.size)
+      stats[:standardDeviation] = stats[:variance] ** 0.5
+      stats[:max] = data.max
+      stats[:min] = data.min
+
+      stats[:count] = data.size
+      data.each do |value|
+        stats[:countNonZero] += 1 if value != 0
+      end
+
+      stats[:q1] = data.get_quantiles(0.25)
+      stats[:median] = data.get_quantiles(0.5)
+      stats[:q3] = data.get_quantiles(0.75)
+      return stats
+
+    end
+
 #============================================================================
 #============================================================================
 
