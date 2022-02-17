@@ -141,19 +141,19 @@ def get_ontology_file(path, source)
   return path
 end
 
-def get_stats(data_stats)
+def get_stats(stats)
   report_stats = []
-  report_stats << ['Elements', data_stats[:count]]
-  report_stats << ['Elements Non Zero', data_stats[:countNonZero]]
-  report_stats << ['Non Zero Density', data_stats[:countNonZero].fdiv(data_stats[:count])]
-  report_stats << ['Max', data_stats[:max]]
-  report_stats << ['Min', data_stats[:min]]
-  report_stats << ['Average', data_stats[:average]]
-  report_stats << ['Variance', data_stats[:variance]]
-  report_stats << ['Standard Deviation', data_stats[:standardDeviation]]
-  report_stats << ['Q1', data_stats[:q1]]
-  report_stats << ['Median', data_stats[:median]]
-  report_stats << ['Q3', data_stats[:q3]]
+  report_stats << ['Elements', stats[:count]]
+  report_stats << ['Elements Non Zero', stats[:countNonZero]]
+  report_stats << ['Non Zero Density', stats[:countNonZero].fdiv(stats[:count])]
+  report_stats << ['Max', stats[:max]]
+  report_stats << ['Min', stats[:min]]
+  report_stats << ['Average', stats[:average]]
+  report_stats << ['Variance', stats[:variance]]
+  report_stats << ['Standard Deviation', stats[:standardDeviation]]
+  report_stats << ['Q1', stats[:q1]]
+  report_stats << ['Median', stats[:median]]
+  report_stats << ['Q3', stats[:q3]]
   return report_stats
 end
 
@@ -279,9 +279,9 @@ OptionParser.new do |opts|
     options[:childs] = item.split(',').map{|t| t.to_sym}
   end   
 
-  options[:column_ontology_ids] = false
-  opts.on("-n", "--column_ontology_ids", "Column number that specifies id's ontology location in profile files") do
-    options[:column_ontology_ids] = true
+  options[:statistics] = false
+  opts.on("-n", "--statistics", "To obtain main statistical descriptors of the profiles file") do
+    options[:statistics] = true
   end
 
 end.parse!
@@ -368,9 +368,9 @@ if !options[:output_file].nil?
   end         
 end
 
-if options[:column_ontology_ids]
-  stats = ontology_stats(ontology.profiles)
-  report_stats = get_stats(stats)
+if options[:statistics]
+  stats_data = ontology_stats(ontology.profiles)
+  report_stats = get_stats(stats_data)
   report_stats.each do |stat|
     puts stat.join("\t")
   end
