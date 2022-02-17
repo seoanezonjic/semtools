@@ -253,6 +253,12 @@ OptionParser.new do |opts|
     options[:statistics] = true
   end
 
+  options[:list_translate] = nil
+  opts.on("-l STRING", "--list_translate STRING", "Translate to 'names' or to 'codes' input list") do |sep|
+    options[:list_translate] = sep
+  end     
+
+
 end.parse!
 
 ####################################################################################
@@ -272,7 +278,21 @@ ontology.calc_dictionary(:xref, select_regex: /(#{options[:keyword]})/, store_ta
 
 if !options[:input_file].nil?
   data = load_tabular_file(options[:input_file])
-  store_profiles(data, ontology, options[:separator]) unless options[:translate] == 'codes'
+  if options[:list_translate].nil?
+    store_profiles(data, ontology, options[:separator]) unless options[:translate] == 'codes'
+  end
+end
+
+if !options[:list_translate].nil?
+  data.each do |term|
+    if options[:list_translate] == 'names'
+      translation, untranslated = ontology.translate_ids(term)
+    elsif options[:list_translate] == 'codes'
+      translation, untranslated = ontology.translate_names(term)
+    end
+    puts "#{term.first}\t#{translation.empty? ? '-' : translation.first}"
+  end
+  Process.exit
 end
 
 if options[:translate] == 'codes'
