@@ -258,6 +258,18 @@ OptionParser.new do |opts|
     options[:list_translate] = sep
   end     
 
+  options[:subject_column] = 0
+  opts.on("-f NUM", "--subject_column NUM", "The number of the column for the subject id") do |ncol|
+    options[:subject_column] = ncol.to_i
+  end
+
+  options[:annotations_column] = 1
+  opts.on("-a NUM", "--annotations_column NUM", "The number of the column for the annotation ids") do |ncol|
+    options[:annotations_column] = ncol.to_i
+  end
+
+
+
 
 end.parse!
 
@@ -278,6 +290,7 @@ ontology.calc_dictionary(:xref, select_regex: /(#{options[:keyword]})/, store_ta
 
 if !options[:input_file].nil?
   data = load_tabular_file(options[:input_file])
+  data.map!{|row| [row[options[:subject_column]],row[options[:annotations_column]]]}
   if options[:list_translate].nil?
     store_profiles(data, ontology, options[:separator]) unless options[:translate] == 'codes'
   end
