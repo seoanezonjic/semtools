@@ -92,7 +92,7 @@ end
 # +charsToRemove+:: char (or chars set) to be removed from texts to be compared
 # +unique+:: boolean flag which indicates if repeated elements must be removed
 # Returns the similarity percentage for all elements into array
-def similitude_network(items_array, splitChar = ";", charsToRemove = "", unique = false)
+def similitude_network(items_array, splitChar: ";", charsToRemove: "", unique: false)
   # Special cases
   return nil if items_array.nil?
   return nil if !items_array.is_a? Array

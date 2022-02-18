@@ -111,12 +111,11 @@ texts2compare = load_table_file(input_file = options[:input_file],
                                  targetCol = options[:cindex],
                                  filterCol = options[:findex],
                                  filterValue = options[:filter_value])
-
 # Verbose point
 puts "Calculating similitude for (" + texts2compare.length.to_s + ") elements"
 
 # Obtain all Vs all
-similitudes_AllVsAll = similitude_network(texts2compare,options[:rm_char])
+similitudes_AllVsAll = similitude_network(texts2compare, charsToRemove: options[:rm_char])
 
 # Verbose point
 puts "Writing output file ..."
