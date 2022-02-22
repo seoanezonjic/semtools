@@ -290,8 +290,8 @@ ontology.calc_dictionary(:xref, select_regex: /(#{options[:keyword]})/, store_ta
 
 if !options[:input_file].nil?
   data = load_tabular_file(options[:input_file])
-  data.map!{|row| [row[options[:subject_column]],row[options[:annotations_column]]]}
   if options[:list_translate].nil?
+    data.map!{|row| [row[options[:subject_column]],row[options[:annotations_column]]]}
     store_profiles(data, ontology, options[:separator]) unless options[:translate] == 'codes'
   end
 end
