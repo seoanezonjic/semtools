@@ -243,9 +243,16 @@ OptionParser.new do |opts|
     options[:separator] = sep
   end     
 
-  options[:childs] = []
-  opts.on("-C STRING", "--separator STRING", "Term code list (comma separated) to generate child list") do |item|
-    options[:childs] = item.split(',').map{|t| t.to_sym}
+  options[:childs] = [[], '']
+  opts.on("-C STRING", "--childs STRING", "Term code list (comma separated) to generate child list") do |item|
+    if item.include?('/')
+      modifiers, terms = item.split('/')
+    else
+      modifiers = ''
+      terms = item
+    end
+    terms = terms.split(',').map{|t| t.to_sym}
+    options[:childs] = [terms, modifiers]
   end   
 
   options[:statistics] = false
@@ -353,13 +360,37 @@ if options[:translate] == 'names'
   translate(ontology, 'names', options)  
 end
 
-if !options[:childs].empty?
+if !options[:childs].first.empty?
+  terms, modifiers = options[:childs]
   all_childs = []
-  options[:childs].each do |term|
+  terms.each do |term|
    childs = ontology.get_descendants(term)
    all_childs = all_childs | childs
   end
-  all_childs.each{|c| puts c}
+  if modifiers.include?('r')
+    relations = []
+    all_childs = all_childs | terms # Add parents that generated child list
+    all_childs.each do |term|
+      descendants = ontology.get_direct_descendants(term)
+      if !descendants.nil?
+        descendants.each do |desc|
+          relations << [term, desc]
+        end
+      end
+    end
+    relations.each do |rel| 
+      rel, _ = ontology.translate_ids(rel) if modifiers.include?('n')
+      puts rel.join("\t")
+    end
+  else
+    all_childs.each do |c| 
+      if modifiers.include?('n') 
+        puts ontology.translate_id(c) 
+      else
+        puts c
+      end
+    end
+  end
 end
 
 if !options[:output_file].nil?
