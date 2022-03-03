@@ -2241,7 +2241,24 @@ class Ontology
         return self.get_direct_related(term, :descendant, remove_alternatives: remove_alternatives)        
     end
 
+    def each(att = false)
+        @stanzas[:terms].each do |id, tags|            
+            next if @alternatives_index.include?(id)
+            if att
+               yield(id, tags)
+            else
+               yield(id)
+            end
+        end
+    end
 
+    def list_term_attributes
+        terms = []
+        each do |code|
+            terms << [code, translate_id(code), get_term_level(code)]
+        end
+        return terms
+    end
 
 #============================================================================
 #============================================================================

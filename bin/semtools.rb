@@ -170,7 +170,7 @@ OptionParser.new do |opts|
   opts.banner = "Usage: #{File.basename(__FILE__)} [options]"
 
   options[:download] = nil
-  opts.on("-d", "--download STRING", "Download obo file from official resource. MONDO, GO and NPO are possible values.") do |item|
+  opts.on("-d", "--download STRING", "Download obo file from official resource. MONDO, GO and HPO are possible values.") do |item|
     options[:download] = item
   end
 
@@ -276,7 +276,10 @@ OptionParser.new do |opts|
   end
 
 
-
+  options[:list_term_attributes] = false
+  opts.on("--list_term_attributes", "The number of the column for the annotation ids") do
+    options[:list_term_attributes] = true
+  end
 
 end.parse!
 
@@ -404,5 +407,13 @@ end
 if options[:statistics]
   get_stats(ontology.profile_stats).each do |stat|
     puts stat.join("\t")
+  end
+end
+
+if options[:list_term_attributes]
+  term_attributes = ontology.list_term_attributes
+  term_attributes.each do |t_attr|
+    t_attr[0] = t_attr[0].to_s
+    puts t_attr.join("\t")
   end
 end
