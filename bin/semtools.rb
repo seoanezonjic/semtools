@@ -20,9 +20,8 @@ def load_tabular_file(file)
   return records
 end
 
-def store_profiles(file, ontology, sep = ",")
+def store_profiles(file, ontology)
   file.each do |id, terms|
-    terms = terms.split(sep).map!{|term| term.to_sym}  
     ontology.add_profile(id, terms)
   end  
 end
@@ -228,6 +227,11 @@ OptionParser.new do |opts|
     options[:keyword] = item
   end
 
+  options[:xref_sense] = :byValue
+  opts.on("--xref_sense ", "Ontology-xref or xref-ontology. By default xref-ontology if set, ontology-xref") do
+    options[:xref_sense] = :byTerm
+  end
+
   options[:expand_profiles] = false
   opts.on("-e", "--expand_profiles", "Expand profiles adding ancestors") do
     options[:expand_profiles] = true
@@ -296,13 +300,15 @@ if !options[:ontology_file].nil?
   options[:ontology_file] = get_ontology_file(options[:ontology_file], ont_index_file)
 end
 ontology = Ontology.new(file: options[:ontology_file], load_file: true)
-ontology.calc_dictionary(:xref, select_regex: /(#{options[:keyword]})/, store_tag: :IDs, multiterm: true, substitute_alternatives: false)
 
 if !options[:input_file].nil?
   data = load_tabular_file(options[:input_file])
-  if options[:list_translate].nil?
-    data.map!{|row| [row[options[:subject_column]],row[options[:annotations_column]]]}
-    store_profiles(data, ontology, options[:separator]) unless options[:translate] == 'codes'
+  if options[:list_translate].nil? || !options[:keyword].nil?
+    data.map!{|row| 
+      [row[options[:subject_column]], 
+       row[options[:annotations_column]].split(options[:separator]).map!{|term| term.to_sym}]
+    }
+    store_profiles(data, ontology) if options[:translate] != 'codes' && options[:keyword].nil?
   end
 end
 
@@ -325,7 +331,7 @@ if options[:translate] == 'codes'
     profiles[id] = terms.split(options[:separator])
   end
   translate(ontology, 'codes', options, profiles)
-  store_profiles(profiles, ontology, options[:separator])
+  store_profiles(profiles, ontology)
 end
    
 if options[:clean_profiles]
@@ -415,5 +421,26 @@ if options[:list_term_attributes]
   term_attributes.each do |t_attr|
     t_attr[0] = t_attr[0].to_s
     puts t_attr.join("\t")
+  end
+end
+
+if !options[:keyword].nil?
+  xref_translated = []
+  ontology.calc_dictionary(:xref, select_regex: /(#{options[:keyword]})/, store_tag: :tag, multiterm: true, substitute_alternatives: false)
+  dict = ontology.dicts[:tag][options[:xref_sense]]
+  data.each do |id, prof|
+    xrefs = []
+    prof.each do |t|
+      query = dict[t.to_s]
+      xrefs.concat(query) if !query.nil?
+    end
+    xref_translated << [id, xrefs] if !xrefs.empty?
+  end
+  File.open(options[:output_file], 'w') do |f|
+    xref_translated.each do |id, prof|
+      prof.each do |t|
+        f.puts [id, t].join("\t")
+      end
+    end
   end
 end
