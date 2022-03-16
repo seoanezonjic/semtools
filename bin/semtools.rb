@@ -157,7 +157,41 @@ def get_stats(stats)
 end
 
 
-
+  def get_childs(ontology, terms, modifiers)
+    all_childs = []
+    terms.each do |term|
+      if modifiers.include?('a')
+        childs = ontology.get_ancestors(term)
+      else
+        childs = ontology.get_descendants(term)
+      end
+     all_childs = all_childs | childs
+    end
+    if modifiers.include?('r')
+      relations = []
+      all_childs = all_childs | terms # Add parents that generated child list
+      all_childs.each do |term|
+        if modifiers.include?('a')
+          descendants = ontology.get_direct_ancentors(term)
+        else
+          descendants = ontology.get_direct_descendants(term)
+        end
+        if !descendants.nil?
+          descendants.each do |desc|
+            relations << [term, desc]
+          end
+        end
+      end
+      all_childs = []
+      relations.each do |rel| 
+        rel, _ = ontology.translate_ids(rel) if modifiers.include?('n')
+        all_childs << rel
+      end
+    else
+      all_childs.map!{|c| ontology.translate_id(c)} if modifiers.include?('n') 
+    end
+    return all_childs
+  end
 
 
 
@@ -371,33 +405,12 @@ end
 
 if !options[:childs].first.empty?
   terms, modifiers = options[:childs]
-  all_childs = []
-  terms.each do |term|
-   childs = ontology.get_descendants(term)
-   all_childs = all_childs | childs
-  end
-  if modifiers.include?('r')
-    relations = []
-    all_childs = all_childs | terms # Add parents that generated child list
-    all_childs.each do |term|
-      descendants = ontology.get_direct_descendants(term)
-      if !descendants.nil?
-        descendants.each do |desc|
-          relations << [term, desc]
-        end
-      end
-    end
-    relations.each do |rel| 
-      rel, _ = ontology.translate_ids(rel) if modifiers.include?('n')
-      puts rel.join("\t")
-    end
-  else
-    all_childs.each do |c| 
-      if modifiers.include?('n') 
-        puts ontology.translate_id(c) 
-      else
-        puts c
-      end
+  all_childs = get_childs(ontology, terms, modifiers)
+  all_childs.each do |ac|
+    if modifiers.include?('r')
+      puts ac.join("\t")
+    else
+      puts ac
     end
   end
 end
