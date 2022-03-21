@@ -94,13 +94,14 @@ def expand_profiles(profiles, ontology, unwanted_terms = [])
 end	
 
 def write_similarity_profile_list(input, onto_obj, similarity_type)
+  profiles_similarity = onto_obj.compare_profiles(sim_type: similarity_type)
   similarity_file = File.basename(input, ".*")+'_semantic_similarity_list'  
-  File.open(similarity_file, 'w') do |file|
-    onto_obj.profiles.each do |profile_query_key, profile_query_value|
-      onto_obj.profiles.each do |profile_search_key, profile_search_value|
-        file.puts([profile_query_key, profile_search_key, onto_obj.compare(profile_query_value, profile_search_value, sim_type: similarity_type)].join("\t"))
+  File.open(similarity_file, 'w') do |f|
+    profiles_similarity.each do |pairsA, pairsB_and_values|
+      pairsB_and_values.each do |pairsB, values|
+        f.puts "#{pairsA}\t#{pairsB}\t#{values}"
       end
-    end 
+    end
   end
 end
 
@@ -156,21 +157,52 @@ def get_stats(stats)
   return report_stats
 end
 
+def sort_terms_by_levels(terms, modifiers, ontology, all_childs)
+  term_levels = ontology.get_terms_levels(all_childs)
+  if modifiers.include?('a')
+    term_levels.sort!{|t1,t2| t2[1] <=> t1[1]}
+  else
+    term_levels.sort!{|t1,t2| t1[1] <=> t2[1]}
+  end
+  all_childs = term_levels.map{|t| t.first}
+  return all_childs, term_levels
+end
 
   def get_childs(ontology, terms, modifiers)
+    #modifiers
+    # - a: get ancestors instead of decendants
+    # - r: get parent-child relations instead of list descendants/ancestors
+    # - hN: when list of relations, it is limited to N hops from given term
+    # - n: give terms names instead of term codes
     all_childs = []
     terms.each do |term|
-      if modifiers.include?('a')
+      if modifiers.include?('a') 
         childs = ontology.get_ancestors(term)
       else
         childs = ontology.get_descendants(term)
       end
-     all_childs = all_childs | childs
+      all_childs = all_childs | childs
     end
     if modifiers.include?('r')
       relations = []
       all_childs = all_childs | terms # Add parents that generated child list
-      all_childs.each do |term|
+      target_hops = nil
+      if /h([0-9]+)/ =~ modifiers
+        target_hops = $1.to_i + 1 # take into account refernce term (parent/child) addition
+        all_childs, term_levels = sort_terms_by_levels(terms, modifiers, ontology, all_childs)
+      end
+
+      current_level = nil
+      hops = 0
+      all_childs.each_with_index do |term, i|
+        if !target_hops.nil?
+          level = term_levels[i][1]
+          if level != current_level
+            current_level = level
+            hops +=1
+            break if hops == target_hops + 1 # +1 take into account that we have detected a level change and we saved the last one entirely
+          end
+        end
         if modifiers.include?('a')
           descendants = ontology.get_direct_ancentors(term)
         else
@@ -178,7 +210,11 @@ end
         end
         if !descendants.nil?
           descendants.each do |desc|
-            relations << [term, desc]
+            if modifiers.include?('a')
+              relations << [desc, term]
+            else
+              relations << [term, desc]
+            end
           end
         end
       end
@@ -304,15 +340,19 @@ OptionParser.new do |opts|
   end     
 
   options[:subject_column] = 0
-  opts.on("-f NUM", "--subject_column NUM", "The number of the column for the subject id") do |ncol|
+  opts.on("-f NUM", "--subject_column INTEGER", "The number of the column for the subject id") do |ncol|
     options[:subject_column] = ncol.to_i
   end
 
   options[:annotations_column] = 1
-  opts.on("-a NUM", "--annotations_column NUM", "The number of the column for the annotation ids") do |ncol|
-    options[:annotations_column] = ncol.to_i
+  opts.on("-a NUM", "--annotations_column INTEGER", "The number of the column for the annotation ids") do |item|
+    options[:annotations_column] = item.to_i
   end
 
+  options[:root] = nil
+  opts.on("-R STRING", "--root STRING", "Term id to be considered the new root of the ontology") do |item|
+    options[:root] = item.to_sym
+  end
 
   options[:list_term_attributes] = false
   opts.on("--list_term_attributes", "The number of the column for the annotation ids") do
@@ -334,7 +374,7 @@ if !options[:ontology_file].nil?
   options[:ontology_file] = get_ontology_file(options[:ontology_file], ont_index_file)
 end
 ontology = Ontology.new(file: options[:ontology_file], load_file: true)
-
+Ontology.mutate(options[:root], ontology, clone: false) if !options[:root].nil?
 if !options[:input_file].nil?
   data = load_tabular_file(options[:input_file])
   if options[:list_translate].nil? || !options[:keyword].nil?

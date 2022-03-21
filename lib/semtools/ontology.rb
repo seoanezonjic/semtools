@@ -1832,6 +1832,15 @@ class Ontology
         return @dicts[:level][:byValue][term]
     end
 
+    def get_terms_levels(terms)
+        termsAndLevels = []
+        terms.each do |term|
+            termsAndLevels << [term, get_term_level(term)]
+        end
+        return termsAndLevels
+    end
+
+
     # nil, term not found, [] term exists but not has parents
     def get_parental_path(term, which_path = :shortest_path, level = 0)
         path = nil
