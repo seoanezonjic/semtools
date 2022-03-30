@@ -20,6 +20,13 @@ def load_tabular_file(file)
   return records
 end
 
+def format_tabular_data(data, separator, id_col, terms_col)
+    data.map!{|row| 
+      [row[id_col], 
+       row[terms_col].split(separator).map!{|term| term.to_sym}]
+    }
+end
+
 def store_profiles(file, ontology)
   file.each do |id, terms|
     ontology.add_profile(id, terms)
@@ -93,10 +100,9 @@ def expand_profiles(profiles, ontology, unwanted_terms = [])
 	end
 end	
 
-def write_similarity_profile_list(input, onto_obj, similarity_type)
-  profiles_similarity = onto_obj.compare_profiles(sim_type: similarity_type)
-  similarity_file = File.basename(input, ".*")+'_semantic_similarity_list'  
-  File.open(similarity_file, 'w') do |f|
+def write_similarity_profile_list(output, onto_obj, similarity_type, refs)
+  profiles_similarity = onto_obj.compare_profiles(sim_type: similarity_type, external_profiles: refs)
+  File.open(output, 'w') do |f|
     profiles_similarity.each do |pairsA, pairsB_and_values|
       pairsB_and_values.each do |pairsB, values|
         f.puts "#{pairsA}\t#{pairsB}\t#{values}"
@@ -277,6 +283,11 @@ OptionParser.new do |opts|
   	options[:similarity] = sim_method.to_sym
   end
 
+  options[:reference_profiles] = nil
+  opts.on("--reference_profiles PATH", "Path to file tabulated file with first column as id profile and second column with ontology terms separated by separator. ") do |opt|
+    options[:reference_profiles] = opt
+  end
+
   options[:clean_profiles] = false
 	opts.on("-c", "--clean_profiles", "Removes ancestors, descendants and obsolete terms from profiles") do
   	options[:clean_profiles] = true
@@ -378,10 +389,7 @@ Ontology.mutate(options[:root], ontology, clone: false) if !options[:root].nil?
 if !options[:input_file].nil?
   data = load_tabular_file(options[:input_file])
   if options[:list_translate].nil? || !options[:keyword].nil?
-    data.map!{|row| 
-      [row[options[:subject_column]], 
-       row[options[:annotations_column]].split(options[:separator]).map!{|term| term.to_sym}]
-    }
+    format_tabular_data(data, options[:separator], options[:subject_column], options[:annotations_column])
     store_profiles(data, ontology) if options[:translate] != 'codes' && options[:keyword].nil?
   end
 end
@@ -424,7 +432,15 @@ if options[:expand_profiles]
 end 
 
 if !options[:similarity].nil?
-  write_similarity_profile_list(input = options[:input_file], onto_obj=ontology, similarity_type = options[:similarity])
+  refs = nil
+  if !options[:reference_profiles].nil?
+    refs = load_tabular_file(options[:reference_profiles])
+    format_tabular_data(refs, options[:separator], 0, 1)
+    refs = refs.to_h
+    refs = clean_profiles(ontology.profiles, ontology, options) if options[:clean_profiles]
+    abort('Reference profiles are empty after cleaning ') if refs.nil? || refs.empty?
+  end
+  write_similarity_profile_list(options[:output_file], ontology, options[:similarity], refs)
 end 
 
 
@@ -455,7 +471,7 @@ if !options[:childs].first.empty?
   end
 end
 
-if !options[:output_file].nil?
+if !options[:output_file].nil? && options[:similarity].nil?
   File.open(options[:output_file], 'w') do |file|
     ontology.profiles.each do |id, terms|
       file.puts([id, terms.join("|")].join("\t"))
