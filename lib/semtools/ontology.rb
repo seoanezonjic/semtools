@@ -382,11 +382,6 @@ class Ontology
         raise ArgumentError, "Term given is NIL" if term.nil?
         return false unless @stanzas[:terms].include?(term)
         return false if @removable_terms.include?(term)
-        if @alternatives_index.include?(term)
-            alt_id = @alternatives_index[term]
-            @meta[alt_id] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => 0.0} if @meta[alt_id].nil?
-            @meta[term] = @meta[alt_id]             
-        end
         # Check if exists
         @meta[term] = {:ancestors => -1.0,:descendants => -1.0,:struct_freq => 0.0,:observed_freq => 0.0} if @meta[term].nil?
         # Add frequency
@@ -1450,21 +1445,7 @@ class Ontology
         @profiles.each{|id, terms| self.add_observed_terms(terms: terms)}
     end
 
-    def expand_profiles(meth, unwanted_terms: [], calc_metadata: true)
-        if meth == 'parental'
-            @profiles.each do |id, terms|
-                new_terms = []
-                terms.each do |term|
-                    new_terms = new_terms | get_ancestors(term)
-                end
-                @profiles[id] = new_terms.difference(unwanted_terms)
-            end
-            self.add_observed_terms_from_profiles(reset: true)        
-            self.get_items_from_profiles if calc_metadata
-        elsif meth == 'propagate'
-            #@items.each do ||
-        end
-    end 
+    
 
     # Get a term frequency
     # ===== Parameters
@@ -1971,17 +1952,23 @@ class Ontology
     end
 
 
-    # Calculate profiles dictionary with Key= Term; Value = Profiles
+    # For each term in profiles add the ids in the items term-id dictionary 
     def get_items_from_profiles
-        if @profiles.empty?
-            warn('Profiles are not already loaded. Aborting dictionary calc')
-        else
-            @profiles.each do |id, terms|
-                terms.each do |term|
-                    add2hash(@items, term, id)
-                end
+        @profiles.each do |id, terms|
+            terms.each do |term|
+                add2hash(@items, term, id)
             end
         end
+    end
+
+    def get_profiles_from_items
+        new_profiles = {}
+        @items.each do |term, ids|
+            ids.each do |id|
+                add2hash(new_profiles, id, term)
+            end
+        end
+        @profiles = new_profiles        
     end
 
     # Get related profiles to a given term
@@ -2098,6 +2085,27 @@ class Ontology
         end
     end
 
+    def expand_profile_with_parents(profile)
+        new_terms = []
+        profile.each do |term|
+            new_terms = new_terms.union | get_ancestors(term)
+        end
+        return new_terms | profile
+    end
+
+    def expand_profiles(meth, unwanted_terms: [], calc_metadata: true, ontology: nil, minimum_childs: 1, clean_profiles: true)
+        if meth == 'parental'
+            @profiles.each do |id, terms|
+                @profiles[id] = expand_profile_with_parents(terms) - unwanted_terms
+            end
+            get_items_from_profiles if calc_metadata
+        elsif meth == 'propagate'
+            get_items_from_profiles
+            expand_items_to_parentals(ontology: ontology, minimum_childs: minimum_childs, clean_profiles: clean_profiles)
+            get_profiles_from_items
+        end
+        add_observed_terms_from_profiles(reset: true)        
+    end 
 
     # This method computes childs similarity and impute items to it parentals. To do that Item keys must be this ontology allowed terms.
     # Similarity will be calculated by text extact similarity unless an ontology object will be provided. In this case, MICAs will be used
@@ -2108,93 +2116,60 @@ class Ontology
     # ===== Returns
     # void and update items object
     def expand_items_to_parentals(ontology: nil, minimum_childs: 2, clean_profiles: true)
-        # Check item keys
-        if @items.empty?
-            warn('Items have been not provided yet')
-            return nil
-        end
-        targetKeys = @items.keys.select{|k| self.exists?(k)}
-        if targetKeys.length == 0
-            warn('Any item key is allowed')
-            return nil
-        elsif targetKeys.length < @items.keys.length
-            warn('Some item keys are not allowed')
-        end
+        targetKeys = expand_profile_with_parents(@items.keys)
+        terms_per_level = list_terms_per_level(targetKeys)        
+        terms_per_level = terms_per_level.to_a.sort{|l1, l2| l1.first <=> l2.first} # Obtain sorted levels 
+        terms_per_level.pop # Leaves are not expandable
 
-        # Expand to parentals
-        targetKeys << targetKeys.map{|t| self.get_ancestors(t, true)}
-        targetKeys.flatten!
-        targetKeys.uniq!
-
-        # Obtain levels (go from leaves to roots)
-        levels = targetKeys.map{|term| self.get_term_level(term)}
-        levels.compact!
-        levels.uniq!
-        levels.sort!
-        levels.reverse!
-        levels.shift # Leaves are not expandable
-
-        # Expand from leaves to roots
-        levels.map do |lvl|
-            curr_keys = targetKeys.select{|k| self.get_term_level(k) == lvl}
-            curr_keys.map do |term_expand|
-                to_infer = []
-                # Obtain childs
-                childs = self.get_descendants(term_expand,true).select{|t| !@items[t].nil?}
-                # Expand
-                if childs.length > 0 && minimum_childs == 1 # Special case
-                    to_infer = childs.map{|c| @items[c]}.flatten.compact.uniq
-                elsif childs.length >= minimum_childs
-                    to_infer = Hash.new(0)
-                    # Compare
-                    while childs.length > 1
+        terms_per_level.reverse_each do |lvl, terms| # Expand from leaves to roots
+            terms.each do |term|
+                childs = self.get_descendants(term,true).select{|t| @items.include?(t)} # Get child with items
+                next if childs.length < minimum_childs
+                propagated_item_count = Hash.new(0)                
+                if ontology.nil? # Count how many times is presented an item in childs
+                    childs.each do |child| 
+                        @items[child].each{|i| propagated_item_count[i] += 1}
+                    end 
+                else # Count take into account similarity between terms in other ontology. Not pretty clear the full logic
+                    while childs.length > 1 
                         curr_term = childs.shift
-                        childs.each do |compare_term|
-                            pivot_items = @items[curr_term]
-                            compare_items = @items[compare_term]
-                            if ontology.nil? # Exact match
-                                pivot_items.map do |pitem|
-                                    if compare_items.include?(pitem)
-                                        to_infer[pitem] += 2
-                                    end
-                                end
-                            else # Find MICAs
-                                local_infer = Hash.new(0)
-                                pivot_items.map do |pitem|
-                                    micas = compare_items.map{|citem| ontology.get_MICA(pitem, citem)}
-                                    maxmica = micas[0]
-                                    micas.each{|mica| maxmica = mica if mica.last > maxmica.last}
-                                    local_infer[maxmica.first] += 1
-                                end
-                                compare_items.map do |citem|
-                                    micas = pivot_items.map{|pitem| ontology.get_MICA(pitem, citem)}
-                                    maxmica = micas[0]
-                                    micas.each{|mica| maxmica = mica if mica.last > maxmica.last}
-                                    local_infer[maxmica.first] += 1
-                                end
-                                local_infer.each{|t,freq| to_infer[t] += freq if freq >= 2}
+                        childs.each do |child|
+                            curr_items = @items[curr_term]
+                            child_items = @items[child]
+                            maxmica_counts = Hash.new(0)
+                            curr_items.each do |item|
+                                maxmica = ontology.get_maxmica_term2profile(item, child_items)
+                                maxmica_counts[maxmica.first] += 1
                             end
+                            child_items.each do |item|
+                                maxmica = ontology.get_maxmica_term2profile(item, curr_items)
+                                maxmica_counts[maxmica.first] += 1
+                            end
+                            maxmica_counts.each{|t,freq| propagated_item_count[t] += freq if freq >= 2} #TODO: Maybe need Division by 2 due to the calculation of mica two times  but test fails.
                         end
                     end
-                    # Filter infer
-                    to_infer = to_infer.select{|k,v| v >= minimum_childs}
                 end
-                # Infer
-                if to_infer.length > 0
-                    @items[term_expand] = [] if @items[term_expand].nil?
-                    if to_infer.kind_of?(Array)
-                        @items[term_expand] = (@items[term_expand] + to_infer).uniq
-                    else
-                        @items[term_expand] = (@items[term_expand] + to_infer.keys).uniq
+                propagated_items = propagated_item_count.select{|k,v| v >= minimum_childs}.keys
+                if propagated_items.length > 0
+                    query = @items[term]
+                    if query.nil?
+                        @items[term] = propagated_items
+                    else 
+                        terms = @items[term] | propagated_items
+                        terms = ontology.clean_profile(terms) if clean_profiles && !ontology.nil?
+                        @items[term] = terms
                     end
-                    @items[term_expand] = ontology.clean_profile(@items[term_expand]) if clean_profiles && !ontology.nil?
-                elsif !@items.include?(term_expand)
-                    targetKeys.delete(term_expand)
                 end
             end
         end
     end
 
+    def get_maxmica_term2profile(ref_term, profile)
+        micas = profile.map{|term| get_MICA(ref_term, term)}
+        maxmica = micas.first
+        micas.each{|mica| maxmica = mica if mica.last > maxmica.last}
+        return maxmica
+    end
 
     # Return direct ancestors/descendants of a given term
     # ===== Parameters
@@ -2322,8 +2297,12 @@ class Ontology
     end
 
     def list_terms_per_level_from_items
+        return list_terms_per_level(@items.keys)
+    end
+
+    def list_terms_per_level(terms)
         terms_levels = {}
-        @items.each do |term, items| 
+        terms.each do |term| 
           level = self.get_term_level(term)
           add2hash(terms_levels, level, term)
         end
