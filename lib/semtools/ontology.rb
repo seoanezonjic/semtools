@@ -35,7 +35,6 @@ class Ontology
     # => @max_freqs :: maximum freqs found for structural and observed freqs
     # => @dicts :: bidirectional dictionaries with three levels <key|value>: 1º) <tag|hash2>; 2º) <(:byTerm/:byValue)|hash3>; 3º) dictionary <k|v>
     # => @profiles :: set of terms assigned to an ID
-    # => @profilesDict :: set of profile IDs assigned to a term
     # => @items :: hash with items relations to terms
     # => @removable_terms :: array of terms to not be considered
     # => @term_paths :: metainfo about parental paths of each term
@@ -47,6 +46,8 @@ class Ontology
     @@multivalue_tags = [:alt_id, :is_a, :subset, :synonym, :xref, :intersection_of, :union_of, :disjoint_from, :relationship, :replaced_by, :consider, :subsetdef, :synonymtypedef, :property_value, :remark]
     @@symbolizable_ids.concat(@@tags_with_trailing_modifiers)
 
+    attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :items, :removable_terms, :term_paths
+    
     #############################################
     # CONSTRUCTOR
     #############################################
@@ -73,7 +74,6 @@ class Ontology
         @max_freqs = {:struct_freq => -1.0, :observed_freq => -1.0, :max_depth => -1.0}
         @dicts = {}
         @profiles = {}
-        @profilesDict = {}
         @items = {}
         @removable_terms = []
         @term_paths = {}
@@ -933,7 +933,6 @@ class Ontology
                     max_freqs: @max_freqs,
                     dicts: @dicts,
                     profiles: @profiles,
-                    profilesDict: @profilesDict,
                     items: @items,
                     removable_terms: @removable_terms,
                     term_paths: @term_paths}
@@ -1011,7 +1010,6 @@ class Ontology
             jsonInfo[:profiles].map{|id,terms| terms.map!{|term| term.to_sym}}
             jsonInfo[:profiles].keys.map{|id| jsonInfo[:profiles][id.to_s.to_i] = jsonInfo[:profiles].delete(id) if self.is_number?(id.to_s)}
         end
-        jsonInfo[:profilesDict].map{|term,ids| ids.map!{|id| id.to_sym if !id.is_a?(Numeric)}} unless jsonInfo[:profilesDict].nil?
         jsonInfo[:removable_terms] = jsonInfo[:removable_terms].map{|term| term.to_sym} unless jsonInfo[:removable_terms].nil?
         jsonInfo[:special_tags] = jsonInfo[:special_tags].each do |k, v|
             next if v.nil?
@@ -1039,7 +1037,6 @@ class Ontology
         @max_freqs = jsonInfo[:max_freqs]
         @dicts = jsonInfo[:dicts]
         @profiles = jsonInfo[:profiles]
-        @profilesDict = jsonInfo[:profilesDict]
         @items = jsonInfo[:items]
         @removable_terms = jsonInfo[:removable_terms]
         @term_paths = jsonInfo[:term_paths]
@@ -1338,7 +1335,7 @@ class Ontology
     # Method used to store a pull of profiles
     # ===== Parameters
     # +profiles+:: array/hash of profiles to be stored. If it's an array, numerical IDs will be assigned starting at 1 
-    # +calc_metadata+:: if true, launch calc_profiles_dictionary process
+    # +calc_metadata+:: if true, launch get_items_from_profiles process
     # +reset_stored+:: if true, remove already stored profiles
     # +substitute+:: subsstitute flag from check_ids
     def load_profiles(profiles, calc_metadata: true, reset_stored: false, substitute: false)
@@ -1358,7 +1355,7 @@ class Ontology
         self.add_observed_terms_from_profiles(reset: true)
 
         if calc_metadata
-            self.calc_profiles_dictionary
+            self.get_items_from_profiles
         end
     end
 
@@ -1453,6 +1450,21 @@ class Ontology
         @profiles.each{|id, terms| self.add_observed_terms(terms: terms)}
     end
 
+    def expand_profiles(meth, unwanted_terms: [], calc_metadata: true)
+        if meth == 'parental'
+            @profiles.each do |id, terms|
+                new_terms = []
+                terms.each do |term|
+                    new_terms = new_terms | get_ancestors(term)
+                end
+                @profiles[id] = new_terms.difference(unwanted_terms)
+            end
+            self.add_observed_terms_from_profiles(reset: true)        
+            self.get_items_from_profiles if calc_metadata
+        elsif meth == 'propagate'
+            #@items.each do ||
+        end
+    end 
 
     # Get a term frequency
     # ===== Parameters
@@ -1960,43 +1972,26 @@ class Ontology
 
 
     # Calculate profiles dictionary with Key= Term; Value = Profiles
-    def calc_profiles_dictionary
+    def get_items_from_profiles
         if @profiles.empty?
             warn('Profiles are not already loaded. Aborting dictionary calc')
         else
-            byTerm = {} # Key: Terms
-            # byValue -- Key: Profile == @profiles
             @profiles.each do |id, terms|
                 terms.each do |term|
-                    if byTerm.include?(term)
-                        byTerm[term] << id
-                    else
-                        byTerm[term] = [id]
-                    end
+                    add2hash(@items, term, id)
                 end
             end
-            @profilesDict = byTerm
         end
     end
-
-
-    # Gets profiles dictionary calculated
-    # ===== Return
-    # profiles dictionary (clone)
-    def get_terms_linked_profiles
-        return @profilesDict.clone
-    end    
-
 
     # Get related profiles to a given term
     # ===== Parameters
     # +term+:: to be checked
     # ===== Returns 
     # profiles which contains given term
-    def get_term_linked_profiles(term)
-        return @profilesDict[term]
+    def get_items_from_term(term)
+        return @items[term]
     end
-
 
     # Gets metainfo table from a set of terms
     # ===== Parameters
@@ -2330,12 +2325,7 @@ class Ontology
         terms_levels = {}
         @items.each do |term, items| 
           level = self.get_term_level(term)
-          query = terms_levels[level]
-          if query.nil?
-            terms_levels[level] = [term]
-          else
-            query << term
-          end
+          add2hash(terms_levels, level, term)
         end
         return terms_levels
     end
@@ -2525,7 +2515,6 @@ class Ontology
         self.meta == other.meta &&
         self.dicts == other.dicts &&
         self.profiles == other.profiles &&
-        self.profilesDict == other.profilesDict &&
         (self.items.keys - other.items.keys).empty? &&
         self.removable_terms == other.removable_terms &&
         self.special_tags == other.special_tags &&
@@ -2550,7 +2539,6 @@ class Ontology
         copy.meta = self.meta.clone
         copy.dicts = self.dicts.clone
         copy.profiles = self.profiles.clone
-        copy.profilesDict = self.profilesDict.clone
         copy.items = self.items.clone
         copy.removable_terms = self.removable_terms.clone
         copy.term_paths = self.term_paths.clone
@@ -2558,11 +2546,15 @@ class Ontology
         return copy
     end
 
-    
-    #############################################
-    # ACCESS CONTROL
-    #############################################
+    private
 
-    attr_reader :file, :header, :stanzas, :ancestors_index, :descendants_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict, :items, :removable_terms, :term_paths
-    attr_writer :file, :header, :stanzas, :ancestors_index, :descendants_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :profilesDict, :items, :removable_terms, :term_paths
+    def add2hash(hash, key, val)
+        query = hash[key]
+        if query.nil?
+            hash[key] = [val]
+        else
+            query << val
+        end
+    end    
+
 end

@@ -93,11 +93,15 @@ def clean_profiles(profiles, ontology, options)
 end
 
 def expand_profiles(profiles, ontology, unwanted_terms = [])
-	profiles.each do |disease_id, terms|
+  new_profiles = {}
+	profiles.each do |id, terms|
+    new_terms = []
 		terms.each do |term|
-	    	profiles[disease_id] << ontology.get_ancestors(term).difference(unwanted_terms)
+        new_terms = new_terms | ontology.get_ancestors(term)
 	  end
+    new_profiles[id] = new_terms.difference(unwanted_terms)
 	end
+  return new_profiles
 end	
 
 def write_similarity_profile_list(output, onto_obj, similarity_type, refs)
@@ -313,9 +317,9 @@ OptionParser.new do |opts|
     options[:xref_sense] = :byTerm
   end
 
-  options[:expand_profiles] = false
-  opts.on("-e", "--expand_profiles", "Expand profiles adding ancestors") do
-    options[:expand_profiles] = true
+  options[:expand_profiles] = nil
+  opts.on("-e", "--expand_profiles STRING", "Expand profiles adding ancestors if 'parental', adding new profiles if 'propagate'") do |meth|
+    options[:expand_profiles] = meth 
   end
 
   options[:unwanted_terms] = []
@@ -427,8 +431,8 @@ if options[:clean_profiles]
 	end
 end
 
-if options[:expand_profiles]
-  expanded_profiles = expand_profiles(ontology.profiles, ontology, options[:unwanted_terms])
+if !options[:expand_profiles].nil?
+  ontology.expand_profiles(options[:expand_profiles], unwanted_terms: options[:unwanted_terms])
 end 
 
 if !options[:similarity].nil?

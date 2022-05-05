@@ -338,14 +338,15 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal({1=>[:Parental, :Parental, :Parental, :Parental], 2=>[:Child2, :Child2, :Child2, :Child3, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles(false))
 		assert_equal({1=>[:Parental], 2=>[:Child2, :Child1, :Child3, :Child4]}, @hierarchical.get_ontology_levels)
 		# Profiles dictionary
-		@hierarchical.calc_profiles_dictionary
-		assert_equal({Child2: [:A, :B, :C], Parental: [:A, :B, :C, :D], Child3: [:C, :D], Child4: [:D]}, @hierarchical.get_terms_linked_profiles)
+		@hierarchical.get_items_from_profiles
+		assert_equal({Child2: [:A, :B, :C], Parental: [:A, :B, :C, :D], Child3: [:C, :D], Child4: [:D]}, @hierarchical.items)
 		
 		# Handle items
 		items_rel = {Parental: ['a','b'], Child3: ['c']}
 		items_rel_sym = {Parental: [:a, :b], Child3: [:c]}
 		items_rel_concat = {Parental: [:a,:b,'a','b'], Child3: [:c,'c']}
 
+		@hierarchical.items = {} # reset items from method get_items_from_profiles
 		@hierarchical.load_item_relations_to_terms(items_rel)
 		assert_equal(items_rel, @hierarchical.items)
 		@hierarchical.load_item_relations_to_terms(items_rel_sym)
