@@ -92,18 +92,6 @@ def clean_profiles(profiles, ontology, options)
 	return removed_profiles
 end
 
-def expand_profiles(profiles, ontology, unwanted_terms = [])
-  new_profiles = {}
-	profiles.each do |id, terms|
-    new_terms = []
-		terms.each do |term|
-        new_terms = new_terms | ontology.get_ancestors(term)
-	  end
-    new_profiles[id] = new_terms.difference(unwanted_terms)
-	end
-  return new_profiles
-end	
-
 def write_similarity_profile_list(output, onto_obj, similarity_type, refs)
   profiles_similarity = onto_obj.compare_profiles(sim_type: similarity_type, external_profiles: refs)
   File.open(output, 'w') do |f|

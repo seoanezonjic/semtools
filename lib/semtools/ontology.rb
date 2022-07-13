@@ -46,7 +46,7 @@ class Ontology
     @@multivalue_tags = [:alt_id, :is_a, :subset, :synonym, :xref, :intersection_of, :union_of, :disjoint_from, :relationship, :replaced_by, :consider, :subsetdef, :synonymtypedef, :property_value, :remark]
     @@symbolizable_ids.concat(@@tags_with_trailing_modifiers)
 
-    attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :items, :removable_terms, :term_paths
+attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :special_tags, :alternatives_index, :obsoletes_index, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :items, :removable_terms, :term_paths, :reroot
     
     #############################################
     # CONSTRUCTOR
@@ -66,7 +66,9 @@ class Ontology
         @ancestors_index = {}
         @descendants_index = {}
         @alternatives_index = {}
-        @obsoletes_index = {}
+        # TODO: Revise the use of the following obsolete indexes that is correct, first one mus be used to pas from obsolete to alt_id but the secon must be used to check if a term is obsolete or not
+        @obsoletes_index = {} # obsolete id to alteranative id
+        @obsoletes = {} # id is obsolete but it could or not have an alt id
         @structureType = nil
         @ics = Hash[@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}]
         @meta = {}
@@ -77,6 +79,7 @@ class Ontology
         @items = {}
         @removable_terms = []
         @term_paths = {}
+        @reroot = false
         add_removable_terms(removable_terms) if !removable_terms.empty?
         load_file = true unless file.nil? # This should remove load_file argument, keep it for old scripts
         # Load if proceeds
@@ -107,8 +110,6 @@ class Ontology
     # +terms+:: set to be used to expand
     # +target_tag+:: tag used to expand
     # +eexpansion+:: already expanded info
-    # +split_info_char+:: special regex used to split info (if it is necessary)
-    # +split_info_indx+:: special index to take splitted info (if it is necessary)
     # +alt_ids+:: set of alternative IDs
     # ===== Returns 
     # A vector with the observed structure (string) and the array with extended terms.
@@ -120,31 +121,28 @@ class Ontology
         id_relations = terms[start_id][target_tag]
         return [:source,[]] if id_relations.nil?
 
-        # Prepare auxiliar variables
         struct = :hierarchical
 
         # Study direct extensions
-        id_relations = id_relations.clone
-        while id_relations.length > 0
-            id = id_relations.shift
+        id_relations.each do |id|
             id = alt_ids[id].first if alt_ids.include?(id) # NOTE: if you want to persist current ID instead source ID, re-implement this
             
             # Handle
             if current_associations.include?(id) # Check if already have been included into this expansion
-                struct = :circular 
+                struct = :circular
             else
                 current_associations << id 
                 if related_ids.include?(id) # Check if current already has been expanded
                     current_associations = current_associations | related_ids[id]
                     if current_associations.include?(start_id) # Check circular case
                         struct = :circular
-                        [id, start_id].each{|repeated| current_associations.delete(repeated)}
+                        current_associations = current_associations - [id, start_id]
                     end    
                 else # Expand
                     related_ids[start_id] = current_associations
                     structExp, current_related_ids = self.get_related_ids(id, terms, target_tag, related_ids, alt_ids) # Expand current
-                    current_associations = current_associations | current_related_ids
-                    struct = :circular if structExp == :circular # Check struct                
+                    current_associations = current_associations | current_related_ids                 
+                    struct = :circular if structExp == :circular # Check struct
                     if current_associations.include?(start_id) # Check circular case
                         struct = :circular
                         current_associations.delete(start_id)
@@ -164,13 +162,11 @@ class Ontology
     # ===== Parameters
     # +terms+:: set to be used to expand
     # +target_tag+:: tag used to expand
-    # +split_info_char+:: special regex used to split info (if it is necessary)
-    # +split_info_indx+:: special index to take splitted info (if it is necessary)
     # +alt_ids+:: set of alternative IDs
     # +obsoletes+:: integer with the number of obsolete IDs. used to calculate structure type.
     # ===== Returns 
     # A vector with the observed structure (string) and the hash with extended terms
-    def self.get_related_ids_by_tag(terms:,target_tag:, alt_ids: {}, obsoletes: 0)
+    def self.get_related_ids_by_tag(terms:, target_tag:, alt_ids: {}, obsoletes: 0, reroot: false)
         # Define structure type
         structType = :hierarchical
         related_ids = {}
@@ -186,7 +182,7 @@ class Ontology
 
         # Check special case
         structType = :atomic if related_ids.length <= 0
-        structType = :sparse if related_ids.length > 0 && ((terms.length - related_ids.length - obsoletes) >= 2)
+        structType = :sparse if reroot || (related_ids.length > 0 && ((terms.length - related_ids.length - obsoletes) >= 2) )
         # Return type and hash with related_ids
         return structType, related_ids
     end
@@ -203,7 +199,7 @@ class Ontology
         # Only TERMS multivalue tags (future add Typedefs and Instance)
         # multivalue_tags = [:alt_id, :is_a, :subset, :synonym, :xref, :intersection_of, :union_of, :disjoint_from, :relationship, :replaced_by, :consider]
         attributes.each do |tag, value|
-            value.gsub!(/{source=[\\\":A-Za-z0-9\/\.\-, =]+} /, '') if tag == 'is_a' # To delete "source" attributes in is_a tag of MONDO ontology
+            value.gsub!(/{[\\\":A-Za-z0-9\/\.\-, =?&_]+} /, '') if tag == 'is_a' # To delete extra attributes (source, xref) in is_a tag of MONDO ontology
             # Check
             raise EncodingError, 'Info element incorrect format' if (tag.nil?) || (value.nil?)
             # Prepare
@@ -331,12 +327,28 @@ class Ontology
         descendants = ontology.descendants_index[root]
         descendants << root # Store itself to do not remove it
         # Remove unnecesary terms
-        ontology.stanzas[:terms] = ontology.stanzas[:terms].select{|id,v| remove_up ? descendants.include?(id) : !descendants.include?(id)}
+        terms = ontology.stanzas[:terms].select{|id,v| remove_up ? descendants.include?(id) : !descendants.include?(id)}
+        ids = terms.keys
+        terms.each do |id, term|
+            term[:is_a] = term[:is_a] & ids # Clean parental relations to keep only whose that exist between selected terms
+        end
+        ontology.stanzas[:terms] = terms
         ontology.ics = Hash[@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}]
         ontology.max_freqs = {:struct_freq => -1.0, :observed_freq => -1.0, :max_depth => -1.0}
         ontology.dicts = {}
         ontology.removable_terms = []
         ontology.term_paths = {}
+        ontology.reroot = true
+
+        ontology.ancestors_index = {}
+        ontology.descendants_index = {}
+        ontology.alternatives_index = {}
+        ontology.obsoletes_index = {}
+        ontology.meta = {}
+        ontology.profiles = {}
+        ontology.items = {}
+
+
         # Recalculate metadata
         ontology.build_index
         ontology.add_observed_terms_from_profiles
@@ -433,24 +445,13 @@ class Ontology
             micas = []
             termsB.each do |tB|
                 if store_mica
-                    value = @mica_index.dig(tA, tB)
+                    value = @mica_index[tA][tB]
                 else
-                    value = nil
-                end
-                if value.nil?
                     value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type)
-                    if store_mica
-                        value = true if value.nil? # We use true to save that the operation was made but there is not mica value
-                        add2nestHash(@mica_index, tA, tB, value)
-                    end
                 end
                 micas << value if value.class == Float 
             end
-            if !micas.empty?
-                micasA << micas.max # Obtain maximum value
-            else
-                micasA << 0 
-            end
+            !micas.empty? ? micasA << micas.max : micasA << 0 
         end
         means_sim = micasA.inject{ |sum, el| sum + el }.fdiv(micasA.size)
         # Compare B -> A
@@ -463,15 +464,6 @@ class Ontology
         return means_sim
     end
 
-    def add2nestHash(h, key1, key2, val)
-        query1 = h[key1]
-        if query1.nil?
-            h[key1] = {key2 => val} 
-        else
-            query1[key2] = val
-        end
-    end
-
     # Compare internal stored profiles against another set of profiles. If an external set is not provided, internal profiles will be compared with itself 
     # ===== Parameters
     # +external_profiles+:: set of external profiles. If nil, internal profiles will be compared with itself
@@ -482,37 +474,148 @@ class Ontology
     # Similitudes calculated
     def compare_profiles(external_profiles: nil, sim_type: :resnik, ic_type: :resnik, bidirectional: true)
         profiles_similarity = {} #calculate similarity between patients profile
-        profiles_ids = @profiles.keys
         if external_profiles.nil?
-            comp_ids = profiles_ids
             comp_profiles = @profiles
-            main_ids = comp_ids
             main_profiles = comp_profiles
         else
-            comp_ids = external_profiles.keys
             comp_profiles = external_profiles
-            main_ids = profiles_ids
             main_profiles = @profiles
         end
         # Compare
+        #@lca_index = {}
+        pair_index = get_pair_index(main_profiles, comp_profiles)
+        #get_lca_index(pair_index)
         @mica_index = {}
-        while !main_ids.empty?
-            curr_id = main_ids.shift
-            current_profile = main_profiles[curr_id]
-            comp_ids.each do |id|
-                profile = comp_profiles[id]
+        get_mica_index_from_profiles(pair_index, sim_type: sim_type, ic_type: ic_type, lca_index: false)
+        main_profiles.each do |curr_id, current_profile|
+            comp_profiles.each do |id, profile|
                 value = compare(current_profile, profile, sim_type: sim_type, ic_type: ic_type, bidirectional: bidirectional, store_mica: true)
-                query = profiles_similarity[curr_id]
-                if query.nil?
-                  profiles_similarity[curr_id] = {id => value}
-                else
-                  query[id] = value
-                end
+                add2nestHash(profiles_similarity, curr_id, id, value)
             end    
         end
         return profiles_similarity
     end
 
+    def get_pair_index(profiles_A, profiles_B)
+        pair_index = {}
+        profiles_A.each do |curr_id, profile_A|
+            profiles_B.each do |id, profile_B|
+                profile_A.each do |term_A|
+                    profile_B.each do |term_B|
+                        pair_index[[term_A, term_B].sort] = true 
+                    end
+                end
+            end    
+        end
+        return pair_index
+    end
+
+    ################ get lca index ##################################
+    # TODO: VErify an algorith for DAG
+    def get_lca_index(pair_index)
+        graph, name2num, num2name = get_numeric_graph(@descendants_index)
+        queries = {}
+        pair_index.each do |ids, val|
+            u, v = ids
+            u = name2num[u]
+            v = name2num[v]
+            add2hash(queries, u, v)
+            add2hash(queries, v, u)
+        end
+        roots = get_root
+        roots = roots.map{|r| name2num[r]}
+        compute_LCAs(queries, graph, roots, num2name)
+    end
+
+    def compute_LCAs(queries, net, roots, num2name)
+        #https://cp-algorithms.com/graph/lca_tarjan.html
+        roots.each do |r|
+            ancestor = []
+            visited = [] # true
+            dfs(r, net, ancestor, visited, queries, num2name)
+        end
+    end
+
+    def find_set(v, ancestor) 
+        parent = ancestor[v]
+        return v if v == parent
+        return find_set(parent, ancestor)
+    end
+
+    def union_sets(a, b, ancestor) 
+        a = find_set(a, ancestor)
+        b = find_set(b, ancestor)
+        ancestor[b] = a if (a != b)
+    end
+
+    def dfs(v, net, ancestor, visited, queries, num2name)
+        visited[v] = true
+        ancestor[v] = v
+        connected_nodes_v = net[v]
+        if !connected_nodes_v.nil?
+            connected_nodes_v.each do |u|
+                if visited[u].nil?
+                    dfs(u, net, ancestor, visited, queries, num2name)
+                    union_sets(v, u, ancestor)
+                    ancestor[find_set(v, ancestor)] = v
+                end
+            end
+        end
+        v_node_queries = queries[v]
+        if !v_node_queries.nil?
+            v_node_queries.each do |other_node|
+                if visited[other_node]
+                    lca = ancestor[find_set(other_node, ancestor)]
+                    v = num2name[v]
+                    other_node = num2name[other_node]
+                    lca = num2name[lca]
+                    add2nestHash(@lca_index, v, other_node, lca)
+                    add2nestHash(@lca_index, other_node, v, lca)
+                end
+            end
+        end
+    end
+
+    def get_numeric_graph(graph)
+        id_index = {}
+        num2name = {}
+        num_graph = {}
+        count = 0
+        graph.each do |node, connecte_nodes|
+            node_id = id_index[node]
+            if node_id.nil?
+                node_id = count
+                id_index[node] = node_id
+                num2name[node_id] = node
+                count += 1
+            end
+            new_cn_ids = []
+            connecte_nodes.each do |cn|
+                cn_id = id_index[cn]
+                if cn_id.nil?
+                    cn_id = count
+                    id_index[cn] = cn_id
+                    num2name[cn_id] = cn
+                    count += 1
+                end
+                new_cn_ids << cn_id
+            end
+            num_graph[node_id] = new_cn_ids
+        end
+        return num_graph, id_index, num2name
+    end
+
+    ##################################################
+    
+    def get_mica_index_from_profiles(pair_index, sim_type: :resnik, ic_type: :resnik, lca_index: true)
+        pair_index.each do |pair, val|
+            tA, tB = pair
+            value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type, lca_index: lca_index)
+            value = true if value.nil? # We use true to save that the operation was made but there is not mica value
+            add2nestHash(@mica_index, tA, tB, value)
+            add2nestHash(@mica_index, tB, tA, value)
+        end
+    end
 
     # Expand alternative IDs arround all already stored terms
     # ===== Parameters
@@ -630,6 +733,7 @@ class Ontology
                         @alternatives_index[id] = alt_id
                         @obsoletes_index[id] = alt_id
                     end
+                    @obsoletes[id] = true
                 end
             end
         end
@@ -639,8 +743,6 @@ class Ontology
     # Expand parentals set and link all info to their alternative IDs. Also launch frequencies process
     # ===== Parameters
     # +tag+:: tag used to expand parentals
-    # +split_info_char+:: special regex used to split info (if it is necessary)
-    # +split_info_indx+:: special index to take splitted info (if it is necessary)
     # ===== Returns 
     # true if process ends without errors and false in other cases
     def get_index_child_parent_relations(tag: @@basic_tags[:ancestors][0])
@@ -652,7 +754,9 @@ class Ontology
             structType, parentals = self.class.get_related_ids_by_tag(terms: @stanzas[:terms],
                                                             target_tag: tag,
                                                             alt_ids: @alternatives_index,
-                                                            obsoletes: @obsoletes_index.length)
+                                                            obsoletes: @obsoletes_index.length,
+                                                            reroot: @reroot)
+            
             # Check
             raise('Error expanding parentals')  if (structType.nil?) || parentals.nil?
             # Prepare ancestors structure
@@ -839,7 +943,7 @@ class Ontology
     # +ic_type+:: IC formula to be used
     # ===== Returns 
     # the MICA(termA,termB) and it's IC
-    def get_MICA(termA, termB, ic_type = :resnik)
+    def get_MICA(termA, termB, ic_type = :resnik, lca_index = false)
         termA = @alternatives_index[termA] if @alternatives_index.include?(termA)
         termB = @alternatives_index[termB] if @alternatives_index.include?(termB)
         mica = [nil,-1.0]
@@ -848,19 +952,30 @@ class Ontology
             ic = self.get_IC(termA, type: ic_type)
             mica = [termA, ic]
         else    
+            get_LCA(termA, termB, lca_index: lca_index).each do |lca| # Find MICA in shared ancestors
+                ic = self.get_IC(lca, type: ic_type)
+                mica = [lca, ic] if ic > mica[1]
+            end
+        end
+        return mica
+    end
+
+    def get_LCA(termA, termB, lca_index: false)
+        lca = []
+        if lca_index
+            res = @lca_index.dig(termA, termB)
+            lca = [res] if !res.nil?
+        else
             # Obtain ancestors (include itselfs too)
             anc_A = self.get_ancestors(termA) 
             anc_B = self.get_ancestors(termB)
             if !(anc_A.empty? && anc_B.empty?)
                 anc_A << termA
                 anc_B << termB
-                (anc_A & anc_B).each do |anc| # Find MICA in shared ancestors
-                    ic = self.get_IC(anc, type: ic_type)
-                    mica = [anc,ic] if ic > mica[1]
-                end
+                lca = anc_A & anc_B
             end
         end
-        return mica
+        return lca
     end
 
 
@@ -872,11 +987,11 @@ class Ontology
     # +ic_type+:: IC formula to be used
     # ===== Returns 
     # the similarity between both sets or false if frequencies are not available yet
-    def get_similarity(termA, termB, type: :resnik, ic_type: :resnik)
+    def get_similarity(termA, termB, type: :resnik, ic_type: :resnik, lca_index: false)
         # Check
         raise ArgumentError, "SIM type specified (#{type}) is not allowed" if !@@allowed_calcs[:sims].include?(type)
         sim = nil
-        mica, sim_res = get_MICA(termA, termB, ic_type)
+        mica, sim_res = get_MICA(termA, termB, ic_type, lca_index)
         if !mica.nil?
             case type
                 when :resnik
@@ -1317,7 +1432,7 @@ class Ontology
         warn("Profile assigned to ID (#{id}) is going to be replaced") if @profiles.include? id
         correct_terms, rejected_terms = self.check_ids(terms, substitute: substitute)
         if !rejected_terms.empty?
-            warn('Given terms contains erroneus IDs. These IDs will be removed')
+            warn("Given terms contains erroneus IDs: #{rejected_terms.join(",")}. These IDs will be removed")
         end
         if id.is_a? Numeric
             @profiles[id] = correct_terms              
@@ -1727,7 +1842,7 @@ class Ontology
 
     # Check if a term given is marked as obsolete
     def is_obsolete? term
-        return @obsoletes_index.include?(term)
+        return @obsoletes.include?(term)
     end
 
     # Check if a term given is marked as alternative
@@ -2222,13 +2337,22 @@ class Ontology
 
     def each(att = false)
         @stanzas[:terms].each do |id, tags|            
-            next if @alternatives_index.include?(id)
+            next if @alternatives_index.include?(id) || @obsoletes.include?(id)
             if att
                yield(id, tags)
             else
                yield(id)
             end
         end
+    end
+
+    def get_root
+        roots = []
+        each do |term|
+            ancestors = @ancestors_index[term]
+            roots << term if ancestors.nil? 
+        end
+        return roots
     end
 
     def list_term_attributes
@@ -2536,4 +2660,12 @@ class Ontology
         end
     end    
 
+    def add2nestHash(h, key1, key2, val)
+        query1 = h[key1]
+        if query1.nil?
+            h[key1] = {key2 => val} 
+        else
+            query1[key2] = val
+        end
+    end
 end

@@ -69,14 +69,14 @@ class TestSimilitudes < Minitest::Test
 
 	## Check complex set similitudes
 	def test_complex_set_sim
-		assert_nil(nil,similitude_network([],";","",false)) # Empty
-		assert_nil(nil,similitude_network(nil,";","",false)) # Nil
-		assert_nil(nil,similitude_network("",";","",false)) # Not array
-		assert_equal({},similitude_network(["a"],";","",false)) # Single element
-		assert_equal({"abc"=>{"def"=>0.0}},similitude_network(["abc","def"],";","",false)) # Simple without repetition
-		assert_equal({"abc"=>{"def"=>0.0}},similitude_network(["abc","def","abc"],";","",true)) # Simple with repetitions - filtered
-		assert_equal({"abcdf"=>{"abcde"=>0.75}},similitude_network(["abcdf","abcde","abcdf"],";","",true)) # Simple with repetitions (2) - filtered
-		assert_equal({"abcdf"=>{"abcdf"=>1.0}},similitude_network(["abcdf","abcdf"],";","",false)) # Simple with repetitions - unfiltered
+		assert_nil(nil,similitude_network([], splitChar: ";", charsToRemove: "", unique: false)) # Empty
+		assert_nil(nil,similitude_network(nil, splitChar: ";", charsToRemove: "", unique: false)) # Nil
+		assert_nil(nil,similitude_network("", splitChar: ";", charsToRemove: "", unique: false)) # Not array
+		assert_equal({},similitude_network(["a"], splitChar: ";", charsToRemove: "", unique: false)) # Single element
+		assert_equal({"abc"=>{"def"=>0.0}},similitude_network(["abc","def"], splitChar: ";", charsToRemove: "", unique: false)) # Simple without repetition
+		assert_equal({"abc"=>{"def"=>0.0}},similitude_network(["abc","def","abc"], splitChar: ";", charsToRemove: "", unique: true)) # Simple with repetitions - filtered
+		assert_equal({"abcdf"=>{"abcde"=>0.75}},similitude_network(["abcdf","abcde","abcdf"], splitChar: ";", charsToRemove: "", unique: true)) # Simple with repetitions (2) - filtered
+		assert_equal({"abcdf"=>{"abcdf"=>1.0}},similitude_network(["abcdf","abcdf"], splitChar: ";", charsToRemove: "", unique: false)) # Simple with repetitions - unfiltered
 	end
 
 
