@@ -1852,7 +1852,7 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
 
     # Find paths of a term following it ancestors and stores all possible paths for it and it's parentals.
     # Also calculates paths metadata and stores into @term_paths
-    def calc_term_paths(only_main_terms=false)
+    def calc_term_paths
         self.calc_ancestors_dictionary if @dicts[:is_a].nil? # Calculate direct parentals dictionary if it's not already calculated
         visited_terms = {} # PEDRO: To keep track of visited data, hash accesions are fast than array includes. I don't understant why use this variable instead of check @term_paths to see if the data is calculated
         @term_paths = {}
