@@ -1858,13 +1858,6 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
         @term_paths = {}
         if [:hierarchical, :sparse].include? @structureType
             @stanzas[:terms].each do |term, t_attributes|
-                if !only_main_terms && (self.is_obsolete?(term) || self.is_alternative?(term))  # Special case (obsoletes)
-                    special_term = term
-                    term = self.is_obsolete?(term) ? @obsoletes_index[term] : @alternatives_index[term]
-                    @term_paths[term] = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} if !@term_paths.include?(term)
-                    @term_paths[special_term] = @term_paths[term]
-                    visited_terms[special_term] = true
-                end
                 if !visited_terms.include?(term)
                     # PEDRO: This code is very similar to expand_path method, but cannot be replaced by it (test fail). We must work to use this method here
                     path_attr = @term_paths[term]
@@ -1882,7 +1875,7 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
                             path_attr[:paths].concat(new_paths.map{|path| path.clone.unshift(term)})
                         end
                     end                    
-                    anc = @ancestors_index[term].each{|anc| visited_terms[anc] = true} if @ancestors_index.include?(term)
+                    @ancestors_index[term].each{|anc| visited_terms[anc] = true} if @ancestors_index.include?(term)
                     visited_terms[term] = true
                 end
                 # Update metadata
@@ -2042,8 +2035,6 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
         if highSection.empty?
             dsi = 0
         else
-            accumulated_weigth = 0
-            accumulated_weigthed_diffL = 0
             hss = get_weigthed_level_contribution(highSection, maxL, ontology_levels.length - maxL)
             lss = get_weigthed_level_contribution(lowSection, maxL, maxL)
             dsi = hss.fdiv(lss)
@@ -2373,9 +2364,7 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
     # ...
      def compute_relations_to_items(external_item_list, total_items, mode, thresold)
         terms_levels = list_terms_per_level_from_items 
-        #puts terms_levels.inspect.yellow
         connect_familiars!(terms_levels)
-        #puts terms_levels.inspect.blue
         item_list_with_transf_parental = get_item_list_parental(terms_levels)
         results = []
         if mode == :elim 

@@ -192,8 +192,9 @@ class TestOBOFunctionalities < Minitest::Test
     def test_go_several_records_compare_structure
         @go = Ontology.new(file: File.join(AUX_FOLDER, "partial_go.obo"), load_file: true)
         # Export object to JSON
-        #@go.write(File.join(AUX_FOLDER, "gotestjsonFull.json"))
+        #@go.write(File.join(AUX_FOLDER, "partial_go.json"))
         #file: File.join(AUX_FOLDER, "testjson.json"
+        
         obo = Ontology.new(file: File.join(AUX_FOLDER, "partial_go.json"), load_file: true)
         assert_equal(@go, obo)
         # Remove generated files
@@ -336,7 +337,7 @@ class TestOBOFunctionalities < Minitest::Test
 		# Ontology levels
 		assert_equal({1=>[:Parental], 2=>[:Child2, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles)
 		assert_equal({1=>[:Parental, :Parental, :Parental, :Parental], 2=>[:Child2, :Child2, :Child2, :Child3, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles(false))
-		assert_equal({1=>[:Parental], 2=>[:Child2, :Child1, :Child3, :Child4]}, @hierarchical.get_ontology_levels)
+		assert_equal({1=>[:Parental], 2=>[:Child1, :Child2, :Child3, :Child4]}, @hierarchical.get_ontology_levels)
 		# Profiles dictionary
 		@hierarchical.get_items_from_profiles
 		assert_equal({Child2: [:A, :B, :C], Parental: [:A, :B, :C, :D], Child3: [:C, :D], Child4: [:D]}, @hierarchical.items)
@@ -373,7 +374,7 @@ class TestOBOFunctionalities < Minitest::Test
 	def test_term_levels
 		hierarchical = Ontology.new(file: @file_Hierarchical[:file],load_file: true)
 		assert_equal({:total_paths=>1, :largest_path=>2, :shortest_path=>2, :paths=>[[:Child2, :Parental]]}, hierarchical.term_paths[:Child2])
-		assert_equal({1=>[:Parental], 2=>[:Child2, :Child1, :Child3, :Child4]}, hierarchical.get_ontology_levels)
+		assert_equal({1=>[:Parental], 2=>[:Child1, :Child2, :Child3, :Child4]}, hierarchical.get_ontology_levels)
 	end
 
 	def test_expand_items
