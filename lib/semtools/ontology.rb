@@ -623,21 +623,15 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
     # ===== Returns 
     # true if process ends without errors and false in other cases
     def get_index_alternatives(alt_tag: @@basic_tags[:alternative].last)
-        # Check input
-        raise('stanzas terms empty')  if @stanzas[:terms].empty?
-        # Take all alternative IDs
         alt_ids2add = {}
-        @stanzas[:terms].each do |id, tags|
+        each(att = true, only_main = false) do |id, tags|
             if id == tags[:id] # Avoid simulated alternative terms
-                # id = tags[:id] # Take always real ID in case of alternative terms simulted
                 alt_ids = tags[alt_tag]
                 if !alt_ids.nil?
                     alt_ids = alt_ids - @removable_terms - [id]
-                    # Update info
                     alt_ids.each do |alt_term|
                         @alternatives_index[alt_term] = id
-                        alt_ids2add[alt_term] = @stanzas[:terms][id] if !@stanzas[:terms].include?(alt_term)
-                        @ancestors_index[alt_term] = @ancestors_index[id] if !@ancestors_index[id].nil?
+                        alt_ids2add[alt_term] = tags if !@stanzas[:terms].include?(alt_term)
                     end
                 end
             end
@@ -678,16 +672,15 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
             warn('ancestors_index object is empty') 
         else
             # Per each term, add frequencies
-            @stanzas[:terms].each do |id, tags|            
-                if @alternatives_index.include?(id)
+            each(att = true, only_main = false) do |id, tags| # if only_main is true, the code and tests fails. This is not logical
+                if @alternatives_index.include?(id) # Note: alternative terms do not increase structural frequencies
                     alt_id = @alternatives_index[id]
                     query = @meta[alt_id] # Check if exist
                     if query.nil?
                         query = {ancestors: 0.0, descendants: 0.0, struct_freq: 0.0, observed_freq: 0.0}
                         @meta[alt_id] = query 
                     end 
-                    @meta[id] = query
-                    # Note: alternative terms do not increase structural frequencies
+                    @meta[id] = query                
                 else # Official term
                     query = @meta[id] # Check if exist
                     if query.nil?
@@ -715,26 +708,19 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
     # ===== Returns 
     # true if process ends without errors and false in other cases
     def get_index_obsoletes(obs_tag: @@basic_tags[:obsolete], alt_tags: @@basic_tags[:alternative])
-        if @stanzas[:terms].empty?
-            warn('stanzas terms empty')
-        else
-            # Check obsoletes
-            @stanzas[:terms].each do |id, term_tags|
-                next if term_tags.nil?
-                next if self.is_alternative?(id)
-                query = term_tags[obs_tag]
-                if !query.nil? && query == 'true' # Obsolete tag presence 
-                    next if !@obsoletes_index[id].nil? # Already stored
-                    # Check if alternative value is available
-                    alt_ids = alt_tags.map{|alt| term_tags[alt]}.compact
-                    if !alt_ids.empty?
-                        alt_id = alt_ids.first.first #FIRST tag, FIRST id 
-                        # Store
-                        @alternatives_index[id] = alt_id
-                        @obsoletes_index[id] = alt_id
-                    end
-                    @obsoletes[id] = true
+        each(att = true, only_main = false) do |id, term_tags|
+            next if term_tags.nil? || 
+                    !@obsoletes_index[id].nil? || 
+                    self.is_alternative?(id)
+            obs_value = term_tags[obs_tag]
+            if obs_value == 'true' # Obsolete tag presence, must be checked as string
+                alt_ids = alt_tags.map{|alt| term_tags[alt]}.compact # Check if alternative value is available
+                if !alt_ids.empty?
+                    alt_id = alt_ids.first.first #FIRST tag, FIRST id 
+                    @alternatives_index[id] = alt_id
+                    @obsoletes_index[id] = alt_id
                 end
+                @obsoletes[id] = true
             end
         end
     end
@@ -746,48 +732,27 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
     # ===== Returns 
     # true if process ends without errors and false in other cases
     def get_index_child_parent_relations(tag: @@basic_tags[:ancestors][0])
-        # Check
-        if @stanzas[:terms].nil?
-            warn('stanzas terms empty')
-        else
-            # Expand
-            structType, parentals = self.class.get_related_ids_by_tag(terms: @stanzas[:terms],
-                                                            target_tag: tag,
-                                                            alt_ids: @alternatives_index,
-                                                            obsoletes: @obsoletes_index.length,
-                                                            reroot: @reroot)
-            
-            # Check
-            raise('Error expanding parentals')  if (structType.nil?) || parentals.nil?
-            # Prepare ancestors structure
-            anc = {}
-            des = {}
-            parentals.each do |id, parents|
-                parents = parents - @removable_terms
-                anc[id] = parents
-                parents.each do |anc_id| # Add descendants
-                    if !des.include?(anc_id)
-                        des[anc_id] = [id]
-                    else 
-                        des[anc_id] << id
-                    end
-                end
-            end
-            # Store alternatives
-            # @alternatives_index.each do |id,alt|
-            #     anc[id] = anc[alt] if anc.include?(alt)
-            #     des[id] = des[alt] if des.include?(alt)
-            # end
-            # Check structure
-            if ![:atomic,:sparse].include? structType
-                structType = structType == :circular ? :circular : :hierarchical
-            end
-            # Store
-            @ancestors_index = anc
-            @descendants_index = des
-            @structureType = structType
+        structType, parentals = self.class.get_related_ids_by_tag(terms: @stanzas[:terms],
+                                                        target_tag: tag,
+                                                        alt_ids: @alternatives_index,
+                                                        obsoletes: @obsoletes_index.length,
+                                                        reroot: @reroot)    
+        if structType.nil? || parentals.nil?
+            raise('Error expanding parentals')
+        elsif ![:atomic,:sparse].include?(structType) # Check structure
+            structType = structType == :circular ? :circular : :hierarchical
         end
-        # Finish        
+        @structureType = structType 
+
+        anc = {}
+        des = {}
+        parentals.each do |id, parents|
+            parents = parents - @removable_terms
+            anc[id] = parents
+            parents.each{|anc_id| add2hash(des, anc_id, id)}
+        end
+        @ancestors_index = anc
+        @descendants_index = des
     end
 
 
@@ -2326,9 +2291,10 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
         return self.get_direct_related(term, :descendant, remove_alternatives: remove_alternatives)        
     end
 
-    def each(att = false)
+    def each(att = false, only_main = true)
+        warn('stanzas terms empty') if @stanzas[:terms].empty?
         @stanzas[:terms].each do |id, tags|            
-            next if @alternatives_index.include?(id) || @obsoletes.include?(id)
+            next if only_main && (@alternatives_index.include?(id) || @obsoletes.include?(id))
             if att
                yield(id, tags)
             else
