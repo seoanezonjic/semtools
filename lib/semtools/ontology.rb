@@ -647,15 +647,12 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
         self.get_index_obsoletes
         self.get_index_alternatives
         self.get_index_child_parent_relations
-            @alternatives_index.each{|k,v| @alternatives_index[k] = self.extract_id(v)}
-            ## @alternatives_index.map {|k,v| @alternatives_index[k] = self.stanzas[:terms][v][:id] if k == v} unless self.stanzas[:terms].empty?
-            @alternatives_index.compact!
-            @obsoletes_index.each{|k,v| @obsoletes_index[k] = self.extract_id(v)}
-            @obsoletes_index.compact!
-            @ancestors_index.each{|k,v| @ancestors_index[k] = v.map{|t| self.extract_id(t)}.compact}
-            @ancestors_index.compact!
-            @descendants_index.each{|k,v| @descendants_index[k] = v.map{|t| self.extract_id(t)}.compact}
-            @descendants_index.compact!
+        @alternatives_index.transform_values!{|v| self.extract_id(v)}
+        @alternatives_index.compact!
+        @obsoletes_index.transform_values!{|v| self.extract_id(v)}
+        @obsoletes_index.compact!
+        @ancestors_index.each{|k,v| @ancestors_index[k] = v.map{|t| self.extract_id(t)}.compact}
+        @descendants_index.each{|k,v| @descendants_index[k] = v.map{|t| self.extract_id(t)}.compact}
         self.get_index_frequencies
         self.calc_dictionary(:name)
         self.calc_dictionary(:synonym, select_regex: /\"(.*)\"/)
@@ -1161,109 +1158,106 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
     def calc_dictionary(tag, select_regex: nil, substitute_alternatives: true, store_tag: nil, multiterm: false, self_type_references: false)
         tag = tag.to_sym
         store_tag = tag if store_tag.nil?
-        if @stanzas[:terms].empty?
-            warn('Terms are not already loaded. Aborting dictionary calc') 
-        else
-            byTerm = {}
-            byValue = {}
-            # Calc per term
-            @stanzas[:terms].each do |term, tags|
-                referenceTerm = term
-                if @alternatives_index.include?(term) && substitute_alternatives # Special case
-                    referenceTerm = @alternatives_index[term] if !@obsoletes_index.include?(@alternatives_index[term])
-                end
-                queryTag = tags[tag]
-                if !queryTag.nil?
-                    # Pre-process
-                    if !select_regex.nil?
-                        if queryTag.kind_of?(Array)
-                            queryTag = queryTag.map{|value| value.scan(select_regex).first}
-                            queryTag.flatten!
-                        else
-                            queryTag = queryTag.scan(select_regex).first
-                        end
-                        queryTag.compact!
-                    end
-                    if queryTag.kind_of?(Array) # Store
-                        if !queryTag.empty?
-                            if byTerm.include?(referenceTerm)
-                                byTerm[referenceTerm] = (byTerm[referenceTerm] + queryTag).uniq
-                            else
-                                byTerm[referenceTerm] = queryTag
-                            end
-                            if multiterm
-                                queryTag.each do |value|
-                                    byValue[value] = [] if byValue[value].nil? 
-                                    byValue[value] << referenceTerm
-                                end                                
-                            else
-                                queryTag.each{|value| byValue[value] = referenceTerm}
-                            end
-                        end
+
+        byTerm = {}
+        byValue = {}
+        # Calc per term
+        each(att = true, only_main = false) do |term, tags|
+            referenceTerm = term
+            if @alternatives_index.include?(term) && substitute_alternatives # Special case
+                referenceTerm = @alternatives_index[term] if !@obsoletes_index.include?(@alternatives_index[term])
+            end
+            queryTag = tags[tag]
+            if !queryTag.nil?
+                # Pre-process
+                if !select_regex.nil?
+                    if queryTag.kind_of?(Array)
+                        queryTag = queryTag.map{|value| value.scan(select_regex).first}
+                        queryTag.flatten!
                     else
+                        queryTag = queryTag.scan(select_regex).first
+                    end
+                    queryTag.compact!
+                end
+                if queryTag.kind_of?(Array) # Store
+                    if !queryTag.empty?
                         if byTerm.include?(referenceTerm)
-                            byTerm[referenceTerm] = (byTerm[referenceTerm] + [queryTag]).uniq
+                            byTerm[referenceTerm] = (byTerm[referenceTerm] + queryTag).uniq
                         else
-                            byTerm[referenceTerm] = [queryTag]
+                            byTerm[referenceTerm] = queryTag
                         end
                         if multiterm
-                            byValue[queryTag] = [] if byValue[queryTag].nil?
-                            byValue[queryTag] << referenceTerm
+                            queryTag.each do |value|
+                                byValue[value] = [] if byValue[value].nil? 
+                                byValue[value] << referenceTerm
+                            end                                
                         else
-                            byValue[queryTag] = referenceTerm
+                            queryTag.each{|value| byValue[value] = referenceTerm}
                         end
+                    end
+                else
+                    if byTerm.include?(referenceTerm)
+                        byTerm[referenceTerm] = (byTerm[referenceTerm] + [queryTag]).uniq
+                    else
+                        byTerm[referenceTerm] = [queryTag]
+                    end
+                    if multiterm
+                        byValue[queryTag] = [] if byValue[queryTag].nil?
+                        byValue[queryTag] << referenceTerm
+                    else
+                        byValue[queryTag] = referenceTerm
                     end
                 end
             end
-            
-            # Check self-references
-            if self_type_references
-                byTerm.map do |term, references|
-                    corrected_references = references.map do |t|
-                        checked = self.extract_id(t)
-                        if checked.nil?
-                            t
-                        else
-                            byValue[checked] = byValue.delete(t) if checked != t && byValue[checked].nil? # Update in byValue
-                            checked
-                        end
-                    end
-                    byTerm[term] = corrected_references.uniq
-                end
-            end
-
-            # Check order
-            byTerm.map do |term,values|
-                if self.exists?(term)
-                    referenceValue = @stanzas[:terms][term][tag]
-                    if !referenceValue.nil?
-                        if !select_regex.nil?
-                            if referenceValue.kind_of?(Array)
-                                referenceValue = referenceValue.map{|value| value.scan(select_regex).first}
-                                referenceValue.flatten!
-                            else
-                                referenceValue = referenceValue.scan(select_regex).first
-                            end
-                            referenceValue.compact!
-                        end
-                        if self_type_references
-                            if referenceValue.kind_of?(Array)
-                                aux = referenceValue.map{|t| self.extract_id(t)}
-                            else
-                                aux = self.extract_id(referenceValue)
-                            end
-                            aux.compact! unless aux.nil?
-                            referenceValue = aux unless aux.nil?
-                        end
-                        referenceValue = [referenceValue] if !referenceValue.kind_of?(Array)
-                        byTerm[term] = referenceValue + (values - referenceValue)
-                    end
-                end
-            end
-
-            # Store
-            @dicts[store_tag] = {byTerm: byTerm, byValue: byValue}
         end
+        
+        # Check self-references
+        if self_type_references
+            byTerm.map do |term, references|
+                corrected_references = references.map do |t|
+                    checked = self.extract_id(t)
+                    if checked.nil?
+                        t
+                    else
+                        byValue[checked] = byValue.delete(t) if checked != t && byValue[checked].nil? # Update in byValue
+                        checked
+                    end
+                end
+                byTerm[term] = corrected_references.uniq
+            end
+        end
+
+        # Check order
+        byTerm.map do |term,values|
+            if self.exists?(term)
+                referenceValue = @stanzas[:terms][term][tag]
+                if !referenceValue.nil?
+                    if !select_regex.nil?
+                        if referenceValue.kind_of?(Array)
+                            referenceValue = referenceValue.map{|value| value.scan(select_regex).first}
+                            referenceValue.flatten!
+                        else
+                            referenceValue = referenceValue.scan(select_regex).first
+                        end
+                        referenceValue.compact!
+                    end
+                    if self_type_references
+                        if referenceValue.kind_of?(Array)
+                            aux = referenceValue.map{|t| self.extract_id(t)}
+                        else
+                            aux = self.extract_id(referenceValue)
+                        end
+                        aux.compact! unless aux.nil?
+                        referenceValue = aux unless aux.nil?
+                    end
+                    referenceValue = [referenceValue] if !referenceValue.kind_of?(Array)
+                    byTerm[term] = referenceValue + (values - referenceValue)
+                end
+            end
+        end
+
+        # Store
+        @dicts[store_tag] = {byTerm: byTerm, byValue: byValue}
     end
 
 
@@ -1772,35 +1766,18 @@ attr_accessor :file, :header, :stanzas, :ancestors_index, :descendants_index, :s
     # +calc_paths+:: calculates term paths if it's not already calculated
     # +shortest_path+:: if true, level is calculated with shortest path, largest path will be used in other cases
     def calc_term_levels(calc_paths: false, shortest_path: true)
-        if @term_paths.empty?
-            if calc_paths
-                self.calc_term_paths
-            else
-                warn('Term paths are not already loaded. Aborting dictionary calc') 
-            end
-        end
+        self.calc_term_paths if @term_paths.empty? && calc_paths
         if !@term_paths.empty?
             byTerm = {}
             byValue = {}
-            # Calc per term
             @term_paths.each do |term, info|
                 level = shortest_path ? info[:shortest_path] : info[:largest_path]
-                if level.nil?
-                    level = -1
-                else
-                    level = level.round(0)
-                end
+                level = level.nil? ? -1 : level.round(0)
                 byTerm[term] = level
-                queryLevels = byValue[level]
-                if queryLevels.nil?
-                    byValue[level] = [term]
-                else
-                    byValue[level] << term
-                end
+                add2hash(byValue, level, term)
             end
             @dicts[:level] = {byTerm: byValue, byValue: byTerm} # Note: in this case, value has multiplicity and term is unique value
-            # Update maximum depth
-            @max_freqs[:max_depth] = byValue.keys.max
+            @max_freqs[:max_depth] = byValue.keys.max # Update maximum depth
         end
     end
 
