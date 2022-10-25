@@ -235,11 +235,11 @@ class TestOBOFunctionalities < Minitest::Test
 										B: (-Math.log10(1.fdiv(2)) - Math.log10(2.fdiv(2))).fdiv(2), 
 										C: (-Math.log10(1.fdiv(2)) - Math.log10(2.fdiv(2))).fdiv(2), 
 										D: 0.0 }
-		expected_profiles_IC_resnik_observed = {A: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6))).fdiv(2),
-												 B: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6))).fdiv(2), 
-												 C: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6)) - Math.log10(6.fdiv(6))).fdiv(3), 
+		expected_profiles_IC_resnik_observed = {A: (-Math.log10(4.fdiv(4)) - Math.log10(3.fdiv(4))).fdiv(2),
+												 B: (-Math.log10(4.fdiv(4)) - Math.log10(3.fdiv(4))).fdiv(2), 
+												 C: (-Math.log10(4.fdiv(4)) - Math.log10(3.fdiv(4))).fdiv(2), 
 												 D: 0.0 }
-		# assert_equal([expected_profiles_IC_resnik, expected_profiles_IC_resnik_observed], @hierarchical.get_profiles_resnik_dual_ICs) # TODO: FEDE revise expected_profiles_IC_resnik_observed to fill with correct values
+		assert_equal([expected_profiles_IC_resnik, expected_profiles_IC_resnik_observed], @hierarchical.get_profiles_resnik_dual_ICs) 
 		# Ontology levels
 		assert_equal({1=>[:Parental], 2=>[:Child2]}, @hierarchical.get_ontology_levels_from_profiles)
 		assert_equal({1=>[:Parental, :Parental, :Parental, :Parental], 2=>[:Child2, :Child2, :Child2]}, @hierarchical.get_ontology_levels_from_profiles(false))
