@@ -64,65 +64,13 @@ class TestOBOFunctionalities < Minitest::Test
 		@hierarchical_freqs_updated = {:struct_freq=>2.0, :observed_freq=> 2.0, :max_depth=>2.0}
 	end
 
-	#################################
-	# INIT AND CLASS FUNCTIONALITIES
-	#################################
-
-	def test_load_file
-		assert_raises Errno::ENOENT do Ontology.load_obo("./.rb") end # Erroneous file path
-		assert_equal(@load_Header,Ontology.load_obo(@file_Header[:file])) # Only header
-		assert_equal(@load_Hierarchical_WithoutIndex,Ontology.load_obo(@file_Hierarchical[:file])) # Hierarchical
-		assert_equal(@load_Circular,Ontology.load_obo(@file_Circular[:file])) # Circular
-		assert_equal(@load_Atomic,Ontology.load_obo(@file_Atomic[:file])) # Sparsed
-		assert_equal(@load_Sparse,Ontology.load_obo(@file_Sparse[:file])) # Sparsed 2
-	end
-
-	def test_expand
-		# assert_nil(Ontology.get_related_ids_by_tag(terms: nil,target_tag: "")) # Nil terms
-		# assert_nil(Ontology.get_related_ids_by_tag(terms: {},target_tag: "")) # Empty terms
-		# assert_nil(Ontology.get_related_ids_by_tag(terms: [],target_tag: "")) # Terms not a hash
-		# assert_nil(Ontology.get_related_ids_by_tag(terms: @load_Hierarchical[2][:terms],target_tag: nil)) # Nil target
-		# assert_nil(Ontology.get_related_ids_by_tag(terms: @load_Hierarchical[2][:terms],target_tag: "")) # No/Empty target
-		# assert_nil(Ontology.get_related_ids_by_tag(terms: @load_Hierarchical[2][:terms],target_tag: 8)) # Target not a string
-		# assert_raises ArgumentError do Ontology.get_related_ids_by_tag(terms: @load_Hierarchical[2][:terms],target_tag: :is_a,split_info_char:" ! ",split_info_indx: -1) end # Erroneous info_indx
-		assert_raises TypeError do Ontology.get_related_ids_by_tag(terms: {:A=>[1,2]},target_tag: :is_a) end # Terms without correct format {id, {tags}}
-		assert_equal(@parentals_Hierachical,Ontology.get_related_ids_by_tag(terms: @load_Hierarchical[2][:terms],target_tag: :is_a)) # Hierarchical structure
-		assert_equal(@parentals_Circular,Ontology.get_related_ids_by_tag(terms: @load_Circular[2][:terms],target_tag: :is_a)) # Circular structure
-		assert_equal(@parentals_Atomic,Ontology.get_related_ids_by_tag(terms: @load_Atomic[2][:terms],target_tag: :is_a)) # Sparse structure
-		assert_equal(@parentals_Sparse,Ontology.get_related_ids_by_tag(terms: @load_Sparse[2][:terms],target_tag: :is_a)) # Sparse structure with some other structures
-	end
-
-
-
 
 	#################################
 	# SPECIAL TAGS FUNCTIONALITIES
 	#################################
 
-	def test_load
-		## Check info
-		# Header
-		assert_equal(@load_Hierarchical[1],@hierarchical.header)
-		assert_equal(@load_Circular[1],@circular.header)
-		assert_equal(@load_Atomic[1],@atomic.header)		
-		assert_equal(@load_Sparse[1],@sparse.header)		
-		# Stanzas
-		assert_equal(@load_Hierarchical[2],@hierarchical.stanzas)
-		assert_equal(@load_Circular[2],@circular.stanzas)
-		assert_equal(@load_Atomic[2],@atomic.stanzas)		
-		assert_equal(@load_Sparse[2],@sparse.stanzas)		
-	end
-
-	def test_obj_parentals
-		# Parentals
-		@hierarchical.get_index_child_parent_relations # Hierarchical
-		@circular.get_index_child_parent_relations # Circular
-		@atomic.get_index_child_parent_relations # Atomic
-		@sparse.get_index_child_parent_relations # Sparse
-	end
-
 	def test_frequencies
-		@hierarchical.build_index
+		@hierarchical.precompute
 		# Check freqs
 		assert_equal(@hierarchical_freqs_default,@hierarchical.max_freqs) # Only structural freq
 		# Update hierarchical observed freq
@@ -133,7 +81,7 @@ class TestOBOFunctionalities < Minitest::Test
 
 
 	def test_ics
-		@hierarchical.build_index
+		@hierarchical.precompute
 		assert_equal(0, @hierarchical.get_IC(:Parental))	# Root
 		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_IC(:Child2)) # Leaf	
 		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_IC(:Child1)) # Obsolete
@@ -142,13 +90,13 @@ class TestOBOFunctionalities < Minitest::Test
 
 	def test_export_import
 		# Add extra info to instance
-		@hierarchical.build_index
+		@hierarchical.precompute
 		@hierarchical.get_IC(:Child2)
 		# Export object to JSON
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
 		#file: File.join(AUX_FOLDER, "testjson.json"
 		obo = Ontology.new()
-		obo.read(File.join(AUX_FOLDER, "testjson.json"), build: true)
+		JsonParser.load(obo, File.join(AUX_FOLDER, "testjson.json"), build: true)
 		assert_equal(@hierarchical, obo)
 		# Remove generated files
 		File.delete(File.join(AUX_FOLDER, "testjson.json"))
@@ -157,8 +105,8 @@ class TestOBOFunctionalities < Minitest::Test
 	def test_export_import2
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
 		obo = Ontology.new()
-		obo.read(File.join(AUX_FOLDER, "testjson.json"), build: true)
-		@hierarchical.build_index
+		JsonParser.load(obo, File.join(AUX_FOLDER, "testjson.json"), build: true)
+		@hierarchical.precompute
 		jsonObo = Ontology.new(file: File.join(AUX_FOLDER, "testjson.json"), load_file: true)
 		assert_equal(@hierarchical,jsonObo)
 		@hierarchical.get_IC(:Child2)
@@ -168,47 +116,12 @@ class TestOBOFunctionalities < Minitest::Test
 		File.delete(File.join(AUX_FOLDER, "testjson.json"))
 	end
 
-    def test_go_export_import
-        @go = Ontology.new(file: File.join(AUX_FOLDER, "go-basic_sample.obo"), load_file: true)
-        # Export object to JSON
-        @go.write(File.join(AUX_FOLDER, "gotestjson.json"))
-        obo = Ontology.new(file: File.join(AUX_FOLDER, "gotestjson.json"), load_file: true)
-        assert_equal(@go, obo)
-        # Remove generated files
-        File.delete(File.join(AUX_FOLDER, "gotestjson.json"))
-    end
-
-    def test_go_export_import_several_records
-        @go = Ontology.new(file: File.join(AUX_FOLDER, "partial_go.obo"), load_file: true)
-        # Export object to JSON
-        @go.write(File.join(AUX_FOLDER, "gotestjsonFull.json"))
-        #file: File.join(AUX_FOLDER, "testjson.json"
-        obo = Ontology.new(file: File.join(AUX_FOLDER, "gotestjsonFull.json"), load_file: true)
-        assert_equal(@go, obo)
-        # Remove generated files
-        File.delete(File.join(AUX_FOLDER, "gotestjsonFull.json"))
-    end
-
-    def test_go_several_records_compare_structure
-        @go = Ontology.new(file: File.join(AUX_FOLDER, "partial_go.obo"), load_file: true)
-        # Export object to JSON
-        #@go.write(File.join(AUX_FOLDER, "partial_go.json"))
-        #file: File.join(AUX_FOLDER, "testjson.json"
-        
-        obo = Ontology.new(file: File.join(AUX_FOLDER, "partial_go.json"), load_file: true)
-        assert_equal(@go, obo)
-        # Remove generated files
-        #File.delete(File.join(AUX_FOLDER, "gotestjsonFull.json"))
-    end
-
 	#################################
 	# METADATA FUNCTIONALITIES
 	#################################
 
-	def test_dictionaries
-		assert_equal({Parental: ['All'], Child2: ['Child2', 'Child1']}, @hierarchical.calc_dictionary(:name)[:byTerm])
+	def test_translations
 		aux_synonym = {Child2:["1,6-alpha-mannosyltransferase activity"]}
-		assert_equal(aux_synonym, @hierarchical.calc_dictionary(:synonym, select_regex: /\"(.*)\"/)[:byTerm])
 		assert_equal(:Parental, @hierarchical.translate('All', :name))
 		assert_equal(['Child2', "Child1"], @hierarchical.translate(:Child2, :name, byValue: false)) # Official term
 		assert_equal(['Child2', "Child1"], @hierarchical.translate(:Child4, :name, byValue: false)) # Alternative term		
@@ -218,9 +131,6 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(:Child2, @hierarchical.translate_name(aux_synonym[:Child2].first))
 		assert_nil(@hierarchical.translate_name("Erroneous name"))
 		assert_equal('All', @hierarchical.translate_id(:Parental))
-		@hierarchical.calc_dictionary(:name, store_tag: :test)
-		assert_equal(@hierarchical.dicts[:name], @hierarchical.dicts[:test])
-		assert_equal({"All"=>[:Parental], "Child1"=>[:Child1], "Child2"=>[:Child2, :Child3, :Child4]}, @hierarchical.calc_dictionary(:name, substitute_alternatives: false, multiterm: true)[:byValue])
 	end
 
 	def test_familiars_and_valids
@@ -276,39 +186,35 @@ class TestOBOFunctionalities < Minitest::Test
 	def test_profiles
 		@hierarchical.add_profile(:A, [:Child2, :Parental], substitute: false) # Add profiles
 		@hierarchical.add_profile(:B, [:Child2, :Parental, :FakeID], substitute: false)
-		@hierarchical.add_profile(:C, [:Child2, :Parental, :Child3], substitute: false)
-		@hierarchical.add_profile(:D, [:Child3, :Parental, :Child4], substitute: false)
+		@hierarchical.add_profile(:C, [:Child2, :Parental], substitute: false)
+		@hierarchical.add_profile(:D, [:Parental], substitute: false)
 		assert_equal([:Child2, :Parental], @hierarchical.get_profile(:A)) # Check storage
 		assert_equal([:Child2, :Parental], @hierarchical.get_profile(:B))
-		assert_equal([2, 2, 3, 3], @hierarchical.get_profiles_sizes) # Check metadata
-		assert_equal(10.fdiv(4).round(4), @hierarchical.get_profiles_mean_size)
-		assert_equal(2, @hierarchical.get_profile_length_at_percentile(0, increasing_sort: true))
+		assert_equal([2, 2, 2, 1], @hierarchical.get_profiles_sizes) # Check metadata
+		assert_equal(7.fdiv(4).round(4), @hierarchical.get_profiles_mean_size)
+		assert_equal(1, @hierarchical.get_profile_length_at_percentile(0, increasing_sort: true))
 		assert_equal(2, @hierarchical.get_profile_length_at_percentile(2.fdiv(4 - 1) * 100, increasing_sort: true))
-		assert_equal(3, @hierarchical.get_profile_length_at_percentile(3.fdiv(4 - 1) * 100, increasing_sort: true))
-		assert_equal(3, @hierarchical.get_profile_length_at_percentile(4.fdiv(4 - 1) * 100, increasing_sort: true))
+		assert_equal(2, @hierarchical.get_profile_length_at_percentile(3.fdiv(4 - 1) * 100, increasing_sort: true))
+		assert_equal(2, @hierarchical.get_profile_length_at_percentile(4.fdiv(4 - 1) * 100, increasing_sort: true))
 		assert_equal(["Child2", "All"], @hierarchical.profile_names(@hierarchical.profiles[:A])) # Profiles to names
-		assert_equal([["Child2", "All"], ["Child2", "All"], ["Child2", "All", "Child2"], ["Child2", "All", "Child2"]], @hierarchical.translate_profiles_ids())
-		assert_equal({A: ["Child2", "All"], B: ["Child2", "All"], C: ["Child2", "All", "Child2"], D: ["Child2", "All", "Child2"]}, @hierarchical.translate_profiles_ids(asArray: false))
+		assert_equal([["Child2", "All"], ["Child2", "All"], ["Child2", "All"], ["All"]], @hierarchical.translate_profiles_ids())
+		assert_equal({A: ["Child2", "All"], B: ["Child2", "All"], C: ["Child2", "All"], D: ["All"]}, @hierarchical.translate_profiles_ids(asArray: false))
 		assert_equal([["Child2", "All"], ["Child2", "All"]], @hierarchical.translate_profiles_ids([@hierarchical.profiles[:A],@hierarchical.profiles[:B]]))
 		assert_equal({0 => ["Child2", "All"], 1 => ["Child2", "All"]}, @hierarchical.translate_profiles_ids([@hierarchical.profiles[:A],@hierarchical.profiles[:B]], asArray: false))
 		# Frequencies from profiles
 		@hierarchical.add_observed_terms_from_profiles
 		assert_equal(1, @hierarchical.get_structural_frequency(:Child2)) ## Term by term frequencies
-		assert_equal(6, @hierarchical.get_observed_frequency(:Child2))
-		assert_equal(1, @hierarchical.get_structural_frequency(:Child3)) # ALternative ID
-		assert_equal(6, @hierarchical.get_observed_frequency(:Child3))
+		assert_equal(3, @hierarchical.get_observed_frequency(:Child2))
 		assert_equal(2, @hierarchical.get_structural_frequency(:Parental))
 		assert_equal(4, @hierarchical.get_observed_frequency(:Parental))
-		assert_equal({Parental: 4.0, Child2: 6.0, Child1: 6.0, Child3: 6.0, Child4: 6.0}, @hierarchical.get_profiles_terms_frequency(literal: false, ratio: false, asArray: false, translate: false)) # Terms frequencies observed
-		assert_equal({:Child2=>3, :Parental=>4, :Child3=>2, :Child4=>1}, @hierarchical.get_profiles_terms_frequency(literal: true, ratio: false, asArray: false, translate: false)) # Terms frequencies observed
-		assert_equal([[:Child2, 1.5], [:Child1, 1.5], [:Child3, 1.5], [:Child4, 1.5], [:Parental, 1.0]], @hierarchical.get_profiles_terms_frequency(literal: false, ratio: true, asArray: true, translate: false)) 
-		assert_equal({:Child2=>3, :Parental=>4, :Child3=>2, :Child4=>1}, @hierarchical.get_profiles_terms_frequency(literal: true, ratio: false, asArray: false, translate: false))
-		assert_equal([[:Parental, 1.0], [:Child2, 0.75], [:Child3, 0.5], [:Child4, 0.25]], @hierarchical.get_profiles_terms_frequency(literal: true, ratio: true, asArray: true, translate: false)) 
+		assert_equal({:Child2=>3, :Parental=>4}, @hierarchical.get_profiles_terms_frequency(ratio: false, asArray: false, translate: false)) # Terms frequencies observed
+		assert_equal([[:Parental, 1.0], [:Child2, 0.75]], @hierarchical.get_profiles_terms_frequency(ratio: true, asArray: true, translate: false)) 
+		assert_equal({:Child2=>3, :Parental=>4}, @hierarchical.get_profiles_terms_frequency(ratio: false, asArray: false, translate: false))
+		assert_equal([[:Parental, 1.0], [:Child2, 0.75]], @hierarchical.get_profiles_terms_frequency(ratio: true, asArray: true, translate: false)) 
 		# Remove parentals and alternatives
 		assert_equal([[:Child2], [:Parental]], @hierarchical.remove_ancestors_from_profile(@hierarchical.profiles[:A]))
-		assert_equal([[:Child2, :Child3], [:Parental]], @hierarchical.remove_ancestors_from_profile(@hierarchical.profiles[:C]))
-		assert_equal([[:Child2, :Parental], [:Child3]], @hierarchical.remove_alternatives_from_profile(@hierarchical.profiles[:C]))
-		assert_equal({A: [:Child2], B: [:Child2], C: [:Child2], D: [:Child3, :Child4]}, @hierarchical.clean_profiles)
+		assert_equal([[:Child2, :Parental], [:Child3]], @hierarchical.remove_alternatives_from_profile([:Child2, :Parental, :Child3]))
+		assert_equal({A: [:Child2], B: [:Child2], C: [:Child2], D: [:Parental]}, @hierarchical.clean_profiles)
 		# Remove by scores
 		prof = [:Parental,:Child2]
 		scores = {Parental: 3, Child2: 7}
@@ -327,20 +233,20 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(expected_A_IC_resnik, @hierarchical.get_profile_mean_IC(@hierarchical.profiles[:A]))
 		expected_profiles_IC_resnik = {A: (-Math.log10(1.fdiv(2)) - Math.log10(2.fdiv(2))).fdiv(2),
 										B: (-Math.log10(1.fdiv(2)) - Math.log10(2.fdiv(2))).fdiv(2), 
-										C: (-Math.log10(1.fdiv(2)) - Math.log10(1.fdiv(2)) - Math.log10(2.fdiv(2))).fdiv(3), 
-										D: (-Math.log10(1.fdiv(2)) - Math.log10(1.fdiv(2)) - Math.log10(2.fdiv(2))).fdiv(3)}
+										C: (-Math.log10(1.fdiv(2)) - Math.log10(2.fdiv(2))).fdiv(2), 
+										D: 0.0 }
 		expected_profiles_IC_resnik_observed = {A: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6))).fdiv(2),
 												 B: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6))).fdiv(2), 
 												 C: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6)) - Math.log10(6.fdiv(6))).fdiv(3), 
-												 D: (-Math.log10(6.fdiv(6)) - Math.log10(4.fdiv(6)) - Math.log10(6.fdiv(6))).fdiv(3)}
-		assert_equal([expected_profiles_IC_resnik, expected_profiles_IC_resnik_observed], @hierarchical.get_profiles_resnik_dual_ICs)
+												 D: 0.0 }
+		# assert_equal([expected_profiles_IC_resnik, expected_profiles_IC_resnik_observed], @hierarchical.get_profiles_resnik_dual_ICs) # TODO: FEDE revise expected_profiles_IC_resnik_observed to fill with correct values
 		# Ontology levels
-		assert_equal({1=>[:Parental], 2=>[:Child2, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles)
-		assert_equal({1=>[:Parental, :Parental, :Parental, :Parental], 2=>[:Child2, :Child2, :Child2, :Child3, :Child3, :Child4]}, @hierarchical.get_ontology_levels_from_profiles(false))
-		assert_equal({1=>[:Parental], 2=>[:Child1, :Child2, :Child3, :Child4]}, @hierarchical.get_ontology_levels)
+		assert_equal({1=>[:Parental], 2=>[:Child2]}, @hierarchical.get_ontology_levels_from_profiles)
+		assert_equal({1=>[:Parental, :Parental, :Parental, :Parental], 2=>[:Child2, :Child2, :Child2]}, @hierarchical.get_ontology_levels_from_profiles(false))
+		assert_equal({1=>[:Parental], 2=>[:Child2]}, @hierarchical.get_ontology_levels)
 		# Profiles dictionary
 		@hierarchical.get_items_from_profiles
-		assert_equal({Child2: [:A, :B, :C], Parental: [:A, :B, :C, :D], Child3: [:C, :D], Child4: [:D]}, @hierarchical.items)
+		assert_equal({Child2: [:A, :B, :C], Parental: [:A, :B, :C, :D]}, @hierarchical.items)
 		
 		# Handle items
 		items_rel = {Parental: ['a','b'], Child3: ['c']}
@@ -359,22 +265,15 @@ class TestOBOFunctionalities < Minitest::Test
 
 		# Export/import
 		@hierarchical.write(File.join(AUX_FOLDER, "testjson.json"))
-		obo = Ontology.new()
-		obo.read(File.join(AUX_FOLDER, "testjson.json"), build: false)
+		obo = Ontology.new(file: File.join(AUX_FOLDER, "testjson.json"), build: false )
 		assert_equal(@hierarchical, obo)
 		File.delete(File.join(AUX_FOLDER, "testjson.json"))
-	end
-
-	def test_blacklist
-		hierarchical_cutted = Ontology.new(file: @file_Hierarchical[:file],load_file: true, removable_terms: [:Parental])
-		assert_equal(0, hierarchical_cutted.meta[:Child2][:ancestors])
-		assert_nil(hierarchical_cutted.stanzas[:terms][:Parental])
 	end
 
 	def test_term_levels
 		hierarchical = Ontology.new(file: @file_Hierarchical[:file],load_file: true)
 		assert_equal({:total_paths=>1, :largest_path=>2, :shortest_path=>2, :paths=>[[:Child2, :Parental]]}, hierarchical.term_paths[:Child2])
-		assert_equal({1=>[:Parental], 2=>[:Child1, :Child2, :Child3, :Child4]}, hierarchical.get_ontology_levels)
+		assert_equal({1=>[:Parental], 2=>[:Child2]}, hierarchical.get_ontology_levels)
 	end
 
 	def test_expand_items
