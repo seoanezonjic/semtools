@@ -52,14 +52,14 @@ class OboParser < FileParser
         end
     end
 
-	def self.load(ontology, file, build: true, black_list: [])
+	def self.load(ontology, file, build: true, black_list: [], extra_dicts: [])
         reset # Clean class variables to avoid the mix of several obo loads
         @@removable_terms = black_list
 		_, header, stanzas = self.load_obo(file)
         @@header = header
         @@stanzas = stanzas
         self.remove_black_list_terms() if !@@removable_terms.empty?
-        self.build_index(ontology) if build
+        self.build_index(ontology, extra_dicts: extra_dicts) if build
 	end
 
 	# Class method to load an OBO format file (based on OBO 1.4 format). Specially focused on load
@@ -173,7 +173,7 @@ class OboParser < FileParser
     # Executes basic expansions of tags (alternatives, obsoletes and parentals) with default values
     # ===== Returns 
     # true if eprocess ends without errors and false in other cases
-    def self.build_index(ontology)
+    def self.build_index(ontology, extra_dicts: [])
         self.get_index_obsoletes
         self.get_index_alternatives
         self.get_index_child_parent_relations
@@ -186,8 +186,9 @@ class OboParser < FileParser
         self.calc_dictionary(:name)
         self.calc_dictionary(:synonym, select_regex: /\"(.*)\"/)
         self.calc_ancestors_dictionary
-        #self.get_index_frequencies
-        #self.calc_term_levels(calc_paths: true)
+        extra_dicts.each do |dict_tag, extra_parameters|
+            self.calc_dictionary(dict_tag, **extra_parameters) # https://www.justinweiss.com/articles/fun-with-keyword-arguments/
+        end
         ontology.terms = @@stanzas[:terms]
         ontology.alternatives_index = @@alternatives_index
         ontology.obsoletes_index = @@obsoletes_index

@@ -10,7 +10,6 @@ class Ontology
 
     # 2 - Items values (not keys) are imported as strings, not as symbols (maybe add a flag which indicates if values are, or not, symbols?) 
 
-
     #############################################
     # FIELDS
     #############################################
@@ -45,7 +44,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # +removable_terms+: term to be removed from calcs
     # +build+: flag to launch metainfo calculation
     # +file_format+: force format type despite file extension. Can be :obo or :json
-    def initialize(file: nil, load_file: false, removable_terms: [], build: true, file_format: nil)
+    def initialize(file: nil, load_file: false, removable_terms: [], build: true, file_format: nil, extra_dicts: [])
         # Initialize object variables
         @terms = {}
         @ancestors_index = {}
@@ -69,7 +68,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
             fformat = file_format
             fformat = File.extname(file) if fformat.nil? && !file.nil?
             if fformat == :obo || fformat == ".obo"
-                OboParser.load(self, file, build: build, black_list: removable_terms)
+                OboParser.load(self, file, build: build, black_list: removable_terms, extra_dicts: extra_dicts)
             elsif fformat == :json || fformat == ".json"
                 JsonParser.load(self, file, build: build)
             elsif !fformat.nil?

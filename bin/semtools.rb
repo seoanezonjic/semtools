@@ -376,8 +376,13 @@ end
 if !options[:ontology_file].nil?
   options[:ontology_file] = get_ontology_file(options[:ontology_file], ont_index_file)
 end
-ontology = Ontology.new(file: options[:ontology_file], load_file: true)
-Ontology.mutate(options[:root], ontology, clone: false) if !options[:root].nil?
+
+extra_dicts = []
+extra_dicts << [:xref, {select_regex: /(#{options[:keyword]})/, store_tag: :tag, multiterm: true, substitute_alternatives: false}] if !options[:keyword].nil?
+ontology = Ontology.new(file: options[:ontology_file], load_file: true, extra_dicts: extra_dicts)
+
+Ontology.mutate(options[:root], ontology, clone: false) if !options[:root].nil? # TODO fix method and convert in class method
+
 if !options[:input_file].nil?
   data = load_tabular_file(options[:input_file])
   if options[:list_translate].nil? || !options[:keyword].nil?
@@ -487,7 +492,6 @@ end
 
 if !options[:keyword].nil?
   xref_translated = []
-  ontology.calc_dictionary(:xref, select_regex: /(#{options[:keyword]})/, store_tag: :tag, multiterm: true, substitute_alternatives: false)
   dict = ontology.dicts[:tag][options[:xref_sense]]
   data.each do |id, prof|
     xrefs = []
