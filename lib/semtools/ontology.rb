@@ -370,15 +370,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         else
             # Per each term, add frequencies
             each(att = true, only_main = false) do |id, tags| # if only_main is true, the code and tests fails. This is not logical
-                if @alternatives_index.include?(id) # Note: alternative terms do not increase structural frequencies
-                    alt_id = @alternatives_index[id]
-                    query = @meta[alt_id] # Check if exist
-                    if query.nil?
-                        query = {ancestors: 0.0, descendants: 0.0, struct_freq: 0.0, observed_freq: 0.0}
-                        @meta[alt_id] = query 
-                    end 
-                    @meta[id] = query                
-                else # Official term
+                if !@alternatives_index.include?(id) # Official term
                     query = @meta[id] # Check if exist
                     if query.nil?
                         query = {ancestors: 0.0, descendants: 0.0, struct_freq: 0.0, observed_freq: 0.0}
@@ -511,20 +503,15 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Calculates and return resnik ICs (by ontology and observed frequency) for observed terms
     # ===== Returns 
     # two hashes with resnik and resnik_observed ICs for observed terms
-    def get_observed_ics_by_onto_and_freq
-        # Chech there are observed terms
-        if @profiles.empty?
-            resnik = {}
-            resnik_observed = {}
-        else
-            # Calc ICs for all terms
-            observed_terms = @profiles.values.flatten.uniq
-            observed_terms.each{ |term| get_IC(term)}
-            observed_terms.each{ |term| get_IC(term, type: :resnik_observed)}
-            resnik = @ics[:resnik].select{|k,v| observed_terms.include?(k)}
-            resnik_observed = @ics[:resnik_observed].select{|k,v| observed_terms.include?(k)}
+    def get_observed_ics_by_onto_and_freq()
+        ic_ont = {}
+        resnik_observed = {}
+        observed_terms = @profiles.values.flatten.uniq
+        observed_terms.each do |term| 
+            ic_ont[term] = get_IC(term)
+            resnik_observed[term] = get_IC(term, type: :resnik_observed)
         end
-        return resnik.clone, resnik_observed.clone
+        return resnik, resnik_observed
     end
 
 
@@ -1100,14 +1087,14 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Calculates resnik ontology, and resnik observed mean ICs for all profiles stored
     # ===== Returns 
     # two hashes with Profiles and IC calculated for resnik and observed resnik respectively
-    def get_profiles_resnik_dual_ICs
+    def get_profiles_resnik_dual_ICs(struct: :resnik, observ: :resnik_observed)
         struct_ics = {}
         observ_ics = {}
         @profiles.each do |id, terms|
-            struct_ics[id] = self.get_profile_mean_IC(terms, ic_type: :resnik)
-            observ_ics[id] = self.get_profile_mean_IC(terms, ic_type: :resnik_observed)
+            struct_ics[id] = self.get_profile_mean_IC(terms, ic_type: struct)
+            observ_ics[id] = self.get_profile_mean_IC(terms, ic_type: observ)
         end
-        return struct_ics.clone, observ_ics.clone
+        return struct_ics, observ_ics
     end    
 
 
@@ -1115,7 +1102,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ===== Parameters
     # +calc_paths+:: calculates term paths if it's not already calculated
     # +shortest_path+:: if true, level is calculated with shortest path, largest path will be used in other cases
-    def calc_term_levels(calc_paths: false, shortest_path: true)
+    def calc_term_levels(calc_paths: false, shortest_path: true) # NEED TEST
         self.calc_term_paths if @term_paths.empty? && calc_paths
         if !@term_paths.empty?
             byTerm = {}
@@ -1133,7 +1120,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
 
     # Find paths of a term following it ancestors and stores all possible paths for it and it's parentals.
     # Also calculates paths metadata and stores into @term_paths
-    def calc_term_paths
+    def calc_term_paths # NEED TEST
         visited_terms = {} # PEDRO: To keep track of visited data, hash accesions are fast than array includes. I don't understant why use this variable instead of check @term_paths to see if the data is calculated
         @term_paths = {}
         if [:hierarchical, :sparse].include? @structureType
@@ -1175,7 +1162,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ===== Parameters
     # +curr_term+:: current visited term
     # +visited_terms+:: already expanded terms
-    def expand_path(curr_term)
+    def expand_path(curr_term) # NEED TEST
         if !@term_paths.include?(curr_term)
             path_attr = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []}
             @term_paths[curr_term] = path_attr
@@ -1201,7 +1188,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Gets ontology levels calculated
     # ===== Returns 
     # ontology levels calculated
-    def get_ontology_levels
+    def get_ontology_levels # NEED TEST
         return @dicts[:level][:byTerm].clone # By term, in this case, is Key::Level, Value::Terms
     end
 
@@ -1209,11 +1196,11 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Gets ontology level of a specific term
     # ===== Returns 
     # Term level
-    def get_term_level(term)
+    def get_term_level(term) # NEED TEST
         return @dicts[:level][:byValue][term]
     end
 
-    def get_terms_levels(terms)
+    def get_terms_levels(terms) # NEED TEST
         termsAndLevels = []
         terms.each do |term|
             termsAndLevels << [term, get_term_level(term)]
@@ -1223,7 +1210,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
 
 
     # nil, term not found, [] term exists but not has parents
-    def get_parental_path(term, which_path = :shortest_path, level = 0)
+    def get_parental_path(term, which_path = :shortest_path, level = 0) # NEED TEST
         path = nil
         path_attr = @term_paths[term]
         if !path_attr.nil?
@@ -1249,20 +1236,26 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     def get_ontology_levels_from_profiles(uniq = true) # TODO: remove uniq and check dependencies
         profiles_terms = @profiles.values.flatten
         profiles_terms.uniq! if uniq
-        term_freqs_byProfile = {}
+        term_freqs_byProfile = Hash.new(0)
         profiles_terms.each do |term|
-            query = term_freqs_byProfile[term]
+            term_freqs_byProfile[term] += 1 
+        end
+        levels_filtered = {}
+        terms_levels = @dicts[:level][:byValue]
+        term_freqs_byProfile.each do |term, count|
+            level = terms_levels[term]
+            term_repeat = Array.new(count, term)
+            query = levels_filtered[level]
             if query.nil?
-                term_freqs_byProfile[term] = 1
+                levels_filtered[level] = term_repeat
             else
-                term_freqs_byProfile[term] += 1
+                query.concat(term_repeat)
             end
         end
-        levels_filtered = @dicts[:level][:byTerm].map{|level, terms| [level,terms.map{|t| profiles_terms.include?(t) ? Array.new(term_freqs_byProfile[t], t) : nil}.flatten.compact]}.select{|level, filteredTerms| !filteredTerms.empty?}.to_h
         return levels_filtered
     end
 
-    def get_profile_ontology_distribution_tables
+    def get_profile_ontology_distribution_tables # NEED TEST, Generalize nomenclature
       cohort_ontology_levels = get_ontology_levels_from_profiles(uniq=false)
       uniq_cohort_ontology_levels = get_ontology_levels_from_profiles
       hpo_ontology_levels = get_ontology_levels
@@ -1295,7 +1288,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
       return ontology_levels, distribution_percentage
     end
 
-    def get_dataset_specifity_index(mode)
+    def get_dataset_specifity_index(mode) # NEED TEST
         ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables
         if mode == 'uniq'
             observed_distribution = 3
@@ -1322,7 +1315,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return dsi
     end
 
-    def get_weigthed_level_contribution(section, maxL, nLevels)
+    def get_weigthed_level_contribution(section, maxL, nLevels) # NEED TEST
         accumulated_weigthed_diffL = 0
         section.each do |level, diff|
             weightL = maxL - level 
@@ -1339,20 +1332,16 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
 
 
     # For each term in profiles add the ids in the items term-id dictionary 
-    def get_items_from_profiles
+    def get_items_from_profiles # NEED TEST
         @profiles.each do |id, terms|
-            terms.each do |term|
-                add2hash(@items, term, id)
-            end
+            terms.each {|term| add2hash(@items, term, id) }
         end
     end
 
-    def get_profiles_from_items
+    def get_profiles_from_items # NEED TEST
         new_profiles = {}
         @items.each do |term, ids|
-            ids.each do |id|
-                add2hash(new_profiles, id, term)
-            end
+            ids.each{|id| add2hash(new_profiles, id, term) }
         end
         @profiles = new_profiles        
     end
@@ -1375,7 +1364,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     def get_childs_table(terms, filter_alternatives = false)
         expanded_terms = []
         terms.each do |t|
-            expanded_terms << [[t, self.translate_id(t)], self.get_descendants(t, filter_alternatives).map{|child| [child, self.translate_id(child)]}]
+            expanded_terms << [[t, translate_id(t)], get_descendants(t, filter_alternatives).map{|child| [child, translate_id(child)]}]
         end
         return expanded_terms
     end
@@ -1388,33 +1377,14 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # +expand+:: if true, already stored keys will be updated with the unique union of both sets
     def load_item_relations_to_terms(relations, remove_old_relations = false, expand = false)
         @items = {} if remove_old_relations        
-        warn('Some terms specified are not stored into this ontology. These not correct terms will be stored too') if !relations.select{|term, items| !term_exist?(term)}.empty?
-        if !remove_old_relations && !relations.select{|term, items| @items.include?(term)}.empty? && !expand
-            warn('Some terms given are already stored. Stored version will be replaced')
+        relations.each do |term, items| 
+            if !term_exist?(term)
+                warn('Some terms specified are not stored into this ontology. These not correct terms will be stored too')
+                break
+            end
         end
         if expand
-            @items = self.concatItems(@items,relations)
-            # relations.each do |k,v| # MUST UPDATE THIS USING A CONCAT SPECIFIC FUNCTION
-            #     if @items.keys.include?(k)
-            #         if v.kind_of?(Array)
-            #             @items[k] = (@items[k] + v).uniq
-            #         elsif v.kind_of?(Hash)
-            #             @items.merge!(relations) do |k, oldV, newV| 
-            #                if oldV.kind_of?(Array)
-            #                  return (oldV + newV).uniq
-            #                else
-            #                  oldV = [oldV,newV]
-            #                end  
-            #             end
-            #         elsif @items[k].kind_of?(Array) # We suppose a single value/object from here
-            #             @items[k] = (@items[k] + [v]).uniq
-            #         else
-            #             @items[k] = [@items[k],v]
-            #         end 
-            #     else
-            #         @items[k] = v
-            #     end
-            # end
+            @items = self.concatItems(@items, relations)
         else
             @items.merge!(relations)
         end
@@ -1426,7 +1396,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # +itemB+:: item to be concatenated
     # ===== Returns
     # Concatenated objects
-    def concatItems(itemA,itemB)
+    def concatItems(itemA,itemB) # NEED TEST, CHECK WITH PSZ THIS METHOD
         # A is Array :: RETURN ARRAY
             # A_array : B_array
             # A_array : B_hash => NOT ALLOWED
@@ -1441,7 +1411,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
             # A_single : B_single
         concatenated = nil
         if itemA.kind_of?(Array) && itemB.kind_of?(Array)
-            concatenated = (itemA + itemB).uniq
+            concatenated = itemA | itemB
         elsif itemA.kind_of?(Hash) && itemB.kind_of?(Hash)
             concatenated = itemA.merge(itemB) do |k, oldV, newV| 
                 self.concatItems(oldV,newV)

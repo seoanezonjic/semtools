@@ -84,8 +84,6 @@ class TestOBOFunctionalities < Minitest::Test
 		@hierarchical.precompute
 		assert_equal(0, @hierarchical.get_IC(:Parental))	# Root
 		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_IC(:Child2)) # Leaf	
-		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_IC(:Child1)) # Obsolete
-		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_IC(:Child3)) # Alternative
 	end
 
 	def test_export_import
