@@ -233,7 +233,6 @@ class OboParser < FileParser
     # ===== Returns 
     # true if process ends without errors and false in other cases
     def self.get_index_alternatives(alt_tag: @@basic_tags[:alternative].last)
-        alt_ids2add = {}
         each(att = true, only_main = false) do |id, tags|
             if id == tags[:id] # Avoid simulated alternative terms
                 alt_ids = tags[alt_tag]
@@ -241,12 +240,10 @@ class OboParser < FileParser
                     alt_ids = alt_ids - @@removable_terms - [id]
                     alt_ids.each do |alt_term|
                         @@alternatives_index[alt_term] = id
-                        alt_ids2add[alt_term] = tags if !@@stanzas[:terms].include?(alt_term)
                     end
                 end
             end
         end
-        @@stanzas[:terms].merge!(alt_ids2add)
     end
 
     # Expand parentals set and link all info to their alternative IDs. Also launch frequencies process

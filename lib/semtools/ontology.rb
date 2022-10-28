@@ -503,7 +503,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Calculates and return resnik ICs (by ontology and observed frequency) for observed terms
     # ===== Returns 
     # two hashes with resnik and resnik_observed ICs for observed terms
-    def get_observed_ics_by_onto_and_freq()
+    def get_observed_ics_by_onto_and_freq() # NEED TEST
         ic_ont = {}
         resnik_observed = {}
         observed_terms = @profiles.values.flatten.uniq
@@ -522,7 +522,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # +ic_type+:: IC formula to be used
     # ===== Returns 
     # the IC of the MICA(termA,termB)
-    def get_ICMICA(termA, termB, ic_type = :resnik)
+    def get_ICMICA(termA, termB, ic_type = :resnik) # NEED TEST
         term, ic = self.get_MICA(termA, termB, ic_type)
         return term.nil? ? nil : ic
     end
@@ -701,10 +701,10 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ===== Return
     # main ID related to a given ID. Returns nil if given ID is not an allowed ID
     def get_main_id(id) # TODO extend to recursively check if the obtained mainID is an alternative ID again and use it in a new query until get a real mainID
-        return nil if !term_exist?(id)
-        new_id = id
         mainID = @alternatives_index[id]
-        new_id = mainID if !mainID.nil? & !@obsoletes_index.include?(mainID)
+        return nil if !term_exist?(id) && mainID.nil? && !@obsoletes_index.include?(id)
+        new_id = id
+        new_id = mainID if !mainID.nil? && !@obsoletes_index.include?(mainID)
         return new_id
     end
 
@@ -718,14 +718,15 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         checked_codes = []
         rejected_codes = []
         ids.each do |id|
-            if term_exist?(id)
+            new_id = get_main_id(id)
+            if new_id.nil?
+                rejected_codes << id
+            else
                 if substitute
-                    checked_codes << self.get_main_id(id)
+                    checked_codes << new_id
                 else
                     checked_codes << id
                 end
-            else
-                rejected_codes << id
             end
         end
         return checked_codes, rejected_codes
