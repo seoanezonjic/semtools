@@ -190,7 +190,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
             end
             !micas.empty? ? micasA << micas.max : micasA << 0 
         end
-        means_sim = micasA.inject{ |sum, el| sum + el }.fdiv(micasA.size)
+        means_sim = micasA.sum.fdiv(micasA.size)
         # Compare B -> A
         if bidirectional
             means_simA = means_sim * micasA.size
@@ -822,7 +822,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # mean size of stored profiles
     def get_profiles_mean_size(round_digits: 4)
         sizes = self.get_profiles_sizes
-        return sizes.inject(0){|sum, n| sum + n}.fdiv(@profiles.length).round(round_digits)
+        return sizes.sum.fdiv(@profiles.length).round(round_digits)
     end
 
 
@@ -1074,7 +1074,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ===== Returns 
     # mean IC for a given profile
     def get_profile_mean_IC(prof, ic_type: :resnik, zhou_k: 0.5)
-        return prof.map{|term| self.get_IC(term, type: ic_type, zhou_k: zhou_k)}.inject(0){|sum,x| sum + x}.fdiv(prof.length)
+        return prof.map{|term| self.get_IC(term, type: ic_type, zhou_k: zhou_k)}.sum.fdiv(prof.length)
     end    
 
 
@@ -1603,7 +1603,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ++::
     # ===== Returns
     # ...
-     def compute_relations_to_items(external_item_list, total_items, mode, thresold)
+     def compute_relations_to_items(external_item_list, total_items, mode, thresold) # NEED TEST, check with PSZ how to maintain these methods
         terms_levels = list_terms_per_level_from_items 
         connect_familiars!(terms_levels)
         item_list_with_transf_parental = get_item_list_parental(terms_levels)
@@ -1789,9 +1789,14 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return Math.log(pvalA)/Math.log(pvalB)
     end
 
-    def profile_stats
+    #============================================================================
+    # END of methods involved with compute_relations_to_items
+    #============================================================================
+
+
+    def profile_stats # NEED TEST
       stats = Hash.new(0)
-      data = @profiles.values.map{|ont_ids| ont_ids.size}
+      data = get_profiles_sizes
       stats[:average] = data.sum().fdiv(data.size)
       sum_devs = data.sum{|element| (element - stats[:avg]) ** 2}
       stats[:variance] = sum_devs.fdiv(data.size)

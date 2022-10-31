@@ -176,6 +176,7 @@ class OboParser < FileParser
     def self.build_index(ontology, extra_dicts: [])
         self.get_index_obsoletes
         self.get_index_alternatives
+        self.remove_obsoletes_in_terms
         self.get_index_child_parent_relations
         @@alternatives_index.transform_values!{|v| self.extract_id(v)}
         @@alternatives_index.compact!
@@ -199,6 +200,13 @@ class OboParser < FileParser
         ontology.structureType = @@structureType
         ontology.dicts = @@dicts
 
+    end
+
+    def self.remove_obsoletes_in_terms() # once alternative and obsolete indexes are loaded, use this to keep only working terms
+        terms = @@stanzas[:terms]
+        @@obsoletes.each do |term|
+            terms.delete(term)
+        end
     end
 
 
