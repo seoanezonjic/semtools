@@ -121,7 +121,7 @@ class TestOBOparser < Minitest::Test
 		assert_equal(names_dict, test_dict)
 		aux_synonym = {Child2:["1,6-alpha-mannosyltransferase activity"]}
 		assert_equal(aux_synonym, OboParser.calc_dictionary(:synonym, select_regex: /\"(.*)\"/)[:byTerm])
-		assert_equal({"All"=>[:Parental], "Child1"=>[:Child1], "Child2"=>[:Child2, :Child3, :Child4]}, OboParser.calc_dictionary(:name, substitute_alternatives: false, multiterm: true)[:byValue])
+		assert_equal({"All"=>[:Parental], "Child1"=>[:Child1], "Child2"=>[:Child2]}, OboParser.calc_dictionary(:name, substitute_alternatives: false, multiterm: true)[:byValue])
 	end
 
 	def test_blacklist

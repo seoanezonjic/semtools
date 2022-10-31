@@ -122,7 +122,6 @@ class TestOBOFunctionalities < Minitest::Test
 		aux_synonym = {Child2:["1,6-alpha-mannosyltransferase activity"]}
 		assert_equal(:Parental, @hierarchical.translate('All', :name))
 		assert_equal(['Child2', "Child1"], @hierarchical.translate(:Child2, :name, byValue: false)) # Official term
-		assert_equal(['Child2', "Child1"], @hierarchical.translate(:Child4, :name, byValue: false)) # Alternative term		
 		assert_equal('Child2', @hierarchical.translate_id(:Child2))
 		assert_equal(:Child2, @hierarchical.translate(aux_synonym[:Child2].first, :synonym, byValue: true))
 		assert_equal(:Parental, @hierarchical.translate_name('All'))
@@ -136,15 +135,14 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal([], @hierarchical.get_ancestors(:Parental)) # Ancestors
 		assert_equal([], @hierarchical.get_ancestors(:Parental, true))
 		assert_equal([:Parental], @hierarchical.get_ancestors(:Child2))
-		assert_equal([:Parental], @hierarchical.get_ancestors(:Child3))
 		assert_equal([], @hierarchical.get_descendants(:Child2)) # Descendants
-		assert_equal([:Child1, :Child2, :Child3, :Child4], @hierarchical.get_descendants(:Parental))
+		assert_equal([:Child1, :Child2], @hierarchical.get_descendants(:Parental))
 		assert_equal([:Child2], @hierarchical.get_descendants(:Parental, true))
-		assert_equal([[[:Parental, "All"], [[:Child1, "Child2"], [:Child2, "Child2"], [:Child3, "Child2"], [:Child4, "Child2"]]]], @hierarchical.get_childs_table([:Parental])) # Expanded info
+		assert_equal([[[:Parental, "All"], [[:Child1, "Child2"], [:Child2, "Child2"]]]], @hierarchical.get_childs_table([:Parental])) # Expanded info
 		assert_equal([[[:Parental, "All"], [[:Child2,"Child2"]]]], @hierarchical.get_childs_table([:Parental], true))
 		assert_equal([:Parental], @hierarchical.get_direct_ancentors(:Child1))
 		assert_nil(@hierarchical.get_direct_descendants(:Child1))
-		assert_equal([:Child1,:Child2,:Child3,:Child4], @hierarchical.get_direct_descendants(:Parental))
+		assert_equal([:Child1,:Child2], @hierarchical.get_direct_descendants(:Parental))
 		assert_equal([:Child2], @hierarchical.get_direct_descendants(:Parental, remove_alternatives: true))
 	end
 
