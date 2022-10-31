@@ -756,7 +756,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     end    
 
 
-    # Method used to store a pull of profiles
+    # Method used to store a pool of profiles
     # ===== Parameters
     # +profiles+:: array/hash of profiles to be stored. If it's an array, numerical IDs will be assigned starting at 1 
     # +calc_metadata+:: if true, launch get_items_from_profiles process
@@ -859,9 +859,14 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ===== Returns 
     # translated profiles
     def translate_profiles_ids(profs = [], asArray: true)
-        profs = @profiles if profs.empty?
-        profs = profs.each_with_index.map{|terms, index| [index, terms]}.to_h if profs.kind_of?(Array)
-        profs_names = profs.map{|id, terms| [id, self.profile_names(terms)]}.to_h
+        profs2proc = {}
+        if profs.empty?
+            profs2proc = @profiles 
+        else
+            profs.each_with_index{|terms, index| profs2proc[index] = terms} if profs.kind_of?(Array)
+        end
+        profs_names = {}
+        profs2proc.each{|id, terms| profs_names[id] = self.profile_names(terms)}
         return asArray ? profs_names.values : profs_names
     end
 
@@ -916,32 +921,24 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ===== Returns 
     # stored profiles terms frequencies
     def get_profiles_terms_frequency(ratio: true, asArray: true, translate: true)
-        n_profiles = @profiles.length
-        freqs = {}
+        freqs = Hash.new(0)
         @profiles.each do |id, terms|
-            terms.each do |literalTerm|
-                if freqs.include?(literalTerm)
-                    freqs[literalTerm] += 1
-                else
-                    freqs[literalTerm] = 1
-                end
-            end
+            terms.each{|term| freqs[term] += 1}
         end
-        if (ratio || translate)
-            aux_keys = freqs.keys
-            aux_keys.each do |term| 
-                freqs[term] = freqs[term].fdiv(n_profiles) if ratio
-                if translate
-                    tr = self.translate_id(term)
-                    freqs[tr] = freqs.delete(term) if !tr.nil?
-                end
+        if translate
+            translated_freqs = {}
+            freqs.each do |term, freq| 
+                tr = self.translate_id(term)
+                translated_freqs[tr] = freq if !tr.nil?
             end
+            freqs = translated_freqs
         end
+        n_profiles = @profiles.length
+        freqs.transform_values!{|freq| freq.fdiv(n_profiles)} if ratio
         if asArray
-            freqs = freqs.map{|term, freq| [term, freq]}
+            freqs = freqs.to_a
             freqs.sort!{|h1, h2| h2[1] <=> h1[1]}
         end
-
         return freqs
     end    
 
@@ -953,7 +950,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # two arrays, first is the cleaned profile and second is the removed elements array
     def remove_ancestors_from_profile(prof)
         ancestors = prof.map{|term| self.get_ancestors(term)}.flatten.uniq
-        redundant = prof.select{|term| ancestors.include?(term)}
+        redundant = prof & ancestors
         return prof - redundant, redundant
     end
 
@@ -978,16 +975,12 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # cleaned profile
     def clean_profile(profile, remove_alternatives: true)
         warn('Estructure is circular, behaviour could not be which is expected') if @structureType == :circular
-        terms_without_ancestors, _ = self.remove_ancestors_from_profile(profile)
-        if remove_alternatives
-            terms_without_ancestors_and_alternatices, _ = self.remove_alternatives_from_profile(terms_without_ancestors)
-        else
-            terms_without_ancestors_and_alternatices = terms_without_ancestors
-        end
-        return terms_without_ancestors_and_alternatices
+        terms_without_ancestors, _ = remove_ancestors_from_profile(profile)    
+        terms_without_ancestors, _ = remove_alternatives_from_profile(terms_without_ancestors) if remove_alternatives
+        return terms_without_ancestors
     end
 
-    def clean_profile_hard(profile, options = {})
+    def clean_profile_hard(profile, options = {}) # NEED TEST # maybe see if obsoletes have an alt id to recover them in some cases
         profile, _ = check_ids(profile)
         profile = profile.select{|t| !is_obsolete?(t)}
         if !options[:term_filter].nil?
@@ -1067,7 +1060,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
       @profiles.each do |id, terms|
         total_terms += terms.length
         more_specific_childs = self.get_childs_table(terms, true)
-        terms_with_more_specific_childs += more_specific_childs.select{|hpo_record| !hpo_record.last.empty?}.length #Exclude phenotypes with no childs
+        terms_with_more_specific_childs += more_specific_childs.select{|profile| !profile.last.empty?}.length #Exclude phenotypes with no childs
         suggested_childs[id] = more_specific_childs  
       end
       return suggested_childs, terms_with_more_specific_childs.fdiv(total_terms)
@@ -1429,24 +1422,25 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Assign a dictionary already calculated as a items set.
     # ===== Parameters
     # +dictID+:: dictionary ID to be stored (:byTerm will be used)
-    def set_items_from_dict(dictID, remove_old_relations = false)
+    def set_items_from_dict(dictID, remove_old_relations = false) # NEED TEST
         @items = {} if remove_old_relations
-        if !@dicts[dictID].nil?
-            @items.merge(@dicts[dictID][:byTerm])
+        query = @dicts[dictID]
+        if !query.nil?
+            @items.merge(query[:byTerm])
         else
             warn('Specified ID is not calculated. Dict will not be added as a items set')
         end
     end
 
-    def expand_profile_with_parents(profile)
+    def expand_profile_with_parents(profile) # NEED TEST
         new_terms = []
         profile.each do |term|
-            new_terms = new_terms.union | get_ancestors(term)
+            new_terms = new_terms | get_ancestors(term)
         end
         return new_terms | profile
     end
 
-    def expand_profiles(meth, unwanted_terms: [], calc_metadata: true, ontology: nil, minimum_childs: 1, clean_profiles: true)
+    def expand_profiles(meth, unwanted_terms: [], calc_metadata: true, ontology: nil, minimum_childs: 1, clean_profiles: true) # NEED TEST
         if meth == 'parental'
             @profiles.each do |id, terms|
                 @profiles[id] = expand_profile_with_parents(terms) - unwanted_terms
@@ -1476,7 +1470,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
 
         terms_per_level.reverse_each do |lvl, terms| # Expand from leaves to roots
             terms.each do |term|
-                childs = self.get_descendants(term,true).select{|t| @items.include?(t)} # Get child with items
+                childs = self.get_descendants(term, true).select{|t| @items.include?(t)} # Get child with items
                 next if childs.length < minimum_childs
                 propagated_item_count = Hash.new(0)                
                 if ontology.nil? # Count how many times is presented an item in childs
@@ -1487,9 +1481,9 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
                     while childs.length > 1 
                         curr_term = childs.shift
                         childs.each do |child|
+                            maxmica_counts = Hash.new(0)
                             curr_items = @items[curr_term]
                             child_items = @items[child]
-                            maxmica_counts = Hash.new(0)
                             curr_items.each do |item|
                                 maxmica = ontology.get_maxmica_term2profile(item, child_items)
                                 maxmica_counts[maxmica.first] += 1
@@ -1531,7 +1525,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # +remove_alternatives+:: if true, alternatives will be removed
     # ===== Returns
     # Direct ancestors/descendants of given term or nil if any error occurs
-    def get_direct_related(term, relation, remove_alternatives: false)
+    def get_direct_related(term, relation, remove_alternatives: false) # NEED TEST
         if @dicts[:is_a].nil?
             warn("Hierarchy dictionary is not already calculated. Returning nil")
             return nil
@@ -1547,7 +1541,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         end
         return nil if target.nil? 
         query = @dicts[:is_a][target][term]
-        return query if query.nil?
+        return nil if query.nil?
         query, _ = remove_alternatives_from_profile(query) if remove_alternatives
         return query
     end
@@ -1573,7 +1567,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return self.get_direct_related(term, :descendant, remove_alternatives: remove_alternatives)        
     end
 
-    def each(att = false, only_main = true)
+    def each(att = false, only_main = true) # NEED TEST
         warn('terms empty') if @terms.empty?
         @terms.each do |id, tags|            
             next if only_main && (@alternatives_index.include?(id) || @obsoletes.include?(id))
@@ -1585,16 +1579,15 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         end
     end
 
-    def get_root
+    def get_root # NEED TEST
         roots = []
         each do |term|
-            ancestors = @ancestors_index[term]
-            roots << term if ancestors.nil? 
+            roots << term if @ancestors_index[term].nil? 
         end
         return roots
     end
 
-    def list_term_attributes
+    def list_term_attributes # NEED TEST
         terms = []
         each do |code|
             terms << [code, translate_id(code), get_term_level(code)]
@@ -1654,7 +1647,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     end
 
     def merge_groups(groups)
-        return groups.compact.inject([]){|it, a| it | a}
+        return groups.compact.inject([ ]){|it, a| it | a}
     end
 
     def list_terms_per_level_from_items

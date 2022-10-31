@@ -195,8 +195,9 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(["Child2", "All"], @hierarchical.profile_names(@hierarchical.profiles[:A])) # Profiles to names
 		assert_equal([["Child2", "All"], ["Child2", "All"], ["Child2", "All"], ["All"]], @hierarchical.translate_profiles_ids())
 		assert_equal({A: ["Child2", "All"], B: ["Child2", "All"], C: ["Child2", "All"], D: ["All"]}, @hierarchical.translate_profiles_ids(asArray: false))
-		assert_equal([["Child2", "All"], ["Child2", "All"]], @hierarchical.translate_profiles_ids([@hierarchical.profiles[:A],@hierarchical.profiles[:B]]))
-		assert_equal({0 => ["Child2", "All"], 1 => ["Child2", "All"]}, @hierarchical.translate_profiles_ids([@hierarchical.profiles[:A],@hierarchical.profiles[:B]], asArray: false))
+		test_profiles = [@hierarchical.profiles[:A],@hierarchical.profiles[:B]]
+		assert_equal([["Child2", "All"], ["Child2", "All"]], @hierarchical.translate_profiles_ids(test_profiles))
+		assert_equal({0 => ["Child2", "All"], 1 => ["Child2", "All"]}, @hierarchical.translate_profiles_ids(test_profiles, asArray: false))
 		# Frequencies from profiles
 		@hierarchical.add_observed_terms_from_profiles
 		assert_equal(1, @hierarchical.get_structural_frequency(:Child2)) ## Term by term frequencies
