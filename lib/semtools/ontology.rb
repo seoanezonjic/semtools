@@ -86,7 +86,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # +remove_up+:: if true, stores only the root term given an it descendants. If false, only root ancestors will be stored
     # ===== Returns
     # An Ontology object with terms after cut the ontology.
-    def self.mutate(root, ontology, clone: true, remove_up: true)
+    def self.mutate(root, ontology, clone: true, remove_up: true) #TODO, pending to fix and pass to instance method
         ontology = ontology.clone if clone
         # Obtain affected IDs
         descendants = ontology.descendants_index[root]
@@ -242,6 +242,16 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return pair_index
     end
 
+    def get_mica_index_from_profiles(pair_index, sim_type: :resnik, ic_type: :resnik, lca_index: true)
+        pair_index.each do |pair, val|
+            tA, tB = pair
+            value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type, lca_index: lca_index)
+            value = true if value.nil? # We use true to save that the operation was made but there is not mica value
+            add2nestHash(@mica_index, tA, tB, value)
+            add2nestHash(@mica_index, tB, tA, value)
+        end
+    end
+
     ################ get lca index ##################################
     # TODO: VErify an algorith for DAG
     def get_lca_index(pair_index)
@@ -338,16 +348,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     end
 
     ##################################################
-    
-    def get_mica_index_from_profiles(pair_index, sim_type: :resnik, ic_type: :resnik, lca_index: true)
-        pair_index.each do |pair, val|
-            tA, tB = pair
-            value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type, lca_index: lca_index)
-            value = true if value.nil? # We use true to save that the operation was made but there is not mica value
-            add2nestHash(@mica_index, tA, tB, value)
-            add2nestHash(@mica_index, tB, tA, value)
-        end
-    end
 
     def precompute
         get_index_frequencies
@@ -368,8 +368,8 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
                     query = {ancestors: 0.0, descendants: 0.0, struct_freq: 0.0, observed_freq: 0.0}
                     @meta[id] = query 
                 end
-                query[:ancestors] = @ancestors_index.include?(id) ? @ancestors_index[id].count.to_f : 0.0
-                query[:descendants] = @descendants_index.include?(id) ? @descendants_index[id].count.to_f : 0.0
+                query[:ancestors] = @ancestors_index.include?(id) ? @ancestors_index[id].length.to_f : 0.0
+                query[:descendants] = @descendants_index.include?(id) ? @descendants_index[id].length.to_f : 0.0
                 query[:struct_freq] = query[:descendants] + 1.0
                 # Update maximums
                 @max_freqs[:struct_freq] = query[:struct_freq] if @max_freqs[:struct_freq] < query[:struct_freq]  
@@ -520,15 +520,14 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # the MICA(termA,termB) and it's IC
     def get_MICA(termA, termB, ic_type = :resnik, lca_index = false)
         mica = [nil,-1.0]
-        # Special case
-        if termA.eql?(termB)
+        if termA.eql?(termB) # Special case
             ic = self.get_IC(termA, type: ic_type)
             mica = [termA, ic]
         else
-                get_LCA(termA, termB, lca_index: lca_index).each do |lca| # Find MICA in shared ancestors
-                    ic = self.get_IC(lca, type: ic_type)
-                    mica = [lca, ic] if ic > mica[1]
-                end
+            get_LCA(termA, termB, lca_index: lca_index).each do |lca| # Find MICA in shared ancestors
+                ic = self.get_IC(lca, type: ic_type)
+                mica = [lca, ic] if ic > mica[1]
+            end
         end
         return mica
     end
@@ -538,8 +537,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         if lca_index
             res = @lca_index.dig(termA, termB)
             lca = [res] if !res.nil?
-        else
-            # Obtain ancestors (include itselfs too)
+        else  # Obtain ancestors (include itselfs too)       
             anc_A = self.get_ancestors(termA) 
             anc_B = self.get_ancestors(termB)
             if !(anc_A.empty? && anc_B.empty?)
@@ -561,7 +559,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ===== Returns 
     # the similarity between both sets or false if frequencies are not available yet
     def get_similarity(termA, termB, type: :resnik, ic_type: :resnik, lca_index: false)
-        # Check
         raise ArgumentError, "SIM type specified (#{type}) is not allowed" if !@@allowed_calcs[:sims].include?(type)
         sim = nil
         mica, sim_res = get_MICA(termA, termB, ic_type, lca_index)
@@ -658,7 +655,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ===== Parameters
     # +ids+:: to be translated
     # ===== Return
-    # two arrays with translations and names which couldn't be translated respectively
+    # two arrays with translations and ids which couldn't be translated respectively
     def translate_ids(ids)
         translated = []
         rejected = []
@@ -763,10 +760,9 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     end
 
 
-    # Internal method used to remove already stored profiles and restore observed frequencies
-    def reset_profiles
-        # Clean profiles storage
-        @profiles = {}
+    
+    def reset_profiles # Internal method used to remove already stored profiles and restore observed frequencies
+        @profiles = {} # Clean profiles storage
         # Reset frequency observed
         @meta.each{|term,info| info[:observed_freq] = 0}
         @max_freqs[:observed_freq] = 0
