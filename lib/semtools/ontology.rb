@@ -1090,32 +1090,12 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Find paths of a term following it ancestors and stores all possible paths for it and it's parentals.
     # Also calculates paths metadata and stores into @term_paths
     def calc_term_paths # NEED TEST
-        visited_terms = {} # PEDRO: To keep track of visited data, hash accesions are fast than array includes. I don't understant why use this variable instead of check @term_paths to see if the data is calculated
         @term_paths = {}
         if [:hierarchical, :sparse].include? @structureType
             each do |term|
-                if !visited_terms.include?(term)
-                    # PEDRO: This code is very similar to expand_path method, but cannot be replaced by it (test fail). We must work to use this method here
-                    path_attr = @term_paths[term]
-                    if path_attr.nil?
-                        path_attr = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []} # create new path data
-                        @term_paths[term] = path_attr #save path data container
-                    end
-                    parentals = @dicts[:is_a][:byTerm][term]
-                    if parentals.nil?
-                        path_attr[:paths] << [term]
-                    else
-                        parentals.each do |direct_parental|
-                            self.expand_path(direct_parental)
-                            new_paths = @term_paths[direct_parental][:paths]
-                            path_attr[:paths].concat(new_paths.map{|path| path.clone.unshift(term)})
-                        end
-                    end                    
-                    @ancestors_index[term].each{|anc| visited_terms[anc] = true} if @ancestors_index.include?(term)
-                    visited_terms[term] = true
-                end
-                # Update metadata
+                expand_path(term)                    
                 path_attr = @term_paths[term]
+                # expand_path is arecursive function so these pat attributes must be calculated once the recursion is finished
                 path_attr[:total_paths] = path_attr[:paths].length
                 paths_sizes = path_attr[:paths].map{|path| path.length}
                 path_attr[:largest_path] = paths_sizes.max
