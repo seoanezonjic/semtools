@@ -679,8 +679,14 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # main ID related to a given ID. Returns nil if given ID is not an allowed ID
     def get_main_id(id) # TODO extend to recursively check if the obtained mainID is an alternative ID again and use it in a new query until get a real mainID
         mainID = @alternatives_index[id]
-        return nil if !term_exist?(id) && mainID.nil? 
-        id = mainID.nil? ? id : mainID
+        return nil if !term_exist?(id) && mainID.nil?
+        if !mainID.nil?
+            new_id = get_main_id(mainID)
+            if new_id != mainID
+                new_id = get_main_id(new_id)
+            end
+            id = new_id    
+        end
         return id
     end
 
