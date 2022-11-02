@@ -218,10 +218,7 @@ class OboParser < FileParser
     # ===== Returns 
     # true if process ends without errors and false in other cases
     def self.get_index_obsoletes(obs_tag: @@basic_tags[:obsolete], alt_tags: @@basic_tags[:alternative])
-        each(att = true, only_main = false) do |id, term_tags|
-            next if term_tags.nil? || 
-                    !@@obsoletes_index[id].nil? || 
-                    self.is_alternative?(id)
+        each(att = true) do |id, term_tags|
             obs_value = term_tags[obs_tag]
             if obs_value == 'true' # Obsolete tag presence, must be checked as string
                 alt_ids = alt_tags.map{|alt| term_tags[alt]}.compact # Check if alternative value is available
@@ -241,14 +238,12 @@ class OboParser < FileParser
     # ===== Returns 
     # true if process ends without errors and false in other cases
     def self.get_index_alternatives(alt_tag: @@basic_tags[:alternative].last)
-        each(att = true, only_main = false) do |id, tags|
-            if id == tags[:id] # Avoid simulated alternative terms
-                alt_ids = tags[alt_tag]
-                if !alt_ids.nil?
-                    alt_ids = alt_ids - @@removable_terms - [id]
-                    alt_ids.each do |alt_term|
-                        @@alternatives_index[alt_term] = id
-                    end
+        each(att = true) do |id, tags|
+            alt_ids = tags[alt_tag]
+            if !alt_ids.nil?
+                alt_ids = alt_ids - @@removable_terms - [id]
+                alt_ids.each do |alt_term|
+                    @@alternatives_index[alt_term] = id
                 end
             end
         end
@@ -263,7 +258,6 @@ class OboParser < FileParser
         structType, parentals = self.get_related_ids_by_tag(terms: @@stanzas[:terms],
                                                         target_tag: tag,
                                                         alt_ids: @@alternatives_index,
-                                                        obsoletes: @@obsoletes_index.length,
                                                         reroot: @@reroot)    
         if structType.nil? || parentals.nil?
             raise('Error expanding parentals')
@@ -287,10 +281,9 @@ class OboParser < FileParser
     # +terms+:: set to be used to expand
     # +target_tag+:: tag used to expand
     # +alt_ids+:: set of alternative IDs
-    # +obsoletes+:: integer with the number of obsolete IDs. used to calculate structure type.
     # ===== Returns 
     # A vector with the observed structure (string) and the hash with extended terms
-    def self.get_related_ids_by_tag(terms:, target_tag:, alt_ids: {}, obsoletes: 0, reroot: false)
+    def self.get_related_ids_by_tag(terms:, target_tag:, alt_ids: {}, reroot: false)
         # Define structure type
         structType = :hierarchical
         related_ids = {}
@@ -306,7 +299,7 @@ class OboParser < FileParser
 
         # Check special case
         structType = :atomic if related_ids.length <= 0
-        structType = :sparse if reroot || (related_ids.length > 0 && ((terms.length - related_ids.length - obsoletes) >= 2) )
+        structType = :sparse if reroot || (related_ids.length > 0 && ((terms.length - related_ids.length ) >= 2) )
         # Return type and hash with related_ids
         return structType, related_ids
     end
