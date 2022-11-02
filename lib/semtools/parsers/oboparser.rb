@@ -204,7 +204,7 @@ class OboParser < FileParser
 
     def self.remove_obsoletes_in_terms() # once alternative and obsolete indexes are loaded, use this to keep only working terms
         terms = @@stanzas[:terms]
-        @@obsoletes.each do |term|
+        @@obsoletes.each do |term, val|
             terms.delete(term)
         end
     end
@@ -249,7 +249,7 @@ class OboParser < FileParser
         end
     end
 
-    # Expand parentals set and link all info to their alternative IDs. Also launch frequencies process
+    # Expand parentals set. Also launch frequencies process
     # ===== Parameters
     # +tag+:: tag used to expand parentals
     # ===== Returns 
@@ -257,7 +257,6 @@ class OboParser < FileParser
     def self.get_index_child_parent_relations(tag: @@basic_tags[:ancestors][0])
         structType, parentals = self.get_related_ids_by_tag(terms: @@stanzas[:terms],
                                                         target_tag: tag,
-                                                        alt_ids: @@alternatives_index,
                                                         reroot: @@reroot)    
         if structType.nil? || parentals.nil?
             raise('Error expanding parentals')
@@ -280,27 +279,21 @@ class OboParser < FileParser
     # ===== Parameters
     # +terms+:: set to be used to expand
     # +target_tag+:: tag used to expand
-    # +alt_ids+:: set of alternative IDs
     # ===== Returns 
     # A vector with the observed structure (string) and the hash with extended terms
-    def self.get_related_ids_by_tag(terms:, target_tag:, alt_ids: {}, reroot: false)
-        # Define structure type
+    def self.get_related_ids_by_tag(terms:, target_tag:, reroot: false)
         structType = :hierarchical
         related_ids = {}
         terms.each do |id, tags|
-            # Check if target tag is defined
             if !tags[target_tag].nil?
-                # Obtain related terms
-                set_structure, _ = self.get_related_ids(id, terms, target_tag, related_ids, alt_ids)
-                # Check structure            
-                structType = :circular if set_structure == :circular
+                set_structure, _ = self.get_related_ids(id, terms, target_tag, related_ids)                        
+                structType = :circular if set_structure == :circular # Check structure
             end
         end
 
         # Check special case
         structType = :atomic if related_ids.length <= 0
         structType = :sparse if reroot || (related_ids.length > 0 && ((terms.length - related_ids.length ) >= 2) )
-        # Return type and hash with related_ids
         return structType, related_ids
     end
 
@@ -313,10 +306,9 @@ class OboParser < FileParser
     # +terms+:: set to be used to expand
     # +target_tag+:: tag used to expand
     # +eexpansion+:: already expanded info
-    # +alt_ids+:: set of alternative IDs
     # ===== Returns 
     # A vector with the observed structure (string) and the array with extended terms.
-    def self.get_related_ids(start_id, terms, target_tag, related_ids = {}, alt_ids = {})
+    def self.get_related_ids(start_id, terms, target_tag, related_ids = {})
         # Take start_id term available info and already accumulated info
         current_associations = related_ids[start_id]
         current_associations = [] if current_associations.nil? 
@@ -327,9 +319,7 @@ class OboParser < FileParser
         struct = :hierarchical
 
         # Study direct extensions
-        id_relations.each do |id|
-            id = alt_ids[id].first if alt_ids.include?(id) # NOTE: if you want to persist current ID instead source ID, re-implement this
-            
+        id_relations.each do |id|        
             # Handle
             if current_associations.include?(id) # Check if already have been included into this expansion
                 struct = :circular
@@ -343,7 +333,7 @@ class OboParser < FileParser
                     end    
                 else # Expand
                     related_ids[start_id] = current_associations
-                    structExp, current_related_ids = self.get_related_ids(id, terms, target_tag, related_ids, alt_ids) # Expand current
+                    structExp, current_related_ids = self.get_related_ids(id, terms, target_tag, related_ids) # Expand current
                     current_associations = current_associations | current_related_ids                 
                     struct = :circular if structExp == :circular # Check struct
                     if current_associations.include?(start_id) # Check circular case
@@ -358,9 +348,9 @@ class OboParser < FileParser
         return struct, current_associations
     end
 
-    # Calculates :is_a dictionary without alternatives substitution
+    # Calculates :is_a dictionary 
     def self.calc_ancestors_dictionary
-        self.calc_dictionary(:is_a, substitute_alternatives: false, self_type_references: true, multiterm: true)
+        self.calc_dictionary(:is_a, self_type_references: true, multiterm: true)
     end
 
     # Generate a bidirectinal dictionary set using a specific tag and terms stanzas set
@@ -370,13 +360,12 @@ class OboParser < FileParser
     # ===== Parameters
     # +tag+:: to be used to calculate dictionary
     # +select_regex+:: gives a regfex that can be used to modify value to be stored
-    # +substitute_alternatives+:: flag used to indicate if alternatives must, or not, be replaced by it official ID
     # +store_tag+:: flag used to store dictionary. If nil, mandatory tag given will be used
     # +multiterm+:: if true, byValue will allows multi-term linkage (array)
     # +self_type_references+:: if true, program assumes that refrences will be between Ontology terms, and it term IDs will be checked
     # ===== Return
     # hash with dict data. And stores calcualted bidirectional dictonary into dictionaries main container
-    def self.calc_dictionary(tag, select_regex: nil, substitute_alternatives: true, store_tag: nil, multiterm: false, self_type_references: false)
+    def self.calc_dictionary(tag, select_regex: nil, store_tag: nil, multiterm: false, self_type_references: false)
         tag = tag.to_sym
         store_tag = tag if store_tag.nil?
 
@@ -385,9 +374,6 @@ class OboParser < FileParser
         # Calc per term
         each(att = true, only_main = false) do |term, tags|
             referenceTerm = term
-            if @@alternatives_index.include?(term) && substitute_alternatives # Special case
-                referenceTerm = @@alternatives_index[term] if !@@obsoletes_index.include?(@@alternatives_index[term])
-            end
             queryTag = tags[tag]
             if !queryTag.nil?
                 # Pre-process

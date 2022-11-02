@@ -363,27 +363,22 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Calculates regular frequencies based on ontology structure (using parentals)
     # ===== Returns 
     # true if everything end without errors and false in other cases
-    def get_index_frequencies()
-        # Check
+    def get_index_frequencies() # Per each term, add frequencies
         if @ancestors_index.empty?
             warn('ancestors_index object is empty')
         else
-            # Per each term, add frequencies
-            each(att = true, only_main = false) do |id, tags| # if only_main is true, the code and tests fails. This is not logical
-                if !@alternatives_index.include?(id) # Official term
-                    query = @meta[id] # Check if exist
-                    if query.nil?
-                        query = {ancestors: 0.0, descendants: 0.0, struct_freq: 0.0, observed_freq: 0.0}
-                        @meta[id] = query 
-                    end
-                    # Store metadata
-                    query[:ancestors] = @ancestors_index.include?(id) ? @ancestors_index[id].count{|anc| !@alternatives_index.include?(anc)}.to_f : 0.0
-                    query[:descendants] = @descendants_index.include?(id) ? @descendants_index[id].count{|desc| !@alternatives_index.include?(desc)}.to_f : 0.0
-                    query[:struct_freq] = query[:descendants] + 1.0
-                    # Update maximums
-                    @max_freqs[:struct_freq] = query[:struct_freq] if @max_freqs[:struct_freq] < query[:struct_freq]  
-                    @max_freqs[:max_depth] = query[:descendants] if @max_freqs[:max_depth] < query[:descendants]  
+            each(att = true) do |id, tags|
+                query = @meta[id]
+                if query.nil?
+                    query = {ancestors: 0.0, descendants: 0.0, struct_freq: 0.0, observed_freq: 0.0}
+                    @meta[id] = query 
                 end
+                query[:ancestors] = @ancestors_index.include?(id) ? @ancestors_index[id].count.to_f : 0.0
+                query[:descendants] = @descendants_index.include?(id) ? @descendants_index[id].count.to_f : 0.0
+                query[:struct_freq] = query[:descendants] + 1.0
+                # Update maximums
+                @max_freqs[:struct_freq] = query[:struct_freq] if @max_freqs[:struct_freq] < query[:struct_freq]  
+                @max_freqs[:max_depth] = query[:descendants] if @max_freqs[:max_depth] < query[:descendants]  
             end
         end
     end
@@ -391,22 +386,20 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Find ancestors of a given term
     # ===== Parameters
     # +term+:: to be checked
-    # +filter_alternatives+:: if true, remove alternatives from final results
     # ===== Returns 
     # an array with all ancestors of given term or false if parents are not available yet
-    def get_ancestors(term, filter_alternatives = false)
-        return self.get_familiar(term, true, filter_alternatives)        
+    def get_ancestors(term)
+        return self.get_familiar(term, true)        
     end
 
 
     # Find descendants of a given term
     # ===== Parameters
     # +term+:: to be checked
-    # +filter_alternatives+:: if true, remove alternatives from final results
     # ===== Returns 
     # an array with all descendants of given term or false if parents are not available yet
-    def get_descendants(term, filter_alternatives = false)
-        return self.get_familiar(term, false, filter_alternatives)        
+    def get_descendants(term)
+        return self.get_familiar(term, false)        
     end
 
 
@@ -414,17 +407,12 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ===== Parameters
     # +term+:: to be checked
     # +return_ancestors+:: return ancestors if true or descendants if false
-    # +filter_alternatives+:: if true, remove alternatives from final results
     # ===== Returns 
     # an array with all ancestors/descendants of given term or nil if parents are not available yet
-    def get_familiar(term, return_ancestors = true, filter_alternatives = false)
-        # Find into parentals
+    def get_familiar(term, return_ancestors = true)
         familiars = return_ancestors ? @ancestors_index[term] : @descendants_index[term]    
         if !familiars.nil?
             familiars = familiars.clone
-            if filter_alternatives
-                familiars.reject!{|fm| @alternatives_index.include?(fm)}
-            end
         else
             familiars = []
         end
@@ -485,7 +473,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
             ###########################################
             when :seco, :zhou # SECO:: An intrinsic information content metric for semantic similarity in WordNet
                 #  1 - ( log(hypo(x) + 1) / log(max_nodes) )
-                ic = 1 - Math.log10(term_meta[:struct_freq]).fdiv(Math.log10(@terms.length - @alternatives_index.length))
+                ic = 1 - Math.log10(term_meta[:struct_freq]).fdiv(Math.log10(@terms.length))
                 if :zhou # New Model of Semantic Similarity Measuring in Wordnet                
                     # k*(IC_Seco(x)) + (1-k)*(log(depth(x))/log(max_depth))
                     @ics[:seco][term] = ic # Special store
@@ -536,18 +524,16 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ===== Returns 
     # the MICA(termA,termB) and it's IC
     def get_MICA(termA, termB, ic_type = :resnik, lca_index = false)
-        termA = @alternatives_index[termA] if @alternatives_index.include?(termA)
-        termB = @alternatives_index[termB] if @alternatives_index.include?(termB)
         mica = [nil,-1.0]
         # Special case
         if termA.eql?(termB)
             ic = self.get_IC(termA, type: ic_type)
             mica = [termA, ic]
-        else    
-            get_LCA(termA, termB, lca_index: lca_index).each do |lca| # Find MICA in shared ancestors
-                ic = self.get_IC(lca, type: ic_type)
-                mica = [lca, ic] if ic > mica[1]
-            end
+        else
+                get_LCA(termA, termB, lca_index: lca_index).each do |lca| # Find MICA in shared ancestors
+                    ic = self.get_IC(lca, type: ic_type)
+                    mica = [lca, ic] if ic > mica[1]
+                end
         end
         return mica
     end
@@ -1118,7 +1104,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         visited_terms = {} # PEDRO: To keep track of visited data, hash accesions are fast than array includes. I don't understant why use this variable instead of check @term_paths to see if the data is calculated
         @term_paths = {}
         if [:hierarchical, :sparse].include? @structureType
-            each(only_main = false) do |term|
+            each do |term|
                 if !visited_terms.include?(term)
                     # PEDRO: This code is very similar to expand_path method, but cannot be replaced by it (test fail). We must work to use this method here
                     path_attr = @term_paths[term]
@@ -1352,13 +1338,12 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Gets metainfo table from a set of terms
     # ===== Parameters
     # +terms+:: IDs to be expanded
-    # +filter_alternatives+:: flag to be used in get_descendants method
     # ===== Returns 
     # an array with triplets [TermID, TermName, DescendantsNames]
-    def get_childs_table(terms, filter_alternatives = false)
+    def get_childs_table(terms)
         expanded_terms = []
         terms.each do |t|
-            expanded_terms << [[t, translate_id(t)], get_descendants(t, filter_alternatives).map{|child| [child, translate_id(child)]}]
+            expanded_terms << [[t, translate_id(t)], get_descendants(t).map{|child| [child, translate_id(child)]}]
         end
         return expanded_terms
     end
@@ -1470,7 +1455,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
 
         terms_per_level.reverse_each do |lvl, terms| # Expand from leaves to roots
             terms.each do |term|
-                childs = self.get_descendants(term, true).select{|t| @items.include?(t)} # Get child with items
+                childs = self.get_descendants(term).select{|t| @items.include?(t)} # Get child with items
                 next if childs.length < minimum_childs
                 propagated_item_count = Hash.new(0)                
                 if ontology.nil? # Count how many times is presented an item in childs
@@ -1522,10 +1507,9 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ===== Parameters
     # +term+:: which are requested
     # +relation+:: can be :ancestor or :descendant 
-    # +remove_alternatives+:: if true, alternatives will be removed
     # ===== Returns
     # Direct ancestors/descendants of given term or nil if any error occurs
-    def get_direct_related(term, relation, remove_alternatives: false) # NEED TEST
+    def get_direct_related(term, relation) # NEED TEST
         if @dicts[:is_a].nil?
             warn("Hierarchy dictionary is not already calculated. Returning nil")
             return nil
@@ -1542,7 +1526,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return nil if target.nil? 
         query = @dicts[:is_a][target][term]
         return nil if query.nil?
-        query, _ = remove_alternatives_from_profile(query) if remove_alternatives
         return query
     end
 
@@ -1550,27 +1533,24 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Return direct ancestors of a given term
     # ===== Parameters
     # +term+:: which ancestors are requested
-    # +remove_alternatives+:: if true, alternatives will be removed
     # ===== Returns
     # Direct ancestors of given term or nil if any error occurs
-    def get_direct_ancentors(term, remove_alternatives: false)
-        return self.get_direct_related(term, :ancestor, remove_alternatives: remove_alternatives)
+    def get_direct_ancentors(term)
+        return self.get_direct_related(term, :ancestor)
     end
 
     # Return direct descendants of a given term
     # ===== Parameters
     # +term+:: which descendants are requested
-    # +remove_alternatives+:: if true, alternatives will be removed
     # ===== Returns
     # Direct descendants of given term or nil if any error occurs
-    def get_direct_descendants(term, remove_alternatives: false)
-        return self.get_direct_related(term, :descendant, remove_alternatives: remove_alternatives)        
+    def get_direct_descendants(term)
+        return self.get_direct_related(term, :descendant)        
     end
 
-    def each(att = false, only_main = true) # NEED TEST
+    def each(att = false) # NEED TEST
         warn('terms empty') if @terms.empty?
         @terms.each do |id, tags|            
-            next if only_main && (@alternatives_index.include?(id) || @obsoletes.include?(id))
             if att
                yield(id, tags)
             else
@@ -1768,7 +1748,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
                                       'two_sided', item_weigths_per_term[child], true)
                 end
             else
-                ancs = get_ancestors(term, filter_alternatives = true)
+                ancs = get_ancestors(term)
                 ancs << term
                 rates.each do |ch, ratio|# CASE 2
                     if ratio >= 1 # The child is better than parent
