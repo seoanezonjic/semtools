@@ -8,7 +8,6 @@ class OboParser < FileParser
     # => @ancestors_index :: hash of ancestors per each term handled with any structure relationships
     # => @descendants_index :: hash of descendants per each term handled with any structure relationships
     # => @alternatives_index :: has of alternative IDs (include alt_id and obsoletes)
-    # => @obsoletes_index :: hash of obsoletes and it's new ids
     # => @special_tags :: set of special tags to be expanded (:is_a, :obsolete, :alt_id)
     # => @structureType :: type of ontology structure depending on ancestors relationship. Allowed: {atomic, sparse, circular, hierarchical}
     # => @dicts :: bidirectional dictionaries with three levels <key|value>: 1º) <tag|hash2>; 2º) <(:byTerm/:byValue)|hash3>; 3º) dictionary <k|v>
@@ -18,7 +17,6 @@ class OboParser < FileParser
     @@stanzas = {terms: {}, typedefs: {}, instances: {}}
     @@removable_terms = []
     @@alternatives_index = {}
-    @@obsoletes_index = {}
     @@obsoletes = {}
     @@structureType = nil
     @@ancestors_index = {}
@@ -31,7 +29,6 @@ class OboParser < FileParser
         @@stanzas = {terms: {}, typedefs: {}, instances: {}}
         @@removable_terms = []
         @@alternatives_index = {}
-        @@obsoletes_index = {}
         @@obsoletes = {}
         @@structureType = nil
         @@ancestors_index = {}
@@ -180,8 +177,6 @@ class OboParser < FileParser
         self.get_index_child_parent_relations
         @@alternatives_index.transform_values!{|v| self.extract_id(v)}
         @@alternatives_index.compact!
-        @@obsoletes_index.transform_values!{|v| self.extract_id(v)}
-        @@obsoletes_index.compact!
         @@ancestors_index.each{|k,v| @@ancestors_index[k] = v.map{|t| self.extract_id(t)}.compact}
         @@descendants_index.each{|k,v| @@descendants_index[k] = v.map{|t| self.extract_id(t)}.compact}
         self.calc_dictionary(:name)
@@ -192,7 +187,6 @@ class OboParser < FileParser
         end
         ontology.terms = @@stanzas[:terms]
         ontology.alternatives_index = @@alternatives_index
-        ontology.obsoletes_index = @@obsoletes_index
         ontology.obsoletes = @@obsoletes
         ontology.ancestors_index = @@ancestors_index
         ontology.descendants_index = @@descendants_index
@@ -214,7 +208,6 @@ class OboParser < FileParser
     # ===== Parameters
     # +obs_tags+:: tags to be used to find obsoletes
     # +alt_tags+:: tags to find alternative IDs (if are available)
-    # +reset_obsoletes+:: flag to indicate if obsoletes set must be reset. Default: true
     # ===== Returns 
     # true if process ends without errors and false in other cases
     def self.get_index_obsoletes(obs_tag: @@basic_tags[:obsolete], alt_tags: @@basic_tags[:alternative])
@@ -225,7 +218,6 @@ class OboParser < FileParser
                 if !alt_ids.empty?
                     alt_id = alt_ids.first.first #FIRST tag, FIRST id 
                     @@alternatives_index[id] = alt_id
-                    @@obsoletes_index[id] = alt_id
                 end
                 @@obsoletes[id] = true
             end

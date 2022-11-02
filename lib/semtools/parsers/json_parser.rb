@@ -20,7 +20,6 @@ class JsonParser < FileParser
         jsonInfo[:alternatives_index] = jsonInfo[:alternatives_index].map{|id,value| [id, value.to_sym]}.to_h unless jsonInfo[:alternatives_index].nil?
         jsonInfo[:ancestors_index].map {|id,family_arr| family_arr.map!{|item| item.to_sym}} unless jsonInfo[:ancestors_index].nil?
         jsonInfo[:descendants_index].map {|id,family_arr| family_arr.map!{|item| item.to_sym}} unless jsonInfo[:descendants_index].nil?
-        jsonInfo[:obsoletes_index] = jsonInfo[:obsoletes_index].map{|id,value| [id, value.to_sym]}.to_h unless jsonInfo[:obsoletes_index].nil?
         jsonInfo[:dicts] = jsonInfo[:dicts].each do |flag, dictionaries|
             next if dictionaries.nil?
             # Special case: byTerm
@@ -65,7 +64,6 @@ class JsonParser < FileParser
         ontology.ancestors_index = jsonInfo[:ancestors_index]
         ontology.descendants_index = jsonInfo[:descendants_index]
         ontology.alternatives_index = jsonInfo[:alternatives_index]
-        ontology.obsoletes_index = jsonInfo[:obsoletes_index]
         jsonInfo[:structureType] = jsonInfo[:structureType].to_sym unless jsonInfo[:structureType].nil?
         ontology.structureType = jsonInfo[:structureType]
         ontology.ics = jsonInfo[:ics]

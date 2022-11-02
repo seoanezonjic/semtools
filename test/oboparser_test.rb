@@ -87,9 +87,6 @@ class TestOBOparser < Minitest::Test
 		# Test with already expanded info
 		aux_expansion = {Parental: [:A]}
 		assert_equal([:hierarchical,[:Parental, :A]], OboParser.get_related_ids(:Child2, @load_Hierarchical2[2][:terms], :is_a, aux_expansion))		
-		# Test with alternatives
-		aux_expansion = {Parental: [:A]}
-		assert_equal([:hierarchical,[:Parental, :A]], OboParser.get_related_ids(:Child2, @hierarchical_terms2, :is_a, aux_expansion, {B: [:Parental]}))		
 		# Test circular
 		assert_equal([:circular,[:C,:B]], OboParser.get_related_ids(:A, @load_Circular2[2][:terms], :is_a))
 		assert_equal([:circular,[:B,:A]], OboParser.get_related_ids(:C, @load_Circular2[2][:terms], :is_a))
@@ -116,12 +113,12 @@ class TestOBOparser < Minitest::Test
 	def test_dictionaries
 		OboParser.load(Ontology.new(), @file_Hierarchical[:file], build: true)
 		names_dict = OboParser.calc_dictionary(:name)
-		assert_equal({Parental: ['All'], Child2: ['Child2', 'Child1']}, names_dict[:byTerm])
+		assert_equal({Parental: ['All'], Child2: ['Child2']}, names_dict[:byTerm])
 		test_dict = OboParser.calc_dictionary(:name, store_tag: :test)
 		assert_equal(names_dict, test_dict)
 		aux_synonym = {Child2:["1,6-alpha-mannosyltransferase activity"]}
 		assert_equal(aux_synonym, OboParser.calc_dictionary(:synonym, select_regex: /\"(.*)\"/)[:byTerm])
-		assert_equal({"All"=>[:Parental], "Child1"=>[:Child1], "Child2"=>[:Child2]}, OboParser.calc_dictionary(:name, substitute_alternatives: false, multiterm: true)[:byValue])
+		assert_equal({"All"=>[:Parental], "Child2"=>[:Child2]}, OboParser.calc_dictionary(:name, multiterm: true)[:byValue])
 	end
 
 	def test_blacklist

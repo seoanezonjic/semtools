@@ -18,7 +18,6 @@ class Ontology
     # => @ancestors_index :: hash of ancestors per each term handled with any structure relationships
     # => @descendants_index :: hash of descendants per each term handled with any structure relationships
     # => @alternatives_index :: has of alternative IDs (include alt_id and obsoletes)
-    # => @obsoletes_index :: hash of obsoletes and it's new ids
     # => @structureType :: type of ontology structure depending on ancestors relationship. Allowed: {atomic, sparse, circular, hierarchical}
     # => @ics :: already calculated ICs for handled terms and IC types
     # => @meta :: meta_information about handled terms like [ancestors, descendants, struct_freq, observed_freq]
@@ -31,7 +30,7 @@ class Ontology
 
     @@allowed_calcs = {ics: [:resnik, :resnik_observed, :seco, :zhou, :sanchez], sims: [:resnik, :lin, :jiang_conrath]}
 
-attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index, :obsoletes_index, :obsoletes, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :items, :term_paths, :reroot
+attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index, :obsoletes, :structureType, :ics, :max_freqs, :meta, :dicts, :profiles, :items, :term_paths, :reroot
     
     #############################################
     # CONSTRUCTOR
@@ -45,13 +44,10 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # +build+: flag to launch metainfo calculation
     # +file_format+: force format type despite file extension. Can be :obo or :json
     def initialize(file: nil, load_file: false, removable_terms: [], build: true, file_format: nil, extra_dicts: [])
-        # Initialize object variables
         @terms = {}
         @ancestors_index = {}
         @descendants_index = {}
         @alternatives_index = {}
-        # TODO: Revise the use of the following obsolete indexes that is correct, first one mus be used to pas from obsolete to alt_id but the secon must be used to check if a term is obsolete or not
-        @obsoletes_index = {} # obsolete id to alteranative id
         @obsoletes = {} # id is obsolete but it could or not have an alt id
         @structureType = nil
         @ics = Hash[@@allowed_calcs[:ics].map{|ictype| [ictype, {}]}]
@@ -111,7 +107,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         ontology.ancestors_index = {}
         ontology.descendants_index = {}
         ontology.alternatives_index = {}
-        ontology.obsoletes_index = {}
         ontology.meta = {}
         ontology.profiles = {}
         ontology.items = {}
@@ -592,7 +587,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
                     ancestors_index: @ancestors_index,
                     descendants_index: @descendants_index,
                     alternatives_index: @alternatives_index,
-                    obsoletes_index: @obsoletes_index,
                     structureType: @structureType,
                     ics: @ics,
                     meta: @meta,
@@ -688,10 +682,9 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # main ID related to a given ID. Returns nil if given ID is not an allowed ID
     def get_main_id(id) # TODO extend to recursively check if the obtained mainID is an alternative ID again and use it in a new query until get a real mainID
         mainID = @alternatives_index[id]
-        return nil if !term_exist?(id) && mainID.nil? && !@obsoletes_index.include?(id)
-        new_id = id
-        new_id = mainID if !mainID.nil? && !@obsoletes_index.include?(mainID)
-        return new_id
+        return nil if !term_exist?(id) && mainID.nil? 
+        id = mainID.nil? ? id : mainID
+        return id
     end
 
 
@@ -1806,7 +1799,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         self.terms == other.terms &&
         self.ancestors_index == other.ancestors_index &&
         self.alternatives_index == other.alternatives_index &&
-        self.obsoletes_index == other.obsoletes_index &&
         self.structureType == other.structureType &&
         self.ics == other.ics &&
         self.meta == other.meta &&
@@ -1825,7 +1817,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         copy.ancestors_index = self.ancestors_index.clone
         copy.descendants_index = self.descendants_index.clone
         copy.alternatives_index = self.alternatives_index.clone
-        copy.obsoletes_index = self.obsoletes_index.clone
         copy.structureType = self.structureType.clone
         copy.ics = self.ics.clone
         copy.meta = self.meta.clone

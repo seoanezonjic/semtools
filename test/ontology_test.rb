@@ -121,7 +121,7 @@ class TestOBOFunctionalities < Minitest::Test
 	def test_translations
 		aux_synonym = {Child2:["1,6-alpha-mannosyltransferase activity"]}
 		assert_equal(:Parental, @hierarchical.translate('All', :name))
-		assert_equal(['Child2', "Child1"], @hierarchical.translate(:Child2, :name, byValue: false)) # Official term
+		assert_equal(['Child2'], @hierarchical.translate(:Child2, :name, byValue: false)) # Official term
 		assert_equal('Child2', @hierarchical.translate_id(:Child2))
 		assert_equal(:Child2, @hierarchical.translate(aux_synonym[:Child2].first, :synonym, byValue: true))
 		assert_equal(:Parental, @hierarchical.translate_name('All'))
@@ -133,29 +133,22 @@ class TestOBOFunctionalities < Minitest::Test
 	def test_familiars_and_valids
 		assert_equal([ [:Parental,:Child2], [:FakeID] ], @hierarchical.check_ids([:Parental,:FakeID,:Child3])) # Validate ids
 		assert_equal([], @hierarchical.get_ancestors(:Parental)) # Ancestors
-		assert_equal([], @hierarchical.get_ancestors(:Parental, true))
 		assert_equal([:Parental], @hierarchical.get_ancestors(:Child2))
 		assert_equal([], @hierarchical.get_descendants(:Child2)) # Descendants
-		assert_equal([:Child1, :Child2], @hierarchical.get_descendants(:Parental))
-		assert_equal([:Child2], @hierarchical.get_descendants(:Parental, true))
-		assert_equal([[[:Parental, "All"], [[:Child1, "Child2"], [:Child2, "Child2"]]]], @hierarchical.get_childs_table([:Parental])) # Expanded info
-		assert_equal([[[:Parental, "All"], [[:Child2,"Child2"]]]], @hierarchical.get_childs_table([:Parental], true))
-		assert_equal([:Parental], @hierarchical.get_direct_ancentors(:Child1))
+		assert_equal([:Child2], @hierarchical.get_descendants(:Parental))
+		assert_equal([[[:Parental, "All"], [[:Child2, "Child2"]]]], @hierarchical.get_childs_table([:Parental])) # Expanded info
 		assert_nil(@hierarchical.get_direct_descendants(:Child1))
-		assert_equal([:Child1,:Child2], @hierarchical.get_direct_descendants(:Parental))
-		assert_equal([:Child2], @hierarchical.get_direct_descendants(:Parental, remove_alternatives: true))
+		assert_equal([:Child2], @hierarchical.get_direct_descendants(:Parental))
 	end
 
 	def test_similarities
 		assert_equal([:Child2,-Math.log10(1.fdiv(2))], @hierarchical.get_MICA(:Child2, :Child2)) # MICA
-		assert_equal([:Child2,-Math.log10(1.fdiv(2))], @hierarchical.get_MICA(:Child2, :Child3))
 		assert_equal([:Parental,0], @hierarchical.get_MICA(:Child2, :Parental)) # ERR
 		assert_equal([:Parental,0], @hierarchical.get_MICA(:Parental, :Parental)) # ERR
 		assert_equal(0.0, @hierarchical.get_similarity(:Parental, :Parental)) # SIM
 		assert_equal(0.0, @hierarchical.get_similarity(:Parental, :Child2))
 		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_similarity(:Child2, :Child2))
-		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_similarity(:Child2, :Child3))
-		profA = [:Child2, :Child3]
+		profA = [:Child2]
 		profB = [:Child2]
 		profC = [:Parental]
 		profD = [:Parental, :Child1]
@@ -277,10 +270,10 @@ class TestOBOFunctionalities < Minitest::Test
 		short_hierarchical = Ontology.new(file: @file_SH, load_file: true)
 		enrichment_base = Ontology.new(file: @file_Enr, load_file: true)
 		# Add items
-		initial_items = {root: [:branchA], Child1: [:branchAChild3], Child2: [:branchAChild3, :branchAChild2, :branchB]}
-		exact_expand = {root: [:branchA, :branchAChild3], Child1: [:branchAChild3], Child2: [:branchAChild3, :branchAChild2, :branchB]}
-		onto_expand = {root: [:branchA, :branchAChild1], Child1: [:branchAChild3], Child2: [:branchAChild3, :branchAChild2, :branchB]}
-		onto_cleaned_expand = {root: [:branchAChild1], Child1: [:branchAChild3], Child2: [:branchAChild3, :branchAChild2, :branchB]}
+		initial_items = {root: [:branchA], Child1: [:branchAChild1], Child2: [:branchAChild1, :branchAChild2, :branchB]}
+		exact_expand = {root: [:branchA, :branchAChild1], Child1: [:branchAChild1], Child2: [:branchAChild1, :branchAChild2, :branchB]}
+		onto_expand = {root: [:branchA, :branchAChild1], Child1: [:branchAChild1], Child2: [:branchAChild1, :branchAChild2, :branchB]}
+		onto_cleaned_expand = {root: [:branchAChild1], Child1: [:branchAChild1], Child2: [:branchAChild1, :branchAChild2, :branchB]}
 		short_hierarchical.load_item_relations_to_terms(initial_items)
 		# Expand to parentals (exact match)
 		short_hierarchical.expand_items_to_parentals()
@@ -295,8 +288,8 @@ class TestOBOFunctionalities < Minitest::Test
 		###########################
 		## NOW INCLUDING NOT STORED TERMS
 		###########################
-		initial_items = {Child1: [:branchAChild3], Child2: [:branchAChild2, :branchB]}
-		onto_notroot_items = {root: [:branchA], Child1: [:branchAChild3], Child2: [:branchAChild2, :branchB]}
+		initial_items = {Child1: [:branchAChild1], Child2: [:branchAChild2, :branchB]}
+		onto_notroot_items = {root: [:branchA], Child1: [:branchAChild1], Child2: [:branchAChild2, :branchB]}
 		short_hierarchical.load_item_relations_to_terms(initial_items, true)
 		short_hierarchical.expand_items_to_parentals(ontology: enrichment_base, clean_profiles: false)
 		assert_equal(onto_notroot_items, short_hierarchical.items)		
