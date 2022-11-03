@@ -1270,9 +1270,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
             main_profiles = @profiles
         end
         # Compare
-        #@lca_index = {}
         pair_index = get_pair_index(main_profiles, comp_profiles)
-        #get_lca_index(pair_index)
         @mica_index = {}
         get_mica_index_from_profiles(pair_index, sim_type: sim_type, ic_type: ic_type, lca_index: false)
         main_profiles.each do |curr_id, current_profile|
@@ -1307,103 +1305,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
             add2nestHash(@mica_index, tB, tA, value)
         end
     end
-
-    ################ get lca index ##################################
-    # TODO: VErify an algorith for DAG
-    def get_lca_index(pair_index)
-        graph, name2num, num2name = get_numeric_graph(@descendants_index)
-        queries = {}
-        pair_index.each do |ids, val|
-            u, v = ids
-            u = name2num[u]
-            v = name2num[v]
-            add2hash(queries, u, v)
-            add2hash(queries, v, u)
-        end
-        roots = get_root
-        roots = roots.map{|r| name2num[r]}
-        compute_LCAs(queries, graph, roots, num2name)
-    end
-
-    def compute_LCAs(queries, net, roots, num2name)
-        #https://cp-algorithms.com/graph/lca_tarjan.html
-        roots.each do |r|
-            ancestor = []
-            visited = [] # true
-            dfs(r, net, ancestor, visited, queries, num2name)
-        end
-    end
-
-    def find_set(v, ancestor) 
-        parent = ancestor[v]
-        return v if v == parent
-        return find_set(parent, ancestor)
-    end
-
-    def union_sets(a, b, ancestor) 
-        a = find_set(a, ancestor)
-        b = find_set(b, ancestor)
-        ancestor[b] = a if (a != b)
-    end
-
-    def dfs(v, net, ancestor, visited, queries, num2name)
-        visited[v] = true
-        ancestor[v] = v
-        connected_nodes_v = net[v]
-        if !connected_nodes_v.nil?
-            connected_nodes_v.each do |u|
-                if visited[u].nil?
-                    dfs(u, net, ancestor, visited, queries, num2name)
-                    union_sets(v, u, ancestor)
-                    ancestor[find_set(v, ancestor)] = v
-                end
-            end
-        end
-        v_node_queries = queries[v]
-        if !v_node_queries.nil?
-            v_node_queries.each do |other_node|
-                if visited[other_node]
-                    lca = ancestor[find_set(other_node, ancestor)]
-                    v = num2name[v]
-                    other_node = num2name[other_node]
-                    lca = num2name[lca]
-                    add2nestHash(@lca_index, v, other_node, lca)
-                    add2nestHash(@lca_index, other_node, v, lca)
-                end
-            end
-        end
-    end
-
-    def get_numeric_graph(graph)
-        id_index = {}
-        num2name = {}
-        num_graph = {}
-        count = 0
-        graph.each do |node, connecte_nodes|
-            node_id = id_index[node]
-            if node_id.nil?
-                node_id = count
-                id_index[node] = node_id
-                num2name[node_id] = node
-                count += 1
-            end
-            new_cn_ids = []
-            connecte_nodes.each do |cn|
-                cn_id = id_index[cn]
-                if cn_id.nil?
-                    cn_id = count
-                    id_index[cn] = cn_id
-                    num2name[cn_id] = cn
-                    count += 1
-                end
-                new_cn_ids << cn_id
-            end
-            num_graph[node_id] = new_cn_ids
-        end
-        return num_graph, id_index, num2name
-    end
-
-    ##################################################
 
     # Calculates frequencies of stored profiles terms
     # ===== Parameters
