@@ -185,7 +185,6 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(2, @hierarchical.get_profile_length_at_percentile(2.fdiv(4 - 1) * 100, increasing_sort: true))
 		assert_equal(2, @hierarchical.get_profile_length_at_percentile(3.fdiv(4 - 1) * 100, increasing_sort: true))
 		assert_equal(2, @hierarchical.get_profile_length_at_percentile(4.fdiv(4 - 1) * 100, increasing_sort: true))
-		assert_equal(["Child2", "All"], @hierarchical.profile_names(@hierarchical.profiles[:A])) # Profiles to names
 		assert_equal([["Child2", "All"], ["Child2", "All"], ["Child2", "All"], ["All"]], @hierarchical.translate_profiles_ids())
 		assert_equal({A: ["Child2", "All"], B: ["Child2", "All"], C: ["Child2", "All"], D: ["All"]}, @hierarchical.translate_profiles_ids(asArray: false))
 		test_profiles = [@hierarchical.profiles[:A],@hierarchical.profiles[:B]]

@@ -74,9 +74,105 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         end
     end
 
+    #############################################
+    # GENERATE METADATA FOR ALL TERMS
+    #############################################
+
+    def precompute
+        get_index_frequencies
+        calc_term_levels(calc_paths: true)
+    end
+
+    # Calculates regular frequencies based on ontology structure (using parentals)
+    # ===== Returns 
+    # true if everything end without errors and false in other cases
+    def get_index_frequencies() # Per each term, add frequencies
+        if @ancestors_index.empty?
+            warn('ancestors_index object is empty')
+        else
+            each(att = true) do |id, tags|
+                query = @meta[id]
+                if query.nil?
+                    query = {ancestors: 0.0, descendants: 0.0, struct_freq: 0.0, observed_freq: 0.0}
+                    @meta[id] = query 
+                end
+                query[:ancestors] = @ancestors_index.include?(id) ? @ancestors_index[id].length.to_f : 0.0
+                query[:descendants] = @descendants_index.include?(id) ? @descendants_index[id].length.to_f : 0.0
+                query[:struct_freq] = query[:descendants] + 1.0
+                # Update maximums
+                @max_freqs[:struct_freq] = query[:struct_freq] if @max_freqs[:struct_freq] < query[:struct_freq]  
+                @max_freqs[:max_depth] = query[:descendants] if @max_freqs[:max_depth] < query[:descendants]  
+            end
+        end
+    end
+
+    # Calculates ontology structural levels for all ontology terms
+    # ===== Parameters
+    # +calc_paths+:: calculates term paths if it's not already calculated
+    # +shortest_path+:: if true, level is calculated with shortest path, largest path will be used in other cases
+    def calc_term_levels(calc_paths: false, shortest_path: true) # NEED TEST
+        self.calc_term_paths if @term_paths.empty? && calc_paths
+        if !@term_paths.empty?
+            byTerm = {}
+            byValue = {}
+            @term_paths.each do |term, info|
+                level = shortest_path ? info[:shortest_path] : info[:largest_path]
+                level = level.nil? ? -1 : level.round(0)
+                byTerm[term] = level
+                add2hash(byValue, level, term)
+            end
+            @dicts[:level] = {byTerm: byValue, byValue: byTerm} # Note: in this case, value has multiplicity and term is unique value
+            @max_freqs[:max_depth] = byValue.keys.max # Update maximum depth
+        end
+    end
+
+    # Find paths of a term following it ancestors and stores all possible paths for it and it's parentals.
+    # Also calculates paths metadata and stores into @term_paths
+    def calc_term_paths # NEED TEST
+        @term_paths = {}
+        if [:hierarchical, :sparse].include? @structureType
+            each do |term|
+                expand_path(term)                    
+                path_attr = @term_paths[term]
+                # expand_path is arecursive function so these pat attributes must be calculated once the recursion is finished
+                path_attr[:total_paths] = path_attr[:paths].length
+                paths_sizes = path_attr[:paths].map{|path| path.length}
+                path_attr[:largest_path] = paths_sizes.max
+                path_attr[:shortest_path] = paths_sizes.min
+            end
+        else
+            warn('Ontology structure must be hierarchical or sparse to calculate term levels. Aborting paths calculation')
+        end
+    end
+
+    # Recursive function whic finds paths of a term following it ancestors and stores all possible paths for it and it's parentals
+    # ===== Parameters
+    # +curr_term+:: current visited term
+    # +visited_terms+:: already expanded terms
+    def expand_path(curr_term) # NEED TEST
+        if !@term_paths.include?(curr_term)
+            path_attr = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []}
+            @term_paths[curr_term] = path_attr
+            direct_parentals = @dicts[:is_a][:byTerm][curr_term]
+            if direct_parentals.nil? # No parents :: End of recurrence
+                path_attr[:paths] << [curr_term]
+            else # Expand and concat
+                direct_parentals.each do |ancestor|
+                    path_attr_parental = @term_paths[ancestor]
+                    if path_attr_parental.nil? # Calculate new paths
+                        self.expand_path(ancestor) 
+                        new_paths = @term_paths[ancestor][:paths]
+                    else # Use direct_parental paths already calculated 
+                        new_paths = path_attr_parental[:paths] 
+                    end
+                    path_attr[:paths].concat(new_paths.map{|path| path.clone.unshift(curr_term)})
+                end
+            end
+        end
+    end
 
     #############################################
-    # CLASS METHODS
+    # CLASS METHODS (TODO: TO BE TRANFORMED IN INSTANCE METHODS)
     #############################################
 
     # ===== Parameters
@@ -119,11 +215,166 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return ontology
     end
 
-
-
     #############################################
-    # GENERAL METHODS
+    # TERM METHODS
     #############################################
+
+    # Return direct ancestors/descendants of a given term
+    # Return direct ancestors of a given term
+    # ===== Parameters
+    # +term+:: which ancestors are requested
+    # ===== Returns
+    # Direct ancestors of given term or nil if any error occurs
+    def get_direct_ancentors(term)
+        return self.get_direct_related(term, :ancestor)
+    end
+
+    # Return direct descendants of a given term
+    # ===== Parameters
+    # +term+:: which descendants are requested
+    # ===== Returns
+    # Direct descendants of given term or nil if any error occurs
+    def get_direct_descendants(term)
+        return self.get_direct_related(term, :descendant)        
+    end
+
+    # ===== Parameters
+    # +term+:: which are requested
+    # +relation+:: can be :ancestor or :descendant 
+    # ===== Returns
+    # Direct ancestors/descendants of given term or nil if any error occurs
+    def get_direct_related(term, relation) # NEED TEST
+        target = nil
+        case relation
+            when :ancestor
+                target = :byTerm
+            when :descendant
+                target = :byValue
+            else
+                warn('Relation type not allowed. Returning nil')
+        end
+        query = @dicts.dig(:is_a, target, term)
+        return query
+    end
+
+    # Gets ontology level of a specific term
+    # ===== Returns 
+    # Term level
+    def get_term_level(term) # NEED TEST
+        return @dicts[:level][:byValue][term]
+    end
+
+    # nil, term not found, [] term exists but not has parents
+    def get_parental_path(term, which_path = :shortest_path, level = 0) # NEED TEST
+        path = nil
+        path_attr = @term_paths[term]
+        if !path_attr.nil?
+            path_length = path_attr[which_path]
+            all_paths = path_attr[:paths]
+            if all_paths.empty?
+                path = []
+            else
+                path = all_paths.select{|pt| pt.length == path_length}.first.clone
+                if level > 0 # we want the term and his ascendants until a specific level
+                    n_parents = path_length - level 
+                    path = path[0..n_parents]
+                end
+                path.shift # Discard the term itself
+            end
+        end
+        return path
+    end
+
+    # Translate a given value using an already calcualted dictionary
+    # ===== Parameters
+    # +toTranslate+:: value to be translated using dictiontionary
+    # +tag+:: used to generate the dictionary
+    # +byValue+:: boolean flag to indicate if dictionary must be used values as keys or terms as keys. Default: values as keys = true
+    # ===== Return
+    # translation
+    def translate(toTranslate, tag, byValue: true)
+        dict = byValue ? @dicts[tag][:byValue] : @dicts[tag][:byTerm]    
+        toTranslate =  get_main_id(toTranslate) if !byValue
+        return dict[toTranslate]
+    end
+
+    # Translate a name given
+    # ===== Parameters
+    # +name+:: to be translated
+    # ===== Return
+    # translated name or nil if it's not stored into this ontology
+    def translate_name(name)
+        term = self.translate(name, :name)
+        term = self.translate(name, :synonym) if term.nil?
+        return term            
+    end
+
+    # Translates a given ID to it assigned name
+    # ===== Parameters
+    # +id+:: to be translated
+    # ===== Return
+    # main name or nil if it's not included into this ontology
+    def translate_id(id)
+        name = self.translate(id, :name, byValue: false)
+        return name.nil? ? nil : name.first
+    end
+
+    # ===== Returns 
+    # the main ID assigned to a given ID. If it's a non alternative/obsolete ID itself will be returned
+    # ===== Parameters
+    # +id+:: to be translated
+    # ===== Return
+    # main ID related to a given ID. Returns nil if given ID is not an allowed ID
+    def get_main_id(id)
+        mainID = @alternatives_index[id]
+        return nil if !term_exist?(id) && mainID.nil?
+        if !mainID.nil? # Recursive code to get the definitive final term id if there are several alt_id in chain
+            new_id = get_main_id(mainID)
+            if new_id != mainID
+                new_id = get_main_id(new_id)
+            end
+            id = new_id    
+        end
+        return id
+    end
+
+    def term_exist?(id)
+        return @terms.include?(id)
+    end
+
+    # Find ancestors of a given term
+    # ===== Parameters
+    # +term+:: to be checked
+    # ===== Returns 
+    # an array with all ancestors of given term or false if parents are not available yet
+    def get_ancestors(term)
+        return self.get_familiar(term, true)        
+    end
+
+    # Find descendants of a given term
+    # ===== Parameters
+    # +term+:: to be checked
+    # ===== Returns 
+    # an array with all descendants of given term or false if parents are not available yet
+    def get_descendants(term)
+        return self.get_familiar(term, false)        
+    end
+
+    # Find ancestors/descendants of a given term
+    # ===== Parameters
+    # +term+:: to be checked
+    # +return_ancestors+:: return ancestors if true or descendants if false
+    # ===== Returns 
+    # an array with all ancestors/descendants of given term or nil if parents are not available yet
+    def get_familiar(term, return_ancestors = true)
+        familiars = return_ancestors ? @ancestors_index[term] : @descendants_index[term]    
+        if !familiars.nil?
+            familiars = familiars.clone
+        else
+            familiars = []
+        end
+        return familiars
+    end
 
     # Increase observed frequency for a specific term
     # ===== Parameters
@@ -143,277 +394,34 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return true
     end
 
-
-    # Increase the arbitrary frequency of a given term set 
+    # Get a term frequency
     # ===== Parameters
-    # +terms+:: set of terms to be updated
-    # +increase+:: amount to be increased
-    # +transform_to_sym+:: if true, transform observed terms to symbols. Default: false
-    # ===== Return
-    # true if process ends without errors and false in other cases
-    def add_observed_terms(terms:, increase: 1.0, transform_to_sym: false)
-        return terms.map{|id| self.add_observed_term(
-            term: transform_to_sym ? id.to_sym : id, 
-            increase: increase)}
-    end
-
-
-    # Compare to terms sets 
-    # ===== Parameters
-    # +termsA+:: set to be compared
-    # +termsB+:: set to be compared
-    # +sim_type+:: similitude method to be used. Default: resnik
-    # +ic_type+:: ic type to be used. Default: resnik
-    # +bidirectional+:: calculate bidirectional similitude. Default: false
-    # ===== Return
-    # similitude calculated
-    def compare(termsA, termsB, sim_type: :resnik, ic_type: :resnik, bidirectional: true, store_mica: false)
-        # Check
-        raise ArgumentError, "Terms sets given are NIL" if termsA.nil? | termsB.nil?
-        raise ArgumentError, "Set given is empty. Aborting similarity calc" if termsA.empty? | termsB.empty?
-        micasA = []
-        # Compare A -> B
-        termsA.each do |tA|
-            micas = []
-            termsB.each do |tB|
-                if store_mica
-                    value = @mica_index[tA][tB]
-                else
-                    value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type)
-                end
-                micas << value if value.class == Float 
-            end
-            !micas.empty? ? micasA << micas.max : micasA << 0 
-        end
-        means_sim = micasA.sum.fdiv(micasA.size)
-        # Compare B -> A
-        if bidirectional
-            means_simA = means_sim * micasA.size
-            means_simB = self.compare(termsB, termsA, sim_type: sim_type, ic_type: ic_type, bidirectional: false, store_mica: store_mica) * termsB.size
-            means_sim = (means_simA + means_simB).fdiv(termsA.size + termsB.size)
-        end
-        # Return
-        return means_sim
-    end
-
-    # Compare internal stored profiles against another set of profiles. If an external set is not provided, internal profiles will be compared with itself 
-    # ===== Parameters
-    # +external_profiles+:: set of external profiles. If nil, internal profiles will be compared with itself
-    # +sim_type+:: similitude method to be used. Default: resnik
-    # +ic_type+:: ic type to be used. Default: resnik
-    # +bidirectional+:: calculate bidirectional similitude. Default: false
-    # ===== Return
-    # Similitudes calculated
-    def compare_profiles(external_profiles: nil, sim_type: :resnik, ic_type: :resnik, bidirectional: true)
-        profiles_similarity = {} #calculate similarity between patients profile
-        if external_profiles.nil?
-            comp_profiles = @profiles
-            main_profiles = comp_profiles
-        else
-            comp_profiles = external_profiles
-            main_profiles = @profiles
-        end
-        # Compare
-        #@lca_index = {}
-        pair_index = get_pair_index(main_profiles, comp_profiles)
-        #get_lca_index(pair_index)
-        @mica_index = {}
-        get_mica_index_from_profiles(pair_index, sim_type: sim_type, ic_type: ic_type, lca_index: false)
-        main_profiles.each do |curr_id, current_profile|
-            comp_profiles.each do |id, profile|
-                value = compare(current_profile, profile, sim_type: sim_type, ic_type: ic_type, bidirectional: bidirectional, store_mica: true)
-                add2nestHash(profiles_similarity, curr_id, id, value)
-            end    
-        end
-        return profiles_similarity
-    end
-
-    def get_pair_index(profiles_A, profiles_B)
-        pair_index = {}
-        profiles_A.each do |curr_id, profile_A|
-            profiles_B.each do |id, profile_B|
-                profile_A.each do |term_A|
-                    profile_B.each do |term_B|
-                        pair_index[[term_A, term_B].sort] = true 
-                    end
-                end
-            end    
-        end
-        return pair_index
-    end
-
-    def get_mica_index_from_profiles(pair_index, sim_type: :resnik, ic_type: :resnik, lca_index: true)
-        pair_index.each do |pair, val|
-            tA, tB = pair
-            value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type, lca_index: lca_index)
-            value = true if value.nil? # We use true to save that the operation was made but there is not mica value
-            add2nestHash(@mica_index, tA, tB, value)
-            add2nestHash(@mica_index, tB, tA, value)
-        end
-    end
-
-    ################ get lca index ##################################
-    # TODO: VErify an algorith for DAG
-    def get_lca_index(pair_index)
-        graph, name2num, num2name = get_numeric_graph(@descendants_index)
-        queries = {}
-        pair_index.each do |ids, val|
-            u, v = ids
-            u = name2num[u]
-            v = name2num[v]
-            add2hash(queries, u, v)
-            add2hash(queries, v, u)
-        end
-        roots = get_root
-        roots = roots.map{|r| name2num[r]}
-        compute_LCAs(queries, graph, roots, num2name)
-    end
-
-    def compute_LCAs(queries, net, roots, num2name)
-        #https://cp-algorithms.com/graph/lca_tarjan.html
-        roots.each do |r|
-            ancestor = []
-            visited = [] # true
-            dfs(r, net, ancestor, visited, queries, num2name)
-        end
-    end
-
-    def find_set(v, ancestor) 
-        parent = ancestor[v]
-        return v if v == parent
-        return find_set(parent, ancestor)
-    end
-
-    def union_sets(a, b, ancestor) 
-        a = find_set(a, ancestor)
-        b = find_set(b, ancestor)
-        ancestor[b] = a if (a != b)
-    end
-
-    def dfs(v, net, ancestor, visited, queries, num2name)
-        visited[v] = true
-        ancestor[v] = v
-        connected_nodes_v = net[v]
-        if !connected_nodes_v.nil?
-            connected_nodes_v.each do |u|
-                if visited[u].nil?
-                    dfs(u, net, ancestor, visited, queries, num2name)
-                    union_sets(v, u, ancestor)
-                    ancestor[find_set(v, ancestor)] = v
-                end
-            end
-        end
-        v_node_queries = queries[v]
-        if !v_node_queries.nil?
-            v_node_queries.each do |other_node|
-                if visited[other_node]
-                    lca = ancestor[find_set(other_node, ancestor)]
-                    v = num2name[v]
-                    other_node = num2name[other_node]
-                    lca = num2name[lca]
-                    add2nestHash(@lca_index, v, other_node, lca)
-                    add2nestHash(@lca_index, other_node, v, lca)
-                end
-            end
-        end
-    end
-
-    def get_numeric_graph(graph)
-        id_index = {}
-        num2name = {}
-        num_graph = {}
-        count = 0
-        graph.each do |node, connecte_nodes|
-            node_id = id_index[node]
-            if node_id.nil?
-                node_id = count
-                id_index[node] = node_id
-                num2name[node_id] = node
-                count += 1
-            end
-            new_cn_ids = []
-            connecte_nodes.each do |cn|
-                cn_id = id_index[cn]
-                if cn_id.nil?
-                    cn_id = count
-                    id_index[cn] = cn_id
-                    num2name[cn_id] = cn
-                    count += 1
-                end
-                new_cn_ids << cn_id
-            end
-            num_graph[node_id] = new_cn_ids
-        end
-        return num_graph, id_index, num2name
-    end
-
-    ##################################################
-
-    def precompute
-        get_index_frequencies
-        calc_term_levels(calc_paths: true)
-    end
-
-
-    # Calculates regular frequencies based on ontology structure (using parentals)
+    # +term+:: term to be checked
+    # +type+:: type of frequency to be returned. Allowed: [:struct_freq, :observed_freq]
     # ===== Returns 
-    # true if everything end without errors and false in other cases
-    def get_index_frequencies() # Per each term, add frequencies
-        if @ancestors_index.empty?
-            warn('ancestors_index object is empty')
-        else
-            each(att = true) do |id, tags|
-                query = @meta[id]
-                if query.nil?
-                    query = {ancestors: 0.0, descendants: 0.0, struct_freq: 0.0, observed_freq: 0.0}
-                    @meta[id] = query 
-                end
-                query[:ancestors] = @ancestors_index.include?(id) ? @ancestors_index[id].length.to_f : 0.0
-                query[:descendants] = @descendants_index.include?(id) ? @descendants_index[id].length.to_f : 0.0
-                query[:struct_freq] = query[:descendants] + 1.0
-                # Update maximums
-                @max_freqs[:struct_freq] = query[:struct_freq] if @max_freqs[:struct_freq] < query[:struct_freq]  
-                @max_freqs[:max_depth] = query[:descendants] if @max_freqs[:max_depth] < query[:descendants]  
-            end
-        end
+    # frequency of term given or nil if term is not allowed
+    def get_frequency(term, type: :struct_freq)
+        queryFreq = @meta[term]
+        return queryFreq.nil? ? nil : queryFreq[type]        
     end
 
-    # Find ancestors of a given term
+    # Geys structural frequency of a term given
     # ===== Parameters
     # +term+:: to be checked
     # ===== Returns 
-    # an array with all ancestors of given term or false if parents are not available yet
-    def get_ancestors(term)
-        return self.get_familiar(term, true)        
+    # structural frequency of given term or nil if term is not allowed
+    def get_structural_frequency(term)
+        return self.get_frequency(term, type: :struct_freq)
     end
 
-
-    # Find descendants of a given term
+    # Gets observed frequency of a term given
     # ===== Parameters
     # +term+:: to be checked
     # ===== Returns 
-    # an array with all descendants of given term or false if parents are not available yet
-    def get_descendants(term)
-        return self.get_familiar(term, false)        
+    # observed frequency of given term or nil if term is not allowed
+    def get_observed_frequency(term)
+        return self.get_frequency(term, type: :observed_freq)
     end
-
-
-    # Find ancestors/descendants of a given term
-    # ===== Parameters
-    # +term+:: to be checked
-    # +return_ancestors+:: return ancestors if true or descendants if false
-    # ===== Returns 
-    # an array with all ancestors/descendants of given term or nil if parents are not available yet
-    def get_familiar(term, return_ancestors = true)
-        familiars = return_ancestors ? @ancestors_index[term] : @descendants_index[term]    
-        if !familiars.nil?
-            familiars = familiars.clone
-        else
-            familiars = []
-        end
-        return familiars
-    end
-
 
     # Obtain IC of an specific term
     # ===== Parameters
@@ -482,7 +490,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return ic
     end
 
-
     # Calculates and return resnik ICs (by ontology and observed frequency) for observed terms
     # ===== Returns 
     # two hashes with resnik and resnik_observed ICs for observed terms
@@ -497,7 +504,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return resnik, resnik_observed
     end
 
-
     # Find the IC of the Most Index Content shared Ancestor (MICA) of two given terms
     # ===== Parameters
     # +termA+:: term to be cheked
@@ -509,7 +515,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         term, ic = self.get_MICA(termA, termB, ic_type)
         return term.nil? ? nil : ic
     end
-
 
     # Find the Most Index Content shared Ancestor (MICA) of two given terms
     # ===== Parameters
@@ -549,7 +554,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return lca
     end
 
-
     # Calculate similarity between two given terms
     # ===== Parameters
     # +termsA+:: to be compared
@@ -575,754 +579,9 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return sim
     end
 
-    # Exports an OBO_Handler object in json format
-    # ===== Parameters
-    # +file+:: where info will be stored
-    def write(file)
-        # Take object stored info
-        obj_info = {terms: @terms,
-                    ancestors_index: @ancestors_index,
-                    descendants_index: @descendants_index,
-                    alternatives_index: @alternatives_index,
-                    structureType: @structureType,
-                    ics: @ics,
-                    meta: @meta,
-                    max_freqs: @max_freqs,
-                    dicts: @dicts,
-                    profiles: @profiles,
-                    items: @items,
-                    term_paths: @term_paths}
-        # Convert to JSON format & write
-        File.open(file, "w") { |f| f.write obj_info.to_json }
-    end
-
-    # Translate a given value using an already calcualted dictionary
-    # ===== Parameters
-    # +toTranslate+:: value to be translated using dictiontionary
-    # +tag+:: used to generate the dictionary
-    # +byValue+:: boolean flag to indicate if dictionary must be used values as keys or terms as keys. Default: values as keys = true
-    # ===== Return
-    # translation
-    def translate(toTranslate, tag, byValue: true)
-        dict = byValue ? @dicts[tag][:byValue] : @dicts[tag][:byTerm]    
-        toTranslate =  get_main_id(toTranslate) if !byValue
-        return dict[toTranslate]
-    end
-
-    # Translate a name given
-    # ===== Parameters
-    # +name+:: to be translated
-    # ===== Return
-    # translated name or nil if it's not stored into this ontology
-    def translate_name(name)
-        term = self.translate(name, :name)
-        term = self.translate(name, :synonym) if term.nil?
-        return term            
-    end
-
-    # Translate several names and return translations and a list of names which couldn't be translated
-    # ===== Parameters
-    # +names+:: array to be translated
-    # ===== Return
-    # two arrays with translations and names which couldn't be translated respectively
-    def translate_names(names)
-        translated = []
-        rejected = []
-        names.each do |name|
-            tr = self.translate_name(name)
-            if tr.nil?
-                rejected << name
-            else
-                translated << tr
-            end
-        end
-        return translated, rejected
-    end
-
-
-    # Translates a given ID to it assigned name
-    # ===== Parameters
-    # +id+:: to be translated
-    # ===== Return
-    # main name or nil if it's not included into this ontology
-    def translate_id(id)
-        name = self.translate(id, :name, byValue: false)
-        return name.nil? ? nil : name.first
-    end
-
-
-    # Translates several IDs and returns translations and not allowed IDs list
-    # ===== Parameters
-    # +ids+:: to be translated
-    # ===== Return
-    # two arrays with translations and ids which couldn't be translated respectively
-    def translate_ids(ids)
-        translated = []
-        rejected = []
-        ids.each do |term_id|
-            tr = self.translate_id(term_id.to_sym)
-            if !tr.nil?
-                translated << tr
-            else
-                rejected << tr
-            end
-        end
-        return translated, rejected
-    end
-
-
-    # ===== Returns 
-    # the main ID assigned to a given ID. If it's a non alternative/obsolete ID itself will be returned
-    # ===== Parameters
-    # +id+:: to be translated
-    # ===== Return
-    # main ID related to a given ID. Returns nil if given ID is not an allowed ID
-    def get_main_id(id) # TODO extend to recursively check if the obtained mainID is an alternative ID again and use it in a new query until get a real mainID
-        mainID = @alternatives_index[id]
-        return nil if !term_exist?(id) && mainID.nil?
-        if !mainID.nil?
-            new_id = get_main_id(mainID)
-            if new_id != mainID
-                new_id = get_main_id(new_id)
-            end
-            id = new_id    
-        end
-        return id
-    end
-
-
-    # Check a pull of IDs and return allowed IDs removing which are not official terms on this ontology
-    # ===== Parameters
-    # +ids+:: to be checked
-    # ===== Return
-    # two arrays whit allowed and rejected IDs respectively
-    def check_ids(ids, substitute: true)
-        checked_codes = []
-        rejected_codes = []
-        ids.each do |id|
-            new_id = get_main_id(id)
-            if new_id.nil?
-                rejected_codes << id
-            else
-                if substitute
-                    checked_codes << new_id
-                else
-                    checked_codes << id
-                end
-            end
-        end
-        return checked_codes, rejected_codes
-    end
-
-    def term_exist?(id)
-        return @terms.include?(id)
-    end
-
-
-    # Stores a given profile with an specific ID. If ID is already assigend to a profile, it will be replaced
-    # ===== Parameters
-    # +id+:: assigned to profile
-    # +terms+:: array of terms
-    # +substitute+:: subsstitute flag from check_ids
-    def add_profile(id, terms, substitute: true)
-        warn("Profile assigned to ID (#{id}) is going to be replaced") if @profiles.include? id
-        correct_terms, rejected_terms = self.check_ids(terms, substitute: substitute)
-        if !rejected_terms.empty?
-            warn("Given terms contains erroneus IDs: #{rejected_terms.join(",")}. These IDs will be removed")
-        end
-        if id.is_a? Numeric
-            @profiles[id] = correct_terms              
-        else
-            @profiles[id.to_sym] = correct_terms  
-        end
-    end    
-
-
-    # Method used to store a pool of profiles
-    # ===== Parameters
-    # +profiles+:: array/hash of profiles to be stored. If it's an array, numerical IDs will be assigned starting at 1 
-    # +calc_metadata+:: if true, launch get_items_from_profiles process
-    # +reset_stored+:: if true, remove already stored profiles
-    # +substitute+:: subsstitute flag from check_ids
-    def load_profiles(profiles, calc_metadata: true, reset_stored: false, substitute: false)
-        self.reset_profiles if reset_stored
-        # Check
-        if profiles.kind_of?(Array)
-            profiles.each_with_index do |items, i|
-                self.add_profile(i, items.map {|item| item.to_sym}, substitute: substitute)
-            end
-        else # Hash
-            if !profiles.keys.select{|id| @profiles.include?(id)}.empty?
-                warn('Some profiles given are already stored. Stored version will be replaced')
-            end
-            profiles.each{|id, prof| self.add_profile(id, prof, substitute: substitute)}
-        end
-
-        self.add_observed_terms_from_profiles(reset: true)
-
-        if calc_metadata
-            self.get_items_from_profiles
-        end
-    end
-
-
-    
-    def reset_profiles # Internal method used to remove already stored profiles and restore observed frequencies
-        @profiles = {} # Clean profiles storage
-        # Reset frequency observed
-        @meta.each{|term,info| info[:observed_freq] = 0}
-        @max_freqs[:observed_freq] = 0
-    end
-
-
-    # ===== Returns 
-    # profiles assigned to a given ID
-    # ===== Parameters
-    # +id+:: profile ID
-    # ===== Return
-    # specific profile or nil if it's not stored
-    def get_profile(id)
-        return @profiles[id]
-    end    
-
-
-    # ===== Returns 
-    # an array of sizes for all stored profiles
-    # ===== Return
-    # array of profile sizes
-    def get_profiles_sizes()
-        return @profiles.map{|id,terms| terms.length}
-    end
-
-
-    # ===== Returns 
-    # mean size of stored profiles
-    # ===== Parameters
-    # +round_digits+:: number of digits to round result. Default: 4
-    # ===== Returns 
-    # mean size of stored profiles
-    def get_profiles_mean_size(round_digits: 4)
-        sizes = self.get_profiles_sizes
-        return sizes.sum.fdiv(@profiles.length).round(round_digits)
-    end
-
-
-    # Calculates profiles sizes and returns size assigned to percentile given
-    # ===== Parameters
-    # +perc+:: percentile to be returned
-    # +increasing_sort+:: flag to indicate if sizes order must be increasing. Default: false
-    # ===== Returns 
-    # values assigned to percentile asked
-    def get_profile_length_at_percentile(perc=50, increasing_sort: false)
-        prof_lengths = self.get_profiles_sizes.sort
-        prof_lengths.reverse! if !increasing_sort
-        n_profiles = prof_lengths.length 
-        percentile_index = ((perc * (n_profiles - 1)).fdiv(100) - 0.5).round # Take length which not overpass percentile selected
-        percentile_index = 0 if percentile_index < 0 # Special case (caused by literal calc)
-        return prof_lengths[percentile_index]
-    end
-
-
-    # Translate a given profile to terms names
-    # ===== Parameters
-    # +prof+:: array of terms to be translated
-    # ===== Returns 
-    # array of translated terms. Can include nils if some IDs are not allowed
-    def profile_names(prof)
-        return prof.map{|term| self.translate_id(term)}
-    end
-
-
-    # Trnaslates a bunch of profiles to it sets of term names
-    # ===== Parameters
-    # +profs+:: array of profiles
-    # +asArray+:: flag to indicate if results must be returned as: true => an array of tuples [ProfID, ArrayOdNames] or ; false => hashs of translations
-    # ===== Returns 
-    # translated profiles
-    def translate_profiles_ids(profs = [], asArray: true)
-        profs2proc = {}
-        if profs.empty?
-            profs2proc = @profiles 
-        else
-            profs.each_with_index{|terms, index| profs2proc[index] = terms} if profs.kind_of?(Array)
-        end
-        profs_names = {}
-        profs2proc.each{|id, terms| profs_names[id] = self.profile_names(terms)}
-        return asArray ? profs_names.values : profs_names
-    end
-
-
-    # Includes as "observed_terms" all terms included into stored profiles
-    # ===== Parameters
-    # +reset+:: if true, reset observed freqs alreeady stored befor re-calculate
-    def add_observed_terms_from_profiles(reset: false)
-        @meta.each{|term, freqs| freqs[:observed_freq] = -1} if reset
-        @profiles.each{|id, terms| self.add_observed_terms(terms: terms)}
-    end
-
-    
-
-    # Get a term frequency
-    # ===== Parameters
-    # +term+:: term to be checked
-    # +type+:: type of frequency to be returned. Allowed: [:struct_freq, :observed_freq]
-    # ===== Returns 
-    # frequency of term given or nil if term is not allowed
-    def get_frequency(term, type: :struct_freq)
-        queryFreq = @meta[term]
-        return queryFreq.nil? ? nil : queryFreq[type]        
-    end
-
-
-    # Geys structural frequency of a term given
-    # ===== Parameters
-    # +term+:: to be checked
-    # ===== Returns 
-    # structural frequency of given term or nil if term is not allowed
-    def get_structural_frequency(term)
-        return self.get_frequency(term, type: :struct_freq)
-    end
-
-
-    # Gets observed frequency of a term given
-    # ===== Parameters
-    # +term+:: to be checked
-    # ===== Returns 
-    # observed frequency of given term or nil if term is not allowed
-    def get_observed_frequency(term)
-        return self.get_frequency(term, type: :observed_freq)
-    end
-
-
-    # Calculates frequencies of stored profiles terms
-    # ===== Parameters
-    # +ratio+:: if true, frequencies will be returned as ratios between 0 and 1.
-    # +asArray+:: used to transform returned structure format from hash of Term-Frequency to an array of tuples [Term, Frequency]
-    # +translate+:: if true, term IDs will be translated to 
-    # ===== Returns 
-    # stored profiles terms frequencies
-    def get_profiles_terms_frequency(ratio: true, asArray: true, translate: true)
-        freqs = Hash.new(0)
-        @profiles.each do |id, terms|
-            terms.each{|term| freqs[term] += 1}
-        end
-        if translate
-            translated_freqs = {}
-            freqs.each do |term, freq| 
-                tr = self.translate_id(term)
-                translated_freqs[tr] = freq if !tr.nil?
-            end
-            freqs = translated_freqs
-        end
-        n_profiles = @profiles.length
-        freqs.transform_values!{|freq| freq.fdiv(n_profiles)} if ratio
-        if asArray
-            freqs = freqs.to_a
-            freqs.sort!{|h1, h2| h2[1] <=> h1[1]}
-        end
-        return freqs
-    end    
-
-
-    # Clean a given profile returning cleaned set of terms and removed ancestors term.
-    # ===== Parameters
-    # +prof+:: array of terms to be checked
-    # ===== Returns 
-    # two arrays, first is the cleaned profile and second is the removed elements array
-    def remove_ancestors_from_profile(prof)
-        ancestors = prof.map{|term| self.get_ancestors(term)}.flatten.uniq
-        redundant = prof & ancestors
-        return prof - redundant, redundant
-    end
-
-
-    # Remove alternative IDs if official ID is present. DOES NOT REMOVE synonyms or alternative IDs of the same official ID
-    # ===== Parameters
-    # +prof+:: array of terms to be checked
-    # ===== Returns 
-    # two arrays, first is the cleaned profile and second is the removed elements array
-    def remove_alternatives_from_profile(prof)
-        alternatives = prof.select{|term| @alternatives_index.include?(term)}
-        redundant = alternatives.select{|alt_id| prof.include?(@alternatives_index[alt_id])}
-        return prof - redundant, redundant
-    end
-
-
-    # Remove alternatives (if official term is present) and ancestors terms of a given profile 
-    # ===== Parameters
-    # +profile+:: profile to be cleaned
-    # +remove_alternatives+:: if true, clenaed profiles will replace already stored profiles
-    # ===== Returns 
-    # cleaned profile
-    def clean_profile(profile, remove_alternatives: true)
-        warn('Estructure is circular, behaviour could not be which is expected') if @structureType == :circular
-        terms_without_ancestors, _ = remove_ancestors_from_profile(profile)    
-        terms_without_ancestors, _ = remove_alternatives_from_profile(terms_without_ancestors) if remove_alternatives
-        return terms_without_ancestors
-    end
-
-    def clean_profile_hard(profile, options = {}) # NEED TEST # maybe see if obsoletes have an alt id to recover them in some cases
-        profile, _ = check_ids(profile)
-        profile = profile.select{|t| !is_obsolete?(t)}
-        if !options[:term_filter].nil?
-            profile.select! {|term| get_ancestors(term).include?(options[:term_filter])}
-        end 
-        profile = clean_profile(profile.uniq)
-        return profile
-    end
-
-    # Remove terms from a given profile using hierarchical info and scores set given  
-    # ===== Parameters
-    # +profile+:: profile to be cleaned
-    # +scores+:: hash with terms by keys and numerical values (scores)
-    # +byMax+:: if true, maximum scored term will be keeped, if false, minimum will be keeped
-    # +remove_without_score+:: if true, terms without score will be removed. Default: true
-    # ===== Returns 
-    # cleaned profile
-    def clean_profile_by_score(profile, scores, byMax: true, remove_without_score: true)
-        scores = scores.sort_by{|term,score| score}.to_h
-        keep = profile.map do |term|
-            if scores.include?(term)
-                parentals = [self.get_ancestors(term), self.get_descendants(term)].flatten
-                targetable = parentals.select{|parent| profile.include?(parent)}
-                if targetable.empty? 
-                    term
-                else
-                    targetable << term
-                    targets = scores.select{|term,score| targetable.include?(term)}.to_h
-                    byMax ? targets.keys.last : targets.keys.first
-                end
-            elsif remove_without_score
-                nil
-            else
-                term
-            end
-        end
-        return keep.compact.uniq
-    end
-
-
-    # Remove alternatives (if official term is present) and ancestors terms of stored profiles 
-    # ===== Parameters
-    # +store+:: if true, clenaed profiles will replace already stored profiles
-    # +remove_alternatives+:: if true, clenaed profiles will replace already stored profiles
-    # ===== Returns 
-    # a hash with cleaned profiles
-    def clean_profiles(store: false, remove_alternatives: true)
-        cleaned_profiles = {}
-        @profiles.each{ |id, terms| cleaned_profiles[id] = self.clean_profile(terms, remove_alternatives: remove_alternatives)}
-        @profiles = cleaned_profiles if store
-        return cleaned_profiles
-    end
-
-
-    # Calculates number of ancestors present (redundant) in each profile stored
-    # ===== Returns 
-    # array of parentals for each profile
-    def parentals_per_profile
-        cleaned_profiles = self.clean_profiles(remove_alternatives: false)
-        parentals = @profiles.map{ |id, terms| terms.length - cleaned_profiles[id].length}
-        return parentals
-    end
-
-
-    def get_profile_redundancy()
-      profile_sizes = self.get_profiles_sizes
-      parental_terms_per_profile = self.parentals_per_profile# clean_profiles
-      parental_terms_per_profile = parental_terms_per_profile.map{|item| item[0]}
-      profile_sizes, parental_terms_per_profile = profile_sizes.zip(parental_terms_per_profile).sort_by{|i| i.first}.reverse.transpose
-      return profile_sizes, parental_terms_per_profile
-    end
-
-    def compute_term_list_and_childs()
-      suggested_childs = {}
-      total_terms = 0
-      terms_with_more_specific_childs = 0
-      @profiles.each do |id, terms|
-        total_terms += terms.length
-        more_specific_childs = self.get_childs_table(terms, true)
-        terms_with_more_specific_childs += more_specific_childs.select{|profile| !profile.last.empty?}.length #Exclude phenotypes with no childs
-        suggested_childs[id] = more_specific_childs  
-      end
-      return suggested_childs, terms_with_more_specific_childs.fdiv(total_terms)
-    end
-
-    #  Calculates mean IC of a given profile
-    # ===== Parameters
-    # +prof+:: profile to be checked
-    # +ic_type+:: ic_type to be used
-    # +zhou_k+:: special coeficient for Zhou IC method
-    # ===== Returns 
-    # mean IC for a given profile
-    def get_profile_mean_IC(prof, ic_type: :resnik, zhou_k: 0.5)
-        return prof.map{|term| self.get_IC(term, type: ic_type, zhou_k: zhou_k)}.sum.fdiv(prof.length)
-    end    
-
-
-    # Calculates resnik ontology, and resnik observed mean ICs for all profiles stored
-    # ===== Returns 
-    # two hashes with Profiles and IC calculated for resnik and observed resnik respectively
-    def get_profiles_resnik_dual_ICs(struct: :resnik, observ: :resnik_observed)
-        struct_ics = {}
-        observ_ics = {}
-        @profiles.each do |id, terms|
-            struct_ics[id] = self.get_profile_mean_IC(terms, ic_type: struct)
-            observ_ics[id] = self.get_profile_mean_IC(terms, ic_type: observ)
-        end
-        return struct_ics, observ_ics
-    end    
-
-
-    # Calculates ontology structural levels for all ontology terms
-    # ===== Parameters
-    # +calc_paths+:: calculates term paths if it's not already calculated
-    # +shortest_path+:: if true, level is calculated with shortest path, largest path will be used in other cases
-    def calc_term_levels(calc_paths: false, shortest_path: true) # NEED TEST
-        self.calc_term_paths if @term_paths.empty? && calc_paths
-        if !@term_paths.empty?
-            byTerm = {}
-            byValue = {}
-            @term_paths.each do |term, info|
-                level = shortest_path ? info[:shortest_path] : info[:largest_path]
-                level = level.nil? ? -1 : level.round(0)
-                byTerm[term] = level
-                add2hash(byValue, level, term)
-            end
-            @dicts[:level] = {byTerm: byValue, byValue: byTerm} # Note: in this case, value has multiplicity and term is unique value
-            @max_freqs[:max_depth] = byValue.keys.max # Update maximum depth
-        end
-    end
-
-    # Find paths of a term following it ancestors and stores all possible paths for it and it's parentals.
-    # Also calculates paths metadata and stores into @term_paths
-    def calc_term_paths # NEED TEST
-        @term_paths = {}
-        if [:hierarchical, :sparse].include? @structureType
-            each do |term|
-                expand_path(term)                    
-                path_attr = @term_paths[term]
-                # expand_path is arecursive function so these pat attributes must be calculated once the recursion is finished
-                path_attr[:total_paths] = path_attr[:paths].length
-                paths_sizes = path_attr[:paths].map{|path| path.length}
-                path_attr[:largest_path] = paths_sizes.max
-                path_attr[:shortest_path] = paths_sizes.min
-            end
-        else
-            warn('Ontology structure must be hierarchical or sparse to calculate term levels. Aborting paths calculation')
-        end
-    end
-
-
-    # Recursive function whic finds paths of a term following it ancestors and stores all possible paths for it and it's parentals
-    # ===== Parameters
-    # +curr_term+:: current visited term
-    # +visited_terms+:: already expanded terms
-    def expand_path(curr_term) # NEED TEST
-        if !@term_paths.include?(curr_term)
-            path_attr = {total_paths: 0, largest_path: 0, shortest_path: 0, paths: []}
-            @term_paths[curr_term] = path_attr
-            direct_parentals = @dicts[:is_a][:byTerm][curr_term]
-            if direct_parentals.nil? # No parents :: End of recurrence
-                path_attr[:paths] << [curr_term]
-            else # Expand and concat
-                direct_parentals.each do |ancestor|
-                    path_attr_parental = @term_paths[ancestor]
-                    if path_attr_parental.nil? # Calculate new paths
-                        self.expand_path(ancestor) 
-                        new_paths = @term_paths[ancestor][:paths]
-                    else # Use direct_parental paths already calculated 
-                        new_paths = path_attr_parental[:paths] 
-                    end
-                    path_attr[:paths].concat(new_paths.map{|path| path.clone.unshift(curr_term)})
-                end
-            end
-        end
-    end
-
-
-    # Gets ontology levels calculated
-    # ===== Returns 
-    # ontology levels calculated
-    def get_ontology_levels # NEED TEST
-        return @dicts[:level][:byTerm].clone # By term, in this case, is Key::Level, Value::Terms
-    end
-
-
-    # Gets ontology level of a specific term
-    # ===== Returns 
-    # Term level
-    def get_term_level(term) # NEED TEST
-        return @dicts[:level][:byValue][term]
-    end
-
-    def get_terms_levels(terms) # NEED TEST
-        termsAndLevels = []
-        terms.each do |term|
-            termsAndLevels << [term, get_term_level(term)]
-        end
-        return termsAndLevels
-    end
-
-
-    # nil, term not found, [] term exists but not has parents
-    def get_parental_path(term, which_path = :shortest_path, level = 0) # NEED TEST
-        path = nil
-        path_attr = @term_paths[term]
-        if !path_attr.nil?
-            path_length = path_attr[which_path]
-            all_paths = path_attr[:paths]
-            if all_paths.empty?
-                path = []
-            else
-                path = all_paths.select{|pt| pt.length == path_length}.first.clone
-                if level > 0 # we want the term and his ascendants until a specific level
-                    n_parents = path_length - level 
-                    path = path[0..n_parents]
-                end
-                path.shift # Discard the term itself
-            end
-        end
-        return path
-    end
-
-    # Return ontology levels from profile terms
-    # ===== Returns 
-    # hash of term levels (Key: level; Value: array of term IDs)
-    def get_ontology_levels_from_profiles(uniq = true) # TODO: remove uniq and check dependencies
-        profiles_terms = @profiles.values.flatten
-        profiles_terms.uniq! if uniq
-        term_freqs_byProfile = Hash.new(0)
-        profiles_terms.each do |term|
-            term_freqs_byProfile[term] += 1 
-        end
-        levels_filtered = {}
-        terms_levels = @dicts[:level][:byValue]
-        term_freqs_byProfile.each do |term, count|
-            level = terms_levels[term]
-            term_repeat = Array.new(count, term)
-            query = levels_filtered[level]
-            if query.nil?
-                levels_filtered[level] = term_repeat
-            else
-                query.concat(term_repeat)
-            end
-        end
-        return levels_filtered
-    end
-
-    def get_profile_ontology_distribution_tables # NEED TEST, Generalize nomenclature
-      cohort_ontology_levels = get_ontology_levels_from_profiles(uniq=false)
-      uniq_cohort_ontology_levels = get_ontology_levels_from_profiles
-      hpo_ontology_levels = get_ontology_levels
-      total_ontology_terms = hpo_ontology_levels.values.flatten.length
-      total_cohort_terms = cohort_ontology_levels.values.flatten.length
-      total_uniq_cohort_terms = uniq_cohort_ontology_levels.values.flatten.length
-
-      ontology_levels = []
-      distribution_percentage = []
-      hpo_ontology_levels.each do |level, terms|
-        cohort_terms = cohort_ontology_levels[level]
-        uniq_cohort_terms = uniq_cohort_ontology_levels[level]
-        if cohort_terms.nil? || uniq_cohort_terms.nil?
-          num = 0
-          u_num = 0
-        else
-          num = cohort_terms.length
-          u_num = uniq_cohort_terms.length
-        end
-        ontology_levels << [level, terms.length, num]
-        distribution_percentage << [
-          level,
-          (terms.length.fdiv(total_ontology_terms)*100).round(3),
-          (num.fdiv(total_cohort_terms)*100).round(3),
-          (u_num.fdiv(total_uniq_cohort_terms)*100).round(3)
-        ]
-      end
-      ontology_levels.sort! { |x,y| x.first <=> y.first }
-      distribution_percentage.sort! { |x,y| x.first <=> y.first }
-      return ontology_levels, distribution_percentage
-    end
-
-    def get_dataset_specifity_index(mode) # NEED TEST
-        ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables
-        if mode == 'uniq'
-            observed_distribution = 3
-        elsif mode == 'weigthed'
-            observed_distribution = 2
-        end
-        max_terms = distribution_percentage.map{|row| row[1]}.max
-        maxL = nil 
-        distribution_percentage.each do |level_info|
-            maxL = level_info.first if level_info[1] == max_terms
-        end
-        diffL = distribution_percentage.map{|l| [l[0], l[observed_distribution] - l[1]]}
-        diffL.select!{|dL| dL.last > 0}
-        lowSection = diffL.select{|dL| dL.first <= maxL}
-        highSection = diffL.select{|dL| dL.first > maxL}
-        dsi = nil
-        if highSection.empty?
-            dsi = 0
-        else
-            hss = get_weigthed_level_contribution(highSection, maxL, ontology_levels.length - maxL)
-            lss = get_weigthed_level_contribution(lowSection, maxL, maxL)
-            dsi = hss.fdiv(lss)
-        end
-        return dsi
-    end
-
-    def get_weigthed_level_contribution(section, maxL, nLevels) # NEED TEST
-        accumulated_weigthed_diffL = 0
-        section.each do |level, diff|
-            weightL = maxL - level 
-            if weightL >= 0
-                weightL += 1
-            else
-                weightL = weightL.abs
-            end
-            accumulated_weigthed_diffL += diff * weightL
-        end
-        weigthed_contribution = accumulated_weigthed_diffL.fdiv(nLevels)
-        return weigthed_contribution
-    end
-
-
-    # For each term in profiles add the ids in the items term-id dictionary 
-    def get_items_from_profiles # NEED TEST
-        @profiles.each do |id, terms|
-            terms.each {|term| add2hash(@items, term, id) }
-        end
-    end
-
-    def get_profiles_from_items # NEED TEST
-        new_profiles = {}
-        @items.each do |term, ids|
-            ids.each{|id| add2hash(new_profiles, id, term) }
-        end
-        @profiles = new_profiles        
-    end
-
-    # Get related profiles to a given term
-    # ===== Parameters
-    # +term+:: to be checked
-    # ===== Returns 
-    # profiles which contains given term
-    def get_items_from_term(term)
-        return @items[term]
-    end
-
-    # Gets metainfo table from a set of terms
-    # ===== Parameters
-    # +terms+:: IDs to be expanded
-    # ===== Returns 
-    # an array with triplets [TermID, TermName, DescendantsNames]
-    def get_childs_table(terms)
-        expanded_terms = []
-        terms.each do |t|
-            expanded_terms << [[t, translate_id(t)], get_descendants(t).map{|child| [child, translate_id(child)]}]
-        end
-        return expanded_terms
-    end
-
+    #############################################
+    # ITEMS METHODS
+    #############################################
 
     # Store specific relations hash given into ITEMS structure
     # ===== Parameters
@@ -1344,41 +603,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         end
     end 
 
-    # Internal function to concat two elements.
-    # ===== Parameters
-    # +itemA+:: item to be concatenated
-    # +itemB+:: item to be concatenated
-    # ===== Returns
-    # Concatenated objects
-    def concatItems(itemA,itemB) # NEED TEST, CHECK WITH PSZ THIS METHOD
-        # A is Array :: RETURN ARRAY
-            # A_array : B_array
-            # A_array : B_hash => NOT ALLOWED
-            # A_array : B_single => NOT ALLOWED
-        # A is Hash :: RETURN HASH
-            # A_hash : B_array => NOT ALLOWED
-            # A_hash : B_hash
-            # A_hash : B_single => NOT ALLOWED
-        # A is single element => RETURN ARRAY
-            # A_single : B_array
-            # A_single : B_hash => NOT ALLOWED
-            # A_single : B_single
-        concatenated = nil
-        if itemA.kind_of?(Array) && itemB.kind_of?(Array)
-            concatenated = itemA | itemB
-        elsif itemA.kind_of?(Hash) && itemB.kind_of?(Hash)
-            concatenated = itemA.merge(itemB) do |k, oldV, newV| 
-                self.concatItems(oldV,newV)
-            end
-        elsif itemB.kind_of?(Array)
-            concatenated = ([itemA] + itemB).uniq
-        elsif ![Array, Hash].include?(itemB.class)
-            concatenated = [itemA,itemB].uniq
-        end
-        return concatenated
-    end      
-
-
     # Assign a dictionary already calculated as a items set.
     # ===== Parameters
     # +dictID+:: dictionary ID to be stored (:byTerm will be used)
@@ -1392,27 +616,22 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         end
     end
 
-    def expand_profile_with_parents(profile) # NEED TEST
-        new_terms = []
-        profile.each do |term|
-            new_terms = new_terms | get_ancestors(term)
-        end
-        return new_terms | profile
+    # Get related profiles to a given term
+    # ===== Parameters
+    # +term+:: to be checked
+    # ===== Returns 
+    # profiles which contains given term
+    def get_items_from_term(term)
+        return @items[term]
     end
 
-    def expand_profiles(meth, unwanted_terms: [], calc_metadata: true, ontology: nil, minimum_childs: 1, clean_profiles: true) # NEED TEST
-        if meth == 'parental'
-            @profiles.each do |id, terms|
-                @profiles[id] = expand_profile_with_parents(terms) - unwanted_terms
-            end
-            get_items_from_profiles if calc_metadata
-        elsif meth == 'propagate'
-            get_items_from_profiles
-            expand_items_to_parentals(ontology: ontology, minimum_childs: minimum_childs, clean_profiles: clean_profiles)
-            get_profiles_from_items
+    def get_profiles_from_items # NEED TEST
+        new_profiles = {}
+        @items.each do |term, ids|
+            ids.each{|id| add2hash(new_profiles, id, term) }
         end
-        add_observed_terms_from_profiles(reset: true)        
-    end 
+        @profiles = new_profiles        
+    end
 
     # This method computes childs similarity and impute items to it parentals. To do that Item keys must be this ontology allowed terms.
     # Similarity will be calculated by text extact similarity unless an ontology object will be provided. In this case, MICAs will be used
@@ -1471,94 +690,10 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         end
     end
 
-    def get_maxmica_term2profile(ref_term, profile)
-        micas = profile.map{|term| get_MICA(ref_term, term)}
-        maxmica = micas.first
-        micas.each{|mica| maxmica = mica if mica.last > maxmica.last}
-        return maxmica
-    end
+    # Compute modified fisher between terms and items based on topgo methodology. Refactor to use all the possible methods of this class
+    #-------------------------------------------------------------------------------------------------------------------------------------
 
-    # Return direct ancestors/descendants of a given term
-    # ===== Parameters
-    # +term+:: which are requested
-    # +relation+:: can be :ancestor or :descendant 
-    # ===== Returns
-    # Direct ancestors/descendants of given term or nil if any error occurs
-    def get_direct_related(term, relation) # NEED TEST
-        if @dicts[:is_a].nil?
-            warn("Hierarchy dictionary is not already calculated. Returning nil")
-            return nil
-        end 
-        target = nil
-        case relation
-            when :ancestor
-                target = :byTerm
-            when :descendant
-                target = :byValue
-            else
-                warn('Relation type not allowed. Returning nil')
-        end
-        return nil if target.nil? 
-        query = @dicts[:is_a][target][term]
-        return nil if query.nil?
-        return query
-    end
-
-
-    # Return direct ancestors of a given term
-    # ===== Parameters
-    # +term+:: which ancestors are requested
-    # ===== Returns
-    # Direct ancestors of given term or nil if any error occurs
-    def get_direct_ancentors(term)
-        return self.get_direct_related(term, :ancestor)
-    end
-
-    # Return direct descendants of a given term
-    # ===== Parameters
-    # +term+:: which descendants are requested
-    # ===== Returns
-    # Direct descendants of given term or nil if any error occurs
-    def get_direct_descendants(term)
-        return self.get_direct_related(term, :descendant)        
-    end
-
-    def each(att = false) # NEED TEST
-        warn('terms empty') if @terms.empty?
-        @terms.each do |id, tags|            
-            if att
-               yield(id, tags)
-            else
-               yield(id)
-            end
-        end
-    end
-
-    def get_root # NEED TEST
-        roots = []
-        each do |term|
-            roots << term if @ancestors_index[term].nil? 
-        end
-        return roots
-    end
-
-    def list_term_attributes # NEED TEST
-        terms = []
-        each do |code|
-            terms << [code, translate_id(code), get_term_level(code)]
-        end
-        return terms
-    end
-
-#============================================================================
-#============================================================================
-
-    # NO IDEA WHAT THIS DOES. DON'T USE THIS METHODS IS NOT CHECKED
-    # ===== Parameters
-    # ++::
-    # ===== Returns
-    # ...
-     def compute_relations_to_items(external_item_list, total_items, mode, thresold) # NEED TEST, check with PSZ how to maintain these methods
+    def compute_relations_to_items(external_item_list, total_items, mode, thresold) # NEED TEST, check with PSZ how to maintain these methods
         terms_levels = list_terms_per_level_from_items 
         connect_familiars!(terms_levels)
         item_list_with_transf_parental = get_item_list_parental(terms_levels)
@@ -1744,10 +879,742 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return Math.log(pvalA)/Math.log(pvalB)
     end
 
-    #============================================================================
     # END of methods involved with compute_relations_to_items
-    #============================================================================
+    #-----------------------------------------------------------------------------------
 
+    #############################################
+    # PROFILE METHODS
+    #############################################
+
+    # EXTERNAL PROFILES
+    ############################################
+
+    # Check a set of IDs and return allowed IDs removing which are not official terms on this ontology
+    # ===== Parameters
+    # +ids+:: to be checked
+    # ===== Return
+    # two arrays whit allowed and rejected IDs respectively
+    def check_ids(ids, substitute: true)
+        checked_codes = []
+        rejected_codes = []
+        ids.each do |id|
+            new_id = get_main_id(id)
+            if new_id.nil?
+                rejected_codes << id
+            else
+                if substitute
+                    checked_codes << new_id
+                else
+                    checked_codes << id
+                end
+            end
+        end
+        return checked_codes, rejected_codes
+    end
+
+    # Clean a given profile returning cleaned set of terms and removed ancestors term.
+    # ===== Parameters
+    # +prof+:: array of terms to be checked
+    # ===== Returns 
+    # two arrays, first is the cleaned profile and second is the removed elements array
+    def remove_ancestors_from_profile(prof)
+        ancestors = prof.map{|term| self.get_ancestors(term)}.flatten.uniq
+        redundant = prof & ancestors
+        return prof - redundant, redundant
+    end
+
+    # Remove alternative IDs if official ID is present. DOES NOT REMOVE synonyms or alternative IDs of the same official ID
+    # ===== Parameters
+    # +prof+:: array of terms to be checked
+    # ===== Returns 
+    # two arrays, first is the cleaned profile and second is the removed elements array
+    def remove_alternatives_from_profile(prof)
+        alternatives = prof.select{|term| @alternatives_index.include?(term)}
+        redundant = alternatives.select{|alt_id| prof.include?(@alternatives_index[alt_id])}
+        return prof - redundant, redundant
+    end
+
+    # Remove alternatives (if official term is present) and ancestors terms of a given profile 
+    # ===== Parameters
+    # +profile+:: profile to be cleaned
+    # +remove_alternatives+:: if true, clenaed profiles will replace already stored profiles
+    # ===== Returns 
+    # cleaned profile
+    def clean_profile(profile, remove_alternatives: true)
+        warn('Estructure is circular, behaviour could not be which is expected') if @structureType == :circular
+        terms_without_ancestors, _ = remove_ancestors_from_profile(profile)    
+        terms_without_ancestors, _ = remove_alternatives_from_profile(terms_without_ancestors) if remove_alternatives
+        return terms_without_ancestors
+    end
+
+    def clean_profile_hard(profile, options = {})
+        profile, _ = check_ids(profile)
+        profile = profile.select{|t| !is_obsolete?(t)}
+        if !options[:term_filter].nil?
+            profile.select! {|term| get_ancestors(term).include?(options[:term_filter])}
+        end 
+        profile = clean_profile(profile.uniq)
+        return profile
+    end
+
+    # Remove terms from a given profile using hierarchical info and scores set given  
+    # ===== Parameters
+    # +profile+:: profile to be cleaned
+    # +scores+:: hash with terms by keys and numerical values (scores)
+    # +byMax+:: if true, maximum scored term will be keeped, if false, minimum will be keeped
+    # +remove_without_score+:: if true, terms without score will be removed. Default: true
+    # ===== Returns 
+    # cleaned profile
+    def clean_profile_by_score(profile, scores, byMax: true, remove_without_score: true)
+        scores = scores.sort_by{|term,score| score}.to_h
+        keep = profile.map do |term|
+            if scores.include?(term)
+                parentals = [self.get_ancestors(term), self.get_descendants(term)].flatten
+                targetable = parentals.select{|parent| profile.include?(parent)}
+                if targetable.empty? 
+                    term
+                else
+                    targetable << term
+                    targets = scores.select{|term,score| targetable.include?(term)}.to_h
+                    byMax ? targets.keys.last : targets.keys.first
+                end
+            elsif remove_without_score
+                nil
+            else
+                term
+            end
+        end
+        return keep.compact.uniq
+    end
+
+    def get_terms_levels(terms) # NEED TEST
+        termsAndLevels = []
+        terms.each do |term|
+            termsAndLevels << [term, get_term_level(term)]
+        end
+        return termsAndLevels
+    end
+
+    def expand_profile_with_parents(profile) # NEED TEST
+        new_terms = []
+        profile.each do |term|
+            new_terms = new_terms | get_ancestors(term)
+        end
+        return new_terms | profile
+    end
+
+    def get_maxmica_term2profile(ref_term, profile)
+        micas = profile.map{|term| get_MICA(ref_term, term)}
+        maxmica = micas.first
+        micas.each{|mica| maxmica = mica if mica.last > maxmica.last}
+        return maxmica
+    end
+
+    # Translates several IDs and returns translations and not allowed IDs list
+    # ===== Parameters
+    # +ids+:: to be translated
+    # ===== Return
+    # two arrays with translations and ids which couldn't be translated respectively
+    def translate_ids(ids)
+        translated = []
+        rejected = []
+        ids.each do |term_id|
+            tr = self.translate_id(term_id.to_sym)
+            if !tr.nil?
+                translated << tr
+            else
+                rejected << tr
+            end
+        end
+        return translated, rejected
+    end
+
+    # Translate several names and return translations and a list of names which couldn't be translated
+    # ===== Parameters
+    # +names+:: array to be translated
+    # ===== Return
+    # two arrays with translations and names which couldn't be translated respectively
+    def translate_names(names)
+        translated = []
+        rejected = []
+        names.each do |name|
+            tr = self.translate_name(name)
+            if tr.nil?
+                rejected << name
+            else
+                translated << tr
+            end
+        end
+        return translated, rejected
+    end
+
+    # Increase the arbitrary frequency of a given term set 
+    # ===== Parameters
+    # +terms+:: set of terms to be updated
+    # +increase+:: amount to be increased
+    # +transform_to_sym+:: if true, transform observed terms to symbols. Default: false
+    # ===== Return
+    # true if process ends without errors and false in other cases
+    def add_observed_terms(terms:, increase: 1.0, transform_to_sym: false)
+        return terms.map{|id| self.add_observed_term(
+            term: transform_to_sym ? id.to_sym : id, 
+            increase: increase)}
+    end
+
+
+    #  Calculates mean IC of a given profile
+    # ===== Parameters
+    # +prof+:: profile to be checked
+    # +ic_type+:: ic_type to be used
+    # +zhou_k+:: special coeficient for Zhou IC method
+    # ===== Returns 
+    # mean IC for a given profile
+    def get_profile_mean_IC(prof, ic_type: :resnik, zhou_k: 0.5)
+        return prof.map{|term| self.get_IC(term, type: ic_type, zhou_k: zhou_k)}.sum.fdiv(prof.length)
+    end
+
+    # Get semantic similarity from two term sets 
+    # ===== Parameters
+    # +termsA+:: set to be compared
+    # +termsB+:: set to be compared
+    # +sim_type+:: similitude method to be used. Default: resnik
+    # +ic_type+:: ic type to be used. Default: resnik
+    # +bidirectional+:: calculate bidirectional similitude. Default: false
+    # ===== Return
+    # similitude calculated
+    def compare(termsA, termsB, sim_type: :resnik, ic_type: :resnik, bidirectional: true, store_mica: false)
+        # Check
+        raise ArgumentError, "Terms sets given are NIL" if termsA.nil? | termsB.nil?
+        raise ArgumentError, "Set given is empty. Aborting similarity calc" if termsA.empty? | termsB.empty?
+        micasA = []
+        # Compare A -> B
+        termsA.each do |tA|
+            micas = []
+            termsB.each do |tB|
+                if store_mica
+                    value = @mica_index[tA][tB]
+                else
+                    value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type)
+                end
+                micas << value if value.class == Float 
+            end
+            !micas.empty? ? micasA << micas.max : micasA << 0 
+        end
+        means_sim = micasA.sum.fdiv(micasA.size)
+        # Compare B -> A
+        if bidirectional
+            means_simA = means_sim * micasA.size
+            means_simB = self.compare(termsB, termsA, sim_type: sim_type, ic_type: ic_type, bidirectional: false, store_mica: store_mica) * termsB.size
+            means_sim = (means_simA + means_simB).fdiv(termsA.size + termsB.size)
+        end
+        # Return
+        return means_sim
+    end
+
+    # Gets metainfo table from a set of terms
+    # ===== Parameters
+    # +terms+:: IDs to be expanded
+    # ===== Returns 
+    # an array with triplets [TermID, TermName, DescendantsNames]
+    def get_childs_table(terms)
+        expanded_terms = []
+        terms.each do |t|
+            expanded_terms << [[t, translate_id(t)], get_descendants(t).map{|child| [child, translate_id(child)]}]
+        end
+        return expanded_terms
+    end
+
+    # INTERNAL PROFILES
+    ############################################
+
+    # Stores a given profile with an specific ID. If ID is already assigend to a profile, it will be replaced
+    # ===== Parameters
+    # +id+:: assigned to profile
+    # +terms+:: array of terms
+    # +substitute+:: subsstitute flag from check_ids
+    def add_profile(id, terms, substitute: true)
+        warn("Profile assigned to ID (#{id}) is going to be replaced") if @profiles.include? id
+        correct_terms, rejected_terms = self.check_ids(terms, substitute: substitute)
+        if !rejected_terms.empty?
+            warn("Given terms contains erroneus IDs: #{rejected_terms.join(",")}. These IDs will be removed")
+        end
+        if id.is_a? Numeric
+            @profiles[id] = correct_terms              
+        else
+            @profiles[id.to_sym] = correct_terms  
+        end
+    end    
+
+    # Method used to store a pool of profiles
+    # ===== Parameters
+    # +profiles+:: array/hash of profiles to be stored. If it's an array, numerical IDs will be assigned starting at 1 
+    # +calc_metadata+:: if true, launch get_items_from_profiles process
+    # +reset_stored+:: if true, remove already stored profiles
+    # +substitute+:: subsstitute flag from check_ids
+    def load_profiles(profiles, calc_metadata: true, reset_stored: false, substitute: false)
+        self.reset_profiles if reset_stored
+        # Check
+        if profiles.kind_of?(Array)
+            profiles.each_with_index do |items, i|
+                self.add_profile(i, items.map {|item| item.to_sym}, substitute: substitute)
+            end
+        else # Hash
+            if !profiles.keys.select{|id| @profiles.include?(id)}.empty?
+                warn('Some profiles given are already stored. Stored version will be replaced')
+            end
+            profiles.each{|id, prof| self.add_profile(id, prof, substitute: substitute)}
+        end
+
+        self.add_observed_terms_from_profiles(reset: true)
+
+        if calc_metadata
+            self.get_items_from_profiles
+        end
+    end
+
+    def reset_profiles # Internal method used to remove already stored profiles and restore observed frequencies
+        @profiles = {} # Clean profiles storage
+        # Reset frequency observed
+        @meta.each{|term,info| info[:observed_freq] = 0}
+        @max_freqs[:observed_freq] = 0
+    end
+
+    # ===== Returns 
+    # profiles assigned to a given ID
+    # ===== Parameters
+    # +id+:: profile ID
+    # ===== Return
+    # specific profile or nil if it's not stored
+    def get_profile(id)
+        return @profiles[id]
+    end    
+
+    # Trnaslates a bunch of profiles to it sets of term names
+    # ===== Parameters
+    # +profs+:: array of profiles
+    # +asArray+:: flag to indicate if results must be returned as: true => an array of tuples [ProfID, ArrayOdNames] or ; false => hashs of translations
+    # ===== Returns 
+    # translated profiles
+    def translate_profiles_ids(profs = [], asArray: true)
+        profs2proc = {}
+        if profs.empty?
+            profs2proc = @profiles 
+        else
+            profs.each_with_index{|terms, index| profs2proc[index] = terms} if profs.kind_of?(Array)
+        end
+        profs_names = {}
+        profs2proc.each do |id, terms|
+            names, _ = translate_ids(terms)
+            profs_names[id] = names
+        end
+        return asArray ? profs_names.values : profs_names
+    end
+
+    # Includes as "observed_terms" all terms included into stored profiles
+    # ===== Parameters
+    # +reset+:: if true, reset observed freqs alreeady stored befor re-calculate
+    def add_observed_terms_from_profiles(reset: false)
+        @meta.each{|term, freqs| freqs[:observed_freq] = -1} if reset
+        @profiles.each{|id, terms| self.add_observed_terms(terms: terms)}
+    end
+
+    # ===== Returns 
+    # an array of sizes for all stored profiles
+    # ===== Return
+    # array of profile sizes
+    def get_profiles_sizes()
+        return @profiles.map{|id,terms| terms.length}
+    end
+
+    # ===== Returns 
+    # mean size of stored profiles
+    # ===== Parameters
+    # +round_digits+:: number of digits to round result. Default: 4
+    # ===== Returns 
+    # mean size of stored profiles
+    def get_profiles_mean_size(round_digits: 4)
+        sizes = self.get_profiles_sizes
+        return sizes.sum.fdiv(@profiles.length).round(round_digits)
+    end
+
+    # Calculates profiles sizes and returns size assigned to percentile given
+    # ===== Parameters
+    # +perc+:: percentile to be returned
+    # +increasing_sort+:: flag to indicate if sizes order must be increasing. Default: false
+    # ===== Returns 
+    # values assigned to percentile asked
+    def get_profile_length_at_percentile(perc=50, increasing_sort: false)
+        prof_lengths = self.get_profiles_sizes.sort
+        prof_lengths.reverse! if !increasing_sort
+        n_profiles = prof_lengths.length 
+        percentile_index = ((perc * (n_profiles - 1)).fdiv(100) - 0.5).round # Take length which not overpass percentile selected
+        percentile_index = 0 if percentile_index < 0 # Special case (caused by literal calc)
+        return prof_lengths[percentile_index]
+    end
+
+    # Compare internal stored profiles against another set of profiles. If an external set is not provided, internal profiles will be compared with itself 
+    # ===== Parameters
+    # +external_profiles+:: set of external profiles. If nil, internal profiles will be compared with itself
+    # +sim_type+:: similitude method to be used. Default: resnik
+    # +ic_type+:: ic type to be used. Default: resnik
+    # +bidirectional+:: calculate bidirectional similitude. Default: false
+    # ===== Return
+    # Similitudes calculated
+    def compare_profiles(external_profiles: nil, sim_type: :resnik, ic_type: :resnik, bidirectional: true)
+        profiles_similarity = {} #calculate similarity between patients profile
+        if external_profiles.nil?
+            comp_profiles = @profiles
+            main_profiles = comp_profiles
+        else
+            comp_profiles = external_profiles
+            main_profiles = @profiles
+        end
+        # Compare
+        #@lca_index = {}
+        pair_index = get_pair_index(main_profiles, comp_profiles)
+        #get_lca_index(pair_index)
+        @mica_index = {}
+        get_mica_index_from_profiles(pair_index, sim_type: sim_type, ic_type: ic_type, lca_index: false)
+        main_profiles.each do |curr_id, current_profile|
+            comp_profiles.each do |id, profile|
+                value = compare(current_profile, profile, sim_type: sim_type, ic_type: ic_type, bidirectional: bidirectional, store_mica: true)
+                add2nestHash(profiles_similarity, curr_id, id, value)
+            end    
+        end
+        return profiles_similarity
+    end
+
+    def get_pair_index(profiles_A, profiles_B)
+        pair_index = {}
+        profiles_A.each do |curr_id, profile_A|
+            profiles_B.each do |id, profile_B|
+                profile_A.each do |term_A|
+                    profile_B.each do |term_B|
+                        pair_index[[term_A, term_B].sort] = true 
+                    end
+                end
+            end    
+        end
+        return pair_index
+    end
+
+    def get_mica_index_from_profiles(pair_index, sim_type: :resnik, ic_type: :resnik, lca_index: true)
+        pair_index.each do |pair, val|
+            tA, tB = pair
+            value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type, lca_index: lca_index)
+            value = true if value.nil? # We use true to save that the operation was made but there is not mica value
+            add2nestHash(@mica_index, tA, tB, value)
+            add2nestHash(@mica_index, tB, tA, value)
+        end
+    end
+
+    ################ get lca index ##################################
+    # TODO: VErify an algorith for DAG
+    def get_lca_index(pair_index)
+        graph, name2num, num2name = get_numeric_graph(@descendants_index)
+        queries = {}
+        pair_index.each do |ids, val|
+            u, v = ids
+            u = name2num[u]
+            v = name2num[v]
+            add2hash(queries, u, v)
+            add2hash(queries, v, u)
+        end
+        roots = get_root
+        roots = roots.map{|r| name2num[r]}
+        compute_LCAs(queries, graph, roots, num2name)
+    end
+
+    def compute_LCAs(queries, net, roots, num2name)
+        #https://cp-algorithms.com/graph/lca_tarjan.html
+        roots.each do |r|
+            ancestor = []
+            visited = [] # true
+            dfs(r, net, ancestor, visited, queries, num2name)
+        end
+    end
+
+    def find_set(v, ancestor) 
+        parent = ancestor[v]
+        return v if v == parent
+        return find_set(parent, ancestor)
+    end
+
+    def union_sets(a, b, ancestor) 
+        a = find_set(a, ancestor)
+        b = find_set(b, ancestor)
+        ancestor[b] = a if (a != b)
+    end
+
+    def dfs(v, net, ancestor, visited, queries, num2name)
+        visited[v] = true
+        ancestor[v] = v
+        connected_nodes_v = net[v]
+        if !connected_nodes_v.nil?
+            connected_nodes_v.each do |u|
+                if visited[u].nil?
+                    dfs(u, net, ancestor, visited, queries, num2name)
+                    union_sets(v, u, ancestor)
+                    ancestor[find_set(v, ancestor)] = v
+                end
+            end
+        end
+        v_node_queries = queries[v]
+        if !v_node_queries.nil?
+            v_node_queries.each do |other_node|
+                if visited[other_node]
+                    lca = ancestor[find_set(other_node, ancestor)]
+                    v = num2name[v]
+                    other_node = num2name[other_node]
+                    lca = num2name[lca]
+                    add2nestHash(@lca_index, v, other_node, lca)
+                    add2nestHash(@lca_index, other_node, v, lca)
+                end
+            end
+        end
+    end
+
+    def get_numeric_graph(graph)
+        id_index = {}
+        num2name = {}
+        num_graph = {}
+        count = 0
+        graph.each do |node, connecte_nodes|
+            node_id = id_index[node]
+            if node_id.nil?
+                node_id = count
+                id_index[node] = node_id
+                num2name[node_id] = node
+                count += 1
+            end
+            new_cn_ids = []
+            connecte_nodes.each do |cn|
+                cn_id = id_index[cn]
+                if cn_id.nil?
+                    cn_id = count
+                    id_index[cn] = cn_id
+                    num2name[cn_id] = cn
+                    count += 1
+                end
+                new_cn_ids << cn_id
+            end
+            num_graph[node_id] = new_cn_ids
+        end
+        return num_graph, id_index, num2name
+    end
+
+    ##################################################
+
+    # Calculates frequencies of stored profiles terms
+    # ===== Parameters
+    # +ratio+:: if true, frequencies will be returned as ratios between 0 and 1.
+    # +asArray+:: used to transform returned structure format from hash of Term-Frequency to an array of tuples [Term, Frequency]
+    # +translate+:: if true, term IDs will be translated to 
+    # ===== Returns 
+    # stored profiles terms frequencies
+    def get_profiles_terms_frequency(ratio: true, asArray: true, translate: true)
+        freqs = Hash.new(0)
+        @profiles.each do |id, terms|
+            terms.each{|term| freqs[term] += 1}
+        end
+        if translate
+            translated_freqs = {}
+            freqs.each do |term, freq| 
+                tr = self.translate_id(term)
+                translated_freqs[tr] = freq if !tr.nil?
+            end
+            freqs = translated_freqs
+        end
+        n_profiles = @profiles.length
+        freqs.transform_values!{|freq| freq.fdiv(n_profiles)} if ratio
+        if asArray
+            freqs = freqs.to_a
+            freqs.sort!{|h1, h2| h2[1] <=> h1[1]}
+        end
+        return freqs
+    end
+
+    # Remove alternatives (if official term is present) and ancestors terms of stored profiles 
+    # ===== Parameters
+    # +store+:: if true, clenaed profiles will replace already stored profiles
+    # +remove_alternatives+:: if true, clenaed profiles will replace already stored profiles
+    # ===== Returns 
+    # a hash with cleaned profiles
+    def clean_profiles(store: false, remove_alternatives: true)
+        cleaned_profiles = {}
+        @profiles.each{ |id, terms| cleaned_profiles[id] = self.clean_profile(terms, remove_alternatives: remove_alternatives)}
+        @profiles = cleaned_profiles if store
+        return cleaned_profiles
+    end
+
+    # Calculates number of ancestors present (redundant) in each profile stored
+    # ===== Returns 
+    # array of parentals for each profile
+    def parentals_per_profile
+        cleaned_profiles = self.clean_profiles(remove_alternatives: false)
+        parentals = @profiles.map{ |id, terms| terms.length - cleaned_profiles[id].length}
+        return parentals
+    end
+
+
+    def get_profile_redundancy()
+      profile_sizes = self.get_profiles_sizes
+      parental_terms_per_profile = self.parentals_per_profile# clean_profiles
+      parental_terms_per_profile = parental_terms_per_profile.map{|item| item[0]}
+      profile_sizes, parental_terms_per_profile = profile_sizes.zip(parental_terms_per_profile).sort_by{|i| i.first}.reverse.transpose
+      return profile_sizes, parental_terms_per_profile
+    end
+
+    def compute_term_list_and_childs()
+      suggested_childs = {}
+      total_terms = 0
+      terms_with_more_specific_childs = 0
+      @profiles.each do |id, terms|
+        total_terms += terms.length
+        more_specific_childs = self.get_childs_table(terms, true)
+        terms_with_more_specific_childs += more_specific_childs.select{|profile| !profile.last.empty?}.length #Exclude phenotypes with no childs
+        suggested_childs[id] = more_specific_childs  
+      end
+      return suggested_childs, terms_with_more_specific_childs.fdiv(total_terms)
+    end
+
+    # Calculates resnik ontology, and resnik observed mean ICs for all profiles stored
+    # ===== Returns 
+    # two hashes with Profiles and IC calculated for resnik and observed resnik respectively
+    def get_profiles_resnik_dual_ICs(struct: :resnik, observ: :resnik_observed)
+        struct_ics = {}
+        observ_ics = {}
+        @profiles.each do |id, terms|
+            struct_ics[id] = self.get_profile_mean_IC(terms, ic_type: struct)
+            observ_ics[id] = self.get_profile_mean_IC(terms, ic_type: observ)
+        end
+        return struct_ics, observ_ics
+    end
+
+    # specifity_index related methods
+    #-----------------------------------------
+
+    # Return ontology levels from profile terms
+    # ===== Returns 
+    # hash of term levels (Key: level; Value: array of term IDs)
+    def get_ontology_levels_from_profiles(uniq = true)
+        profiles_terms = @profiles.values.flatten
+        profiles_terms.uniq! if uniq
+        term_freqs_byProfile = Hash.new(0)
+        profiles_terms.each do |term|
+            term_freqs_byProfile[term] += 1 
+        end
+        levels_filtered = {}
+        terms_levels = @dicts[:level][:byValue]
+        term_freqs_byProfile.each do |term, count|
+            level = terms_levels[term]
+            term_repeat = Array.new(count, term)
+            query = levels_filtered[level]
+            if query.nil?
+                levels_filtered[level] = term_repeat
+            else
+                query.concat(term_repeat)
+            end
+        end
+        return levels_filtered
+    end
+
+    def get_profile_ontology_distribution_tables # NEED TEST, Generalize nomenclature
+      cohort_ontology_levels = get_ontology_levels_from_profiles(uniq=false)
+      uniq_cohort_ontology_levels = get_ontology_levels_from_profiles
+      hpo_ontology_levels = get_ontology_levels
+      total_ontology_terms = hpo_ontology_levels.values.flatten.length
+      total_cohort_terms = cohort_ontology_levels.values.flatten.length
+      total_uniq_cohort_terms = uniq_cohort_ontology_levels.values.flatten.length
+
+      ontology_levels = []
+      distribution_percentage = []
+      hpo_ontology_levels.each do |level, terms|
+        cohort_terms = cohort_ontology_levels[level]
+        uniq_cohort_terms = uniq_cohort_ontology_levels[level]
+        if cohort_terms.nil? || uniq_cohort_terms.nil?
+          num = 0
+          u_num = 0
+        else
+          num = cohort_terms.length
+          u_num = uniq_cohort_terms.length
+        end
+        ontology_levels << [level, terms.length, num]
+        distribution_percentage << [
+          level,
+          (terms.length.fdiv(total_ontology_terms)*100).round(3),
+          (num.fdiv(total_cohort_terms)*100).round(3),
+          (u_num.fdiv(total_uniq_cohort_terms)*100).round(3)
+        ]
+      end
+      ontology_levels.sort! { |x,y| x.first <=> y.first }
+      distribution_percentage.sort! { |x,y| x.first <=> y.first }
+      return ontology_levels, distribution_percentage
+    end
+
+    def get_dataset_specifity_index(mode) # NEED TEST
+        ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables
+        if mode == 'uniq'
+            observed_distribution = 3
+        elsif mode == 'weigthed'
+            observed_distribution = 2
+        end
+        max_terms = distribution_percentage.map{|row| row[1]}.max
+        maxL = nil 
+        distribution_percentage.each do |level_info|
+            maxL = level_info.first if level_info[1] == max_terms
+        end
+        diffL = distribution_percentage.map{|l| [l[0], l[observed_distribution] - l[1]]}
+        diffL.select!{|dL| dL.last > 0}
+        lowSection = diffL.select{|dL| dL.first <= maxL}
+        highSection = diffL.select{|dL| dL.first > maxL}
+        dsi = nil
+        if highSection.empty?
+            dsi = 0
+        else
+            hss = get_weigthed_level_contribution(highSection, maxL, ontology_levels.length - maxL)
+            lss = get_weigthed_level_contribution(lowSection, maxL, maxL)
+            dsi = hss.fdiv(lss)
+        end
+        return dsi
+    end
+
+    def get_weigthed_level_contribution(section, maxL, nLevels) # NEED TEST
+        accumulated_weigthed_diffL = 0
+        section.each do |level, diff|
+            weightL = maxL - level 
+            if weightL >= 0
+                weightL += 1
+            else
+                weightL = weightL.abs
+            end
+            accumulated_weigthed_diffL += diff * weightL
+        end
+        weigthed_contribution = accumulated_weigthed_diffL.fdiv(nLevels)
+        return weigthed_contribution
+    end
+    #-----------------------------------------
+
+    # For each term in profiles add the ids in the items term-id dictionary 
+    def get_items_from_profiles # NEED TEST
+        @profiles.each do |id, terms|
+            terms.each {|term| add2hash(@items, term, id) }
+        end
+    end
+
+    def expand_profiles(meth, unwanted_terms: [], calc_metadata: true, ontology: nil, minimum_childs: 1, clean_profiles: true) # NEED TEST
+        if meth == 'parental'
+            @profiles.each do |id, terms|
+                @profiles[id] = expand_profile_with_parents(terms) - unwanted_terms
+            end
+            get_items_from_profiles if calc_metadata
+        elsif meth == 'propagate'
+            get_items_from_profiles
+            expand_items_to_parentals(ontology: ontology, minimum_childs: minimum_childs, clean_profiles: clean_profiles)
+            get_profiles_from_items
+        end
+        add_observed_terms_from_profiles(reset: true)        
+    end
 
     def profile_stats # NEED TEST
       stats = Hash.new(0)
@@ -1771,12 +1638,10 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
 
     end
 
-#============================================================================
-#============================================================================
+    ########################################
+    ## GENERAL ONTOLOGY METHODS
+    ########################################
 
-    ############################################
-    # SPECIAL METHODS
-    #############################################
     def ==(other)
         self.terms == other.terms &&
         self.ancestors_index == other.ancestors_index &&
@@ -1810,6 +1675,64 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return copy
     end
 
+    # Exports an OBO_Handler object in json format
+    # ===== Parameters
+    # +file+:: where info will be stored
+    def write(file)
+        # Take object stored info
+        obj_info = {terms: @terms,
+                    ancestors_index: @ancestors_index,
+                    descendants_index: @descendants_index,
+                    alternatives_index: @alternatives_index,
+                    structureType: @structureType,
+                    ics: @ics,
+                    meta: @meta,
+                    max_freqs: @max_freqs,
+                    dicts: @dicts,
+                    profiles: @profiles,
+                    items: @items,
+                    term_paths: @term_paths}
+        # Convert to JSON format & write
+        File.open(file, "w") { |f| f.write obj_info.to_json }
+    end
+
+
+    def each(att = false) # NEED TEST
+        warn('terms empty') if @terms.empty?
+        @terms.each do |id, tags|            
+            if att
+               yield(id, tags)
+            else
+               yield(id)
+            end
+        end
+    end
+
+    def get_root # NEED TEST
+        roots = []
+        each do |term|
+            roots << term if @ancestors_index[term].nil? 
+        end
+        return roots
+    end
+
+    def list_term_attributes # NEED TEST
+        terms = []
+        each do |code|
+            terms << [code, translate_id(code), get_term_level(code)]
+        end
+        return terms
+    end
+
+    # Gets ontology levels calculated
+    # ===== Returns 
+    # ontology levels calculated
+    def get_ontology_levels # NEED TEST
+        return @dicts[:level][:byTerm].clone # By term, in this case, is Key::Level, Value::Terms
+    end
+
+
+    
     private
 
     def add2hash(hash, key, val)
@@ -1828,5 +1751,39 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         else
             query1[key2] = val
         end
+    end
+
+    # Internal function to concat two elements.
+    # ===== Parameters
+    # +itemA+:: item to be concatenated
+    # +itemB+:: item to be concatenated
+    # ===== Returns
+    # Concatenated objects
+    def concatItems(itemA,itemB) # NEED TEST, CHECK WITH PSZ THIS METHOD
+        # A is Array :: RETURN ARRAY
+            # A_array : B_array
+            # A_array : B_hash => NOT ALLOWED
+            # A_array : B_single => NOT ALLOWED
+        # A is Hash :: RETURN HASH
+            # A_hash : B_array => NOT ALLOWED
+            # A_hash : B_hash
+            # A_hash : B_single => NOT ALLOWED
+        # A is single element => RETURN ARRAY
+            # A_single : B_array
+            # A_single : B_hash => NOT ALLOWED
+            # A_single : B_single
+        concatenated = nil
+        if itemA.kind_of?(Array) && itemB.kind_of?(Array)
+            concatenated = itemA | itemB
+        elsif itemA.kind_of?(Hash) && itemB.kind_of?(Hash)
+            concatenated = itemA.merge(itemB) do |k, oldV, newV| 
+                self.concatItems(oldV,newV)
+            end
+        elsif itemB.kind_of?(Array)
+            concatenated = ([itemA] + itemB).uniq
+        elsif ![Array, Hash].include?(itemB.class)
+            concatenated = [itemA,itemB].uniq
+        end
+        return concatenated
     end
 end
