@@ -342,6 +342,11 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return @terms.include?(id)
     end
 
+    # Check if a term given is marked as obsolete
+    def is_obsolete?(term)
+        return @obsoletes.include?(term)
+    end
+
     # Find ancestors of a given term
     # ===== Parameters
     # +term+:: to be checked
@@ -501,7 +506,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
             ic_ont[term] = get_IC(term)
             resnik_observed[term] = get_IC(term, type: :resnik_observed)
         end
-        return resnik, resnik_observed
+        return ic_ont, resnik_observed
     end
 
     # Find the IC of the Most Index Content shared Ancestor (MICA) of two given terms
@@ -1372,7 +1377,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
       terms_with_more_specific_childs = 0
       @profiles.each do |id, terms|
         total_terms += terms.length
-        more_specific_childs = self.get_childs_table(terms, true)
+        more_specific_childs = self.get_childs_table(terms)
         terms_with_more_specific_childs += more_specific_childs.select{|profile| !profile.last.empty?}.length #Exclude phenotypes with no childs
         suggested_childs[id] = more_specific_childs  
       end

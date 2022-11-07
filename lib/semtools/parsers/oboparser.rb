@@ -278,7 +278,7 @@ class OboParser < FileParser
         related_ids = {}
         terms.each do |id, tags|
             if !tags[target_tag].nil?
-                set_structure, _ = self.get_related_ids(id, terms, target_tag, related_ids)                        
+                set_structure, _ = self.get_related_ids(id, terms, target_tag, related_ids)
                 structType = :circular if set_structure == :circular # Check structure
             end
         end
@@ -311,10 +311,12 @@ class OboParser < FileParser
         struct = :hierarchical
 
         # Study direct extensions
-        id_relations.each do |id|        
+        id_relations.each do |id| 
             # Handle
             if current_associations.include?(id) # Check if already have been included into this expansion
-                struct = :circular
+                next
+                #struct = :circular # Old code that give circular status in real obo files. The apparent ligic no makes sense. The change gives no error in tests.
+                # TODO: CHECK CAREFULLY THIS METHOD.
             else
                 current_associations << id 
                 if related_ids.include?(id) # Check if current already has been expanded
@@ -326,7 +328,7 @@ class OboParser < FileParser
                 else # Expand
                     related_ids[start_id] = current_associations
                     structExp, current_related_ids = self.get_related_ids(id, terms, target_tag, related_ids) # Expand current
-                    current_associations = current_associations | current_related_ids                 
+                    current_associations = current_associations | current_related_ids                                     
                     struct = :circular if structExp == :circular # Check struct
                     if current_associations.include?(start_id) # Check circular case
                         struct = :circular
