@@ -315,7 +315,7 @@ class OboParser < FileParser
             # Handle
             if current_associations.include?(id) # Check if already have been included into this expansion
                 next
-                #struct = :circular # Old code that give circular status in real obo files. The apparent ligic no makes sense. The change gives no error in tests.
+                #struct = :circular # Old code that give circular status in real obo files. The apparent logic no makes sense. The change gives no error in tests.
                 # TODO: CHECK CAREFULLY THIS METHOD.
             else
                 current_associations << id 

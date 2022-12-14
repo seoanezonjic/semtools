@@ -251,9 +251,9 @@ OptionParser.new do |opts|
     options[:output_file] = item
   end
 
-  options[:IC] = false
-  opts.on("-I", "--IC", "Get IC") do
-    options[:IC] = true
+  options[:IC] = nil
+  opts.on("-I", "--IC STRING", "Get IC. 'prof' for stored profiles or 'ont' for terms in ontology") do |item|
+    options[:IC] = item
   end
 
   options[:ontology_file] = nil
@@ -441,13 +441,19 @@ if !options[:similarity].nil?
 end 
 
 
-if options[:IC]
+if options[:IC] == 'prof'
   ontology.add_observed_terms_from_profiles
   by_ontology, by_freq = ontology.get_profiles_resnik_dual_ICs
   ic_file = File.basename(options[:input_file], ".*")+'_IC_onto_freq'
   File.open(ic_file , 'w') do |file|
     ontology.profiles.keys.each do |id|
         file.puts([id, by_ontology[id], by_freq[id]].join("\t"))
+    end       
+  end
+elsif options[:IC] == 'ont'
+  File.open('ont_IC' , 'w') do |file|
+    ontology.each do |term|
+        file.puts "#{term}\t#{ontology.get_IC(term)}"
     end       
   end
 end    
