@@ -79,6 +79,22 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(@hierarchical_freqs_updated,@hierarchical.max_freqs) # Only structural freq
 	end
 
+	def test_paths
+		@hierarchical.expand_path(:Child2)
+		default_child2_paths = {:total_paths=>1, :largest_path=>2, :shortest_path=>2, :paths=>[[:Child2, :Parental]]}
+		assert_equal(default_child2_paths, @hierarchical.term_paths[:Child2])
+
+		@hierarchical.calc_term_levels(calc_paths: true, shortest_path: true)
+		default_levels = {:byTerm=>{1=>[:Parental], 2=>[:Child2]}, :byValue=>{:Parental=>1, :Child2=>2}}
+		default_paths = {:Parental=>{:total_paths=>1, :largest_path=>1, :shortest_path=>1, :paths=> [[:Parental]]}, 
+		:Child2=>{:total_paths=>1, :largest_path=>2, :shortest_path=>2, :paths=>[[:Child2, :Parental]]}}
+		assert_equal(default_levels, @hierarchical.dicts[:level])
+		assert_equal(default_paths,@hierarchical.term_paths) 
+
+		child2_parental_path = [:Parental]
+		assert_equal(child2_parental_path,@hierarchical.get_parental_path(:Child2, which_path = :shortest_path))
+	end
+
 
 	def test_ics
 		@hierarchical.precompute
@@ -128,6 +144,7 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(:Child2, @hierarchical.translate_name(aux_synonym[:Child2].first))
 		assert_nil(@hierarchical.translate_name("Erroneous name"))
 		assert_equal('All', @hierarchical.translate_id(:Parental))
+		assert_equal(:Child2, @hierarchical.get_main_id(:Child1))
 	end
 
 	def test_familiars_and_valids
@@ -260,6 +277,9 @@ class TestOBOFunctionalities < Minitest::Test
 	end
 
 	def test_term_levels
+		child2_level = 2
+		assert_equal(child2_level,@hierarchical.get_term_level(:Child2)) 
+
 		hierarchical = Ontology.new(file: @file_Hierarchical[:file],load_file: true)
 		assert_equal({:total_paths=>1, :largest_path=>2, :shortest_path=>2, :paths=>[[:Child2, :Parental]]}, hierarchical.term_paths[:Child2])
 		assert_equal({1=>[:Parental], 2=>[:Child2]}, hierarchical.get_ontology_levels)
