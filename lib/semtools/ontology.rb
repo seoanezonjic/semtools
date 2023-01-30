@@ -916,6 +916,22 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # PROFILE EXTERNAL METHODS
     #############################################
 
+    # I/O profile
+    ####################################
+
+    # Increase the arbitrary frequency of a given term set 
+    # ===== Parameters
+    # +terms+:: set of terms to be updated
+    # +increase+:: amount to be increased
+    # +transform_to_sym+:: if true, transform observed terms to symbols. Default: false
+    # ===== Return
+    # true if process ends without errors and false in other cases
+    def add_observed_terms(terms:, increase: 1.0, transform_to_sym: false)
+        return terms.map{|id| self.add_observed_term(
+            term: transform_to_sym ? id.to_sym : id, 
+            increase: increase)}
+    end
+
     # Modifying Profile
     ####################################
 
@@ -1216,19 +1232,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     def add_observed_terms_from_profiles(reset: false)
         @meta.each{|term, freqs| freqs[:observed_freq] = -1} if reset
         @profiles.each{|id, terms| self.add_observed_terms(terms: terms)}
-    end
-
-    # Increase the arbitrary frequency of a given term set 
-    # ===== Parameters
-    # +terms+:: set of terms to be updated
-    # +increase+:: amount to be increased
-    # +transform_to_sym+:: if true, transform observed terms to symbols. Default: false
-    # ===== Return
-    # true if process ends without errors and false in other cases
-    def add_observed_terms(terms:, increase: 1.0, transform_to_sym: false)
-        return terms.map{|id| self.add_observed_term(
-            term: transform_to_sym ? id.to_sym : id, 
-            increase: increase)}
     end
 
     # ===== Returns 
