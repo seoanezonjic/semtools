@@ -219,8 +219,8 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # TERM METHODS
     #############################################
 
-    # Adding term's data
-    #############################################
+    # I/O observed term from data
+    ####################################
 
     # Increase observed frequency for a specific term
     # ===== Parameters
@@ -241,7 +241,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     end
 
     # Obtain structural data
-    #############################################
+    ####################################
 
     # ===== Parameters
     # +term+:: which are requested
@@ -344,7 +344,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     end
 
     # ID Handlers
-    #############################################
+    ####################################
 
     # ===== Returns 
     # the main ID assigned to a given ID. If it's a non alternative/obsolete ID itself will be returned
@@ -400,7 +400,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     end
 
     # Get term frequency and information
-    #######################################
+    ####################################
 
     # One single term #
 
@@ -593,6 +593,9 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # ITEMS METHODS
     #############################################
 
+    # I/O Items
+    ####################################
+
     # Store specific relations hash given into ITEMS structure
     # ===== Parameters
     # +relations+:: hash to be stored
@@ -612,6 +615,9 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
             @items.merge!(relations)
         end
     end 
+
+    # Defining Items from instance variables
+    ########################################
 
     # Assign a dictionary already calculated as a items set.
     # ===== Parameters
@@ -635,6 +641,16 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return @items[term]
     end
 
+    # For each term in profiles add the ids in the items term-id dictionary 
+    def get_items_from_profiles
+        @profiles.each do |id, terms|
+            terms.each {|term| add2hash(@items, term, id) }
+        end
+    end
+
+    # Defining instance variables from items
+    ########################################
+
     def get_profiles_from_items
         new_profiles = {}
         @items.each do |term, ids|
@@ -642,6 +658,9 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         end
         @profiles = new_profiles        
     end
+
+    # Expanding items
+    ####################################
 
     # This method computes childs similarity and impute items to it parentals. To do that Item keys must be this ontology allowed terms.
     # Similarity will be calculated by text extact similarity unless an ontology object will be provided. In this case, MICAs will be used
@@ -897,73 +916,8 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # PROFILE EXTERNAL METHODS
     #############################################
 
-     # ID Handlers
-    ##############################################
-
-    # Check a set of IDs and return allowed IDs removing which are not official terms on this ontology
-    # ===== Parameters
-    # +ids+:: to be checked
-    # ===== Return
-    # two arrays whit allowed and rejected IDs respectively
-    def check_ids(ids, substitute: true) 
-        checked_codes = []
-        rejected_codes = []
-        ids.each do |id|
-            new_id = get_main_id(id)
-            if new_id.nil?
-                rejected_codes << id
-            else
-                if substitute
-                    checked_codes << new_id
-                else
-                    checked_codes << id
-                end
-            end
-        end
-        return checked_codes, rejected_codes
-    end
-
-
-    # Translates several IDs and returns translations and not allowed IDs list
-    # ===== Parameters
-    # +ids+:: to be translated
-    # ===== Return
-    # two arrays with translations and ids which couldn't be translated respectively
-    def translate_ids(ids)
-        translated = []
-        rejected = []
-        ids.each do |term_id|
-            tr = self.translate_id(term_id.to_sym)
-            if !tr.nil?
-                translated << tr # FRED: Why have this a different behaviour from ...->
-            else
-                rejected << tr
-            end
-        end
-        return translated, rejected
-    end
-
-    # Translate several names and return translations and a list of names which couldn't be translated
-    # ===== Parameters
-    # +names+:: array to be translated
-    # ===== Return
-    # two arrays with translations and names which couldn't be translated respectively
-    def translate_names(names) 
-        translated = []
-        rejected = []
-        names.each do |name|
-            tr = self.translate_name(name)
-            if tr.nil?
-                rejected << name # FRED: <-... this?
-            else
-                translated << tr
-            end
-        end
-        return translated, rejected
-    end
-
     # Modifying Profile
-    #############################################
+    ####################################
 
     def expand_profile_with_parents(profile)
         new_terms = []
@@ -1048,8 +1002,73 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return keep.compact.uniq
     end
 
-    # Description of profile terms
-    ###################################
+    # ID Handlers
+    #################################### 
+
+    # Check a set of IDs and return allowed IDs removing which are not official terms on this ontology
+    # ===== Parameters
+    # +ids+:: to be checked
+    # ===== Return
+    # two arrays whit allowed and rejected IDs respectively
+    def check_ids(ids, substitute: true) 
+        checked_codes = []
+        rejected_codes = []
+        ids.each do |id|
+            new_id = get_main_id(id)
+            if new_id.nil?
+                rejected_codes << id
+            else
+                if substitute
+                    checked_codes << new_id
+                else
+                    checked_codes << id
+                end
+            end
+        end
+        return checked_codes, rejected_codes
+    end
+
+
+    # Translates several IDs and returns translations and not allowed IDs list
+    # ===== Parameters
+    # +ids+:: to be translated
+    # ===== Return
+    # two arrays with translations and ids which couldn't be translated respectively
+    def translate_ids(ids)
+        translated = []
+        rejected = []
+        ids.each do |term_id|
+            tr = self.translate_id(term_id.to_sym)
+            if !tr.nil?
+                translated << tr # FRED: Why have this a different behaviour from ...->
+            else
+                rejected << tr
+            end
+        end
+        return translated, rejected
+    end
+
+    # Translate several names and return translations and a list of names which couldn't be translated
+    # ===== Parameters
+    # +names+:: array to be translated
+    # ===== Return
+    # two arrays with translations and names which couldn't be translated respectively
+    def translate_names(names) 
+        translated = []
+        rejected = []
+        names.each do |name|
+            tr = self.translate_name(name)
+            if tr.nil?
+                rejected << name # FRED: <-... this?
+            else
+                translated << tr
+            end
+        end
+        return translated, rejected
+    end
+
+    # Description of profile's terms
+    ####################################
 
     # Gets metainfo table from a set of terms
     # ===== Parameters
@@ -1143,7 +1162,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     #############################################
 
     # I/O profiles
-    ############################################
+    ####################################
 
     # Method used to store a pool of profiles
     # ===== Parameters
@@ -1223,7 +1242,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     end
 
     # Modifying profiles
-    ########################################
+    ####################################
 
     def reset_profiles # Internal method used to remove already stored profiles and restore observed frequencies # FRED: Why is this method not reseting @items?
         @profiles = {} # Clean profiles storage
@@ -1260,7 +1279,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     end
 
     # ID Handlers
-    ##############################################
+    ####################################
 
     # Trnaslates a bunch of profiles to it sets of term names
     # ===== Parameters
@@ -1406,6 +1425,30 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
 
     # Profiles vs Profiles #
 
+    def get_pair_index(profiles_A, profiles_B)
+        pair_index = {}
+        profiles_A.each do |curr_id, profile_A|
+            profiles_B.each do |id, profile_B|
+                profile_A.each do |term_A|
+                    profile_B.each do |term_B|
+                        pair_index[[term_A, term_B].sort] = true 
+                    end
+                end
+            end    
+        end
+        return pair_index
+    end
+
+    def get_mica_index_from_profiles(pair_index, sim_type: :resnik, ic_type: :resnik, lca_index: true)
+        pair_index.each do |pair, val|
+            tA, tB = pair
+            value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type, lca_index: lca_index)
+            value = true if value.nil? # We use true to save that the operation was made but there is not mica value
+            add2nestHash(@mica_index, tA, tB, value)
+            add2nestHash(@mica_index, tB, tA, value)
+        end
+    end
+
     # Compare internal stored profiles against another set of profiles. If an external set is not provided, internal profiles will be compared with itself 
     # ===== Parameters
     # +external_profiles+:: set of external profiles. If nil, internal profiles will be compared with itself
@@ -1436,32 +1479,66 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return profiles_similarity
     end
 
-    def get_pair_index(profiles_A, profiles_B)
-        pair_index = {}
-        profiles_A.each do |curr_id, profile_A|
-            profiles_B.each do |id, profile_B|
-                profile_A.each do |term_A|
-                    profile_B.each do |term_B|
-                        pair_index[[term_A, term_B].sort] = true 
-                    end
-                end
-            end    
-        end
-        return pair_index
-    end
-
-    def get_mica_index_from_profiles(pair_index, sim_type: :resnik, ic_type: :resnik, lca_index: true)
-        pair_index.each do |pair, val|
-            tA, tB = pair
-            value = self.get_similarity(tA, tB, type: sim_type, ic_type: ic_type, lca_index: lca_index)
-            value = true if value.nil? # We use true to save that the operation was made but there is not mica value
-            add2nestHash(@mica_index, tA, tB, value)
-            add2nestHash(@mica_index, tB, tA, value)
-        end
-    end
-
     # specifity_index related methods
-    #######################################
+    ####################################
+
+    # Return ontology levels from profile terms
+    # ===== Returns 
+    # hash of term levels (Key: level; Value: array of term IDs)
+    def get_ontology_levels_from_profiles(uniq = true)
+        profiles_terms = @profiles.values.flatten
+        profiles_terms.uniq! if uniq
+        term_freqs_byProfile = Hash.new(0)
+        profiles_terms.each do |term|
+            term_freqs_byProfile[term] += 1 
+        end
+        levels_filtered = {}
+        terms_levels = @dicts[:level][:byValue]
+        term_freqs_byProfile.each do |term, count|
+            level = terms_levels[term]
+            term_repeat = Array.new(count, term)
+            query = levels_filtered[level]
+            if query.nil?
+                levels_filtered[level] = term_repeat
+            else
+                query.concat(term_repeat)
+            end
+        end
+        return levels_filtered
+    end
+
+    def get_profile_ontology_distribution_tables
+      cohort_ontology_levels = get_ontology_levels_from_profiles(uniq=false)
+      uniq_cohort_ontology_levels = get_ontology_levels_from_profiles
+      ontology_levels = get_ontology_levels
+      total_ontology_terms = ontology_levels.values.flatten.length
+      total_cohort_terms = cohort_ontology_levels.values.flatten.length
+      total_uniq_cohort_terms = uniq_cohort_ontology_levels.values.flatten.length
+
+      distribution_ontology_levels = []
+      distribution_percentage = []
+      ontology_levels.each do |level, terms|
+        cohort_terms = cohort_ontology_levels[level]
+        uniq_cohort_terms = uniq_cohort_ontology_levels[level]
+        if cohort_terms.nil? || uniq_cohort_terms.nil?
+          num = 0
+          u_num = 0
+        else
+          num = cohort_terms.length
+          u_num = uniq_cohort_terms.length
+        end
+        distribution_ontology_levels << [level, terms.length, num]
+        distribution_percentage << [
+          level,
+          (terms.length.fdiv(total_ontology_terms)*100).round(3),
+          (num.fdiv(total_cohort_terms)*100).round(3),
+          (u_num.fdiv(total_uniq_cohort_terms)*100).round(3)
+        ]
+      end
+      distribution_ontology_levels.sort! { |x,y| x.first <=> y.first }
+      distribution_percentage.sort! { |x,y| x.first <=> y.first }
+      return distribution_ontology_levels, distribution_percentage
+    end
 
     def get_dataset_specifity_index(mode)
         ontology_levels, distribution_percentage = get_profile_ontology_distribution_tables
@@ -1503,73 +1580,6 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         end
         weigthed_contribution = accumulated_weigthed_diffL.fdiv(nLevels)
         return weigthed_contribution
-    end
-
-    def get_profile_ontology_distribution_tables
-      cohort_ontology_levels = get_ontology_levels_from_profiles(uniq=false)
-      uniq_cohort_ontology_levels = get_ontology_levels_from_profiles
-      ontology_levels = get_ontology_levels
-      total_ontology_terms = ontology_levels.values.flatten.length
-      total_cohort_terms = cohort_ontology_levels.values.flatten.length
-      total_uniq_cohort_terms = uniq_cohort_ontology_levels.values.flatten.length
-
-      distribution_ontology_levels = []
-      distribution_percentage = []
-      ontology_levels.each do |level, terms|
-        cohort_terms = cohort_ontology_levels[level]
-        uniq_cohort_terms = uniq_cohort_ontology_levels[level]
-        if cohort_terms.nil? || uniq_cohort_terms.nil?
-          num = 0
-          u_num = 0
-        else
-          num = cohort_terms.length
-          u_num = uniq_cohort_terms.length
-        end
-        distribution_ontology_levels << [level, terms.length, num]
-        distribution_percentage << [
-          level,
-          (terms.length.fdiv(total_ontology_terms)*100).round(3),
-          (num.fdiv(total_cohort_terms)*100).round(3),
-          (u_num.fdiv(total_uniq_cohort_terms)*100).round(3)
-        ]
-      end
-      distribution_ontology_levels.sort! { |x,y| x.first <=> y.first }
-      distribution_percentage.sort! { |x,y| x.first <=> y.first }
-      return distribution_ontology_levels, distribution_percentage
-    end
-
-    # Return ontology levels from profile terms
-    # ===== Returns 
-    # hash of term levels (Key: level; Value: array of term IDs)
-    def get_ontology_levels_from_profiles(uniq = true)
-        profiles_terms = @profiles.values.flatten
-        profiles_terms.uniq! if uniq
-        term_freqs_byProfile = Hash.new(0)
-        profiles_terms.each do |term|
-            term_freqs_byProfile[term] += 1 
-        end
-        levels_filtered = {}
-        terms_levels = @dicts[:level][:byValue]
-        term_freqs_byProfile.each do |term, count|
-            level = terms_levels[term]
-            term_repeat = Array.new(count, term)
-            query = levels_filtered[level]
-            if query.nil?
-                levels_filtered[level] = term_repeat
-            else
-                query.concat(term_repeat)
-            end
-        end
-        return levels_filtered
-    end
-
-    #-----------------------------------------
-
-    # For each term in profiles add the ids in the items term-id dictionary 
-    def get_items_from_profiles
-        @profiles.each do |id, terms|
-            terms.each {|term| add2hash(@items, term, id) }
-        end
     end
 
     ########################################
