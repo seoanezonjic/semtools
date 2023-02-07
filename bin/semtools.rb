@@ -301,7 +301,7 @@ OptionParser.new do |opts|
   end
 
   options[:xref_sense] = :byValue
-  opts.on("--xref_sense ", "Ontology-xref or xref-ontology. By default xref-ontology if set, ontology-xref") do
+  opts.on("--xref_sense", "Ontology-xref or xref-ontology. By default xref-ontology if set, ontology-xref") do
     options[:xref_sense] = :byTerm
   end
 
@@ -378,7 +378,7 @@ if !options[:ontology_file].nil?
 end
 
 extra_dicts = []
-extra_dicts << [:xref, {select_regex: /(#{options[:keyword]})/, store_tag: :tag, multiterm: true, substitute_alternatives: false}] if !options[:keyword].nil?
+extra_dicts << [:xref, {select_regex: /(#{options[:keyword]})/, store_tag: :tag, multiterm: true}] if !options[:keyword].nil?
 ontology = Ontology.new(file: options[:ontology_file], load_file: true, extra_dicts: extra_dicts)
 
 Ontology.mutate(options[:root], ontology, clone: false) if !options[:root].nil? # TODO fix method and convert in class method
@@ -502,7 +502,11 @@ if !options[:keyword].nil?
   data.each do |id, prof|
     xrefs = []
     prof.each do |t|
-      query = dict[t.to_s]
+	if options[:xref_sense] == :byValue
+	      query = dict[t.to_s]
+	else
+	      query = dict[t]
+	end
       xrefs.concat(query) if !query.nil?
     end
     xref_translated << [id, xrefs] if !xrefs.empty?
