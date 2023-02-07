@@ -21,3 +21,9 @@ alt_id: Child3
 alt_id: Child4
 is_a: Parental ! Parental
 
+[Term]
+id: Child5
+name: Child5
+synonym: "activity related to example" EXACT []
+is_obsolete: true
+is_a: Parental ! Parental

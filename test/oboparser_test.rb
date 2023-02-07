@@ -35,9 +35,29 @@ class TestOBOparser < Minitest::Test
 
 		## OBO INFO
 		@load_Header = [{:file=>File.join(AUX_FOLDER, "only_header_sample.obo"), :name=>"only_header_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{}, :typedefs=>{}, :instances=>{}}]
-		@load_Hierarchical_WithoutIndex = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>[:Parental], :replaced_by => [:Child2]}, :Child2=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3,:Child4], :is_a=>[:Parental]}}, :typedefs=>{}, :instances=>{}}]
-		@load_Hierarchical_altid = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>[:Parental], :replaced_by => [:Child2]}, :Child2=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3,:Child4], :is_a=>[:Parental]}, :Child3=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3, :Child4], :is_a=>[:Parental]}, :Child4=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3, :Child4], :is_a=>[:Parental]}}, :typedefs=>{}, :instances=>{}}]
-		@load_Hierarchical = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>[:Parental], :replaced_by => [:Child2]}, :Child2=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3,:Child4], :is_a=>[:Parental]}}, :typedefs=>{}, :instances=>{}}]
+		@load_Hierarchical_WithoutIndex =[
+			{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, 
+			{:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, 
+			{:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, 
+			:Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>[:Parental], :replaced_by => [:Child2]}, 
+			:Child2=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3,:Child4], :is_a=>[:Parental]}, 
+			:Child5=>{:id=>:Child5, :name=>"Child5", :synonym=>["\"activity related to example\" EXACT []"], :is_obsolete=>"true", :is_a=>[:Parental]}
+			}, 
+			:typedefs=>{}, :instances=>{}}]
+		@load_Hierarchical_altid = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, 
+			{:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, 
+			:Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete => "true", :is_a=>[:Parental], :replaced_by => [:Child2]}, 
+			:Child2=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3,:Child4], :is_a=>[:Parental]},
+			:Child3=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3, :Child4], :is_a=>[:Parental]}, 
+			:Child4=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3, :Child4], :is_a=>[:Parental]},
+			:Child5=>{:id=>:Child5, :name=>"Child5", :synonym=>["\"activity related to example\" EXACT []"], :is_obsolete=>"true", :is_a=>[:Parental]}}, 
+			:typedefs=>{}, :instances=>{}}]
+		@load_Hierarchical = [{:file=>File.join(AUX_FOLDER, "hierarchical_sample.obo"), :name=>"hierarchical_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"},
+		{:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, 
+		:Child1=>{:id=>:Child1, :name=>"Child1", :is_obsolete=>"true", :is_a=>[:Parental], :replaced_by=>[:Child2]}, 
+		:Child2=>{:id=>:Child2, :name=>"Child2", :synonym=>["\"1,6-alpha-mannosyltransferase activity\" EXACT []"], :alt_id=>[:Child3, :Child4], :is_a=>[:Parental]}, 
+		:Child5=>{:id=>:Child5, :name=>"Child5", :synonym=>["\"activity related to example\" EXACT []"], :is_obsolete=>"true", :is_a=>[:Parental]}},
+		:typedefs=>{}, :instances=>{}}]
 		@load_Circular = [{:file=>File.join(AUX_FOLDER, "circular_sample.obo"), :name=>"circular_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>:A, :name=>"All", :is_a=>[:C]}, :B=>{:id=>:B, :name=>"B", :is_a=>[:A]}, :C=>{:id=>:C, :name=>"C", :is_a=>[:B]}}, :typedefs=>{}, :instances=>{}}]
 		@load_Atomic = [{:file=>File.join(AUX_FOLDER, "sparse_sample.obo"), :name=>"sparse_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:Parental=>{:id=>:Parental, :name=>"All", :comment=>"none"}, :Child1=>{:id=>:Child1, :name=>"Child1"}, :Child2=>{:id=>:Child2, :name=>"Child2"}}, :typedefs=>{}, :instances=>{}}]
 		@load_Sparse = [{:file=>File.join(AUX_FOLDER, "sparse2_sample.obo"), :name=>"sparse2_sample"}, {:"format-version"=>"1.2", :"data-version"=>"test/a/b/c/"}, {:terms=>{:A=>{:id=>:A, :name=>"All"}, :B=>{:id=>:B, :name=>"B", :is_a=>[:A]}, :C=>{:id=>:C, :name=>"C", :is_a=>[:A]}, :D=>{:id=>:D, :name=>"Sparsed"}}, :typedefs=>{}, :instances=>{}}]
@@ -50,7 +70,7 @@ class TestOBOparser < Minitest::Test
 		@hierarchical_terms2 = {Child2: {is_a: [:B]}, Parental: {is_a: [:A]}}
 
 		# Parentals
-		@parentals_Hierachical = [:hierarchical, {:Child1=>[:Parental], :Child2=>[:Parental], :Child3=>[:Parental], :Child4=>[:Parental]}]
+		@parentals_Hierachical = [:hierarchical, {:Child1=>[:Parental], :Child2=>[:Parental], :Child3=>[:Parental], :Child4=>[:Parental], :Child5=>[:Parental]}]
 		@parentals_Circular = [:circular, {:A=>[:C, :B], :C=>[:B, :A], :B=>[:A, :C]}]
 		@parentals_Atomic = [:atomic, {}]
 		@parentals_Sparse = [:sparse, {:B=>[:A], :C=>[:A]}]
