@@ -240,7 +240,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return true
     end
 
-    # Obtain structural data
+    # Obtain level and term relations
     ####################################
 
     # ===== Parameters
@@ -926,10 +926,11 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # +transform_to_sym+:: if true, transform observed terms to symbols. Default: false
     # ===== Return
     # true if process ends without errors and false in other cases
-    def add_observed_terms(terms:, increase: 1.0, transform_to_sym: false)
+    def add_observed_terms(terms:, increase: 1.0, transform_to_sym: false, expand2parentals: true)
+        terms = terms.map{|term| [term] + get_ancestors(term.to_sym)}.flatten if expand2parentals
         return terms.map{|id| self.add_observed_term(
             term: transform_to_sym ? id.to_sym : id, 
-            increase: increase)}
+            increase: increase)} # FRED: It is necessary the return?
     end
 
     # Modifying Profile
@@ -1091,23 +1092,23 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # +terms+:: IDs to be expanded
     # ===== Returns 
     # an array with triplets [TermID, TermName, DescendantsNames]
-    def get_childs_table(terms)
-        expanded_terms = []
-        terms.each do |t|
-            expanded_terms << [[t, translate_id(t)], get_descendants(t).map{|child| [child, translate_id(child)]}]
+    def get_childs_table(profile)
+        expanded_profile = []
+        profile.each do |t|
+            expanded_profile << [[t, translate_id(t)], get_descendants(t).map{|child| [child, translate_id(child)]}]
         end
-        return expanded_terms
+        return expanded_profile
     end
 
-    def get_terms_levels(terms)
+    def get_terms_levels(profile)
         termsAndLevels = []
-        terms.each do |term|
+        profile.each do |term|
             termsAndLevels << [term, get_term_level(term)]
         end
         return termsAndLevels
     end      
 
-    # Information data
+    # IC data
     ####################################
 
     # Get information coefficient from profiles #
@@ -1207,7 +1208,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         end
     end
 
-     # Stores a given profile with an specific ID. If ID is already assigend to a profile, it will be replaced
+    # Stores a given profile with an specific ID. If ID is already assigend to a profile, it will be replaced
     # ===== Parameters
     # +id+:: assigned to profile
     # +terms+:: array of terms
@@ -1247,11 +1248,12 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Modifying profiles
     ####################################
 
-    def reset_profiles # Internal method used to remove already stored profiles and restore observed frequencies # FRED: Why is this method not reseting @items?
+    def reset_profiles # Internal method used to remove already stored profiles and restore observed frequencies #TODO FRED: Modify test for this method.
         @profiles = {} # Clean profiles storage
         # Reset frequency observed
         @meta.each{|term,info| info[:observed_freq] = 0}
         @max_freqs[:observed_freq] = 0
+        @items = {}
     end
 
     def expand_profiles(meth, unwanted_terms: [], calc_metadata: true, ontology: nil, minimum_childs: 1, clean_profiles: true)
@@ -1355,7 +1357,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # +increasing_sort+:: flag to indicate if sizes order must be increasing. Default: false
     # ===== Returns 
     # values assigned to percentile asked
-    def get_profile_length_at_percentile(perc=50, increasing_sort: false) # FRED: Talk with PSZ this method 
+    def get_profile_length_at_percentile(perc=50, increasing_sort: false) # FRED: wrapper (analizando posible discordancia) Ojear el cohort
         prof_lengths = self.get_profiles_sizes.sort
         prof_lengths.reverse! if !increasing_sort
         n_profiles = prof_lengths.length 
@@ -1364,7 +1366,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
         return prof_lengths[percentile_index]
     end
 
-    # Information data
+    # IC data
     ####################################
 
     # Get frequency terms and information coefficient from profiles #
@@ -1401,7 +1403,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Calculates resnik ontology, and resnik observed mean ICs for all profiles stored
     # ===== Returns 
     # two hashes with Profiles and IC calculated for resnik and observed resnik respectively
-    def get_profiles_resnik_dual_ICs(struct: :resnik, observ: :resnik_observed)
+    def get_profiles_resnik_dual_ICs(struct: :resnik, observ: :resnik_observed) # Maybe change name during migration to get_profiles_dual_ICs
         struct_ics = {}
         observ_ics = {}
         @profiles.each do |id, terms|
@@ -1415,7 +1417,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # Calculates and return resnik ICs (by ontology and observed frequency) for observed terms
     # ===== Returns 
     # two hashes with resnik and resnik_observed ICs for observed terms
-    def get_observed_ics_by_onto_and_freq() # FRED: Talk with PSZ the necessity of adding expansion to parentals if resnik observed wanted
+    def get_observed_ics_by_onto_and_freq() 
         ic_ont = {}
         resnik_observed = {}
         observed_terms = @profiles.values.flatten.uniq
