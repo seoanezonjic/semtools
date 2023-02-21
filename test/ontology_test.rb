@@ -183,7 +183,7 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_nil(@hierarchical.translate_name("Erroneous name"))
 		assert_equal('All', @hierarchical.translate_id(:Parental))
 		assert_equal(:Child2, @hierarchical.get_main_id(:Child1))
-	end
+    end
 
 	# Get term frequency and information
     ####################################
@@ -192,7 +192,7 @@ class TestOBOFunctionalities < Minitest::Test
 		@hierarchical.precompute
 		assert_equal(0, @hierarchical.get_IC(:Parental))	# Root
 		assert_equal(-Math.log10(1.fdiv(2)), @hierarchical.get_IC(:Child2)) # Leaf	
-	end
+    end
 
 	def test_similarities
 		@hierarchical.add_observed_terms(terms: ["Child2","Child2","Child2","Parental","Parental","Parental","Parental"], transform_to_sym: true)
@@ -221,7 +221,7 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(true, @hierarchical.term_exist?(:Parental)) # Validate ids
 		assert_equal(false, @hierarchical.is_obsolete?(:Child2)) # Validate ids
 		assert_equal(true, @hierarchical.is_obsolete?(:Child1)) # Validate ids
-	end
+    end
 
 	#############################################
     # PROFILE EXTERNAL METHODS
@@ -303,7 +303,7 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(sim_D_A, @hierarchical.compare(profD, profA, bidirectional: false))
 		assert_equal(sim_A_D_bi, @hierarchical.compare(profD, profA, bidirectional: true))
 		assert_equal(@hierarchical.compare(profA, profD, bidirectional: true), @hierarchical.compare(profD, profA, bidirectional: true))
-	end
+    end
 
     #############################################
     # PROFILE INTERNAL METHODS 
@@ -406,9 +406,9 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(-Math.log10(2.fdiv(2)), @hierarchical.compare_profiles(external_profiles: {C: [:Parental]})[:A][:C])
 		@hierarchical.add_observed_terms_from_profiles()
 		assert_equal([{:Child2=>-Math.log10(0.5), :Parental=>-Math.log10(1)}, {:Child2=>-Math.log10(2.fdiv(3)), :Parental=>-Math.log10(1)}],@hierarchical.get_observed_ics_by_onto_and_freq())
-	end
+    end
 
-	def test_ic_profile_ext
+	def test_ic_profile_internal
 		@hierarchical.add_profile(:A, [:Child2, :Parental], substitute: false) # Add profiles
 		@hierarchical.add_profile(:B, [:Child2, :Parental, :FakeID], substitute: false)
 		@hierarchical.add_profile(:C, [:Child2, :Parental], substitute: false)
@@ -437,6 +437,18 @@ class TestOBOFunctionalities < Minitest::Test
     # specifity_index related methods
     ####################################
 
+	def test_onto_levels_from_profiles
+		@hierarchical.add_profile(:A, [:Child2, :Parental], substitute: false) # Add profiles
+		@hierarchical.add_profile(:B, [:Child2, :Parental, :FakeID], substitute: false)
+		@hierarchical.add_profile(:C, [:Child2, :Parental], substitute: false)
+		@hierarchical.add_profile(:D, [:Parental], substitute: false)
+ 
+		# Ontology levels
+		assert_equal({1=>[:Parental], 2=>[:Child2]}, @hierarchical.get_ontology_levels_from_profiles)
+		assert_equal({1=>[:Parental, :Parental, :Parental, :Parental], 2=>[:Child2, :Child2, :Child2]}, @hierarchical.get_ontology_levels_from_profiles(false))
+		assert_equal({1=>[:Parental], 2=>[:Child2]}, @hierarchical.get_ontology_levels)
+	end
+
     def test_specificity_index
 		@hierarchical.load_profiles({:A => [:Child2], :B => [:Parental],:C => [:Child2, :Parental]}, calc_metadata: false, substitute: false)
 		assert_equal([[[1, 1, 2], [2, 1, 2]], [[1, 50.0, 50.0, 50.0], [2, 50.0, 50.0, 50.0]]] ,@hierarchical.get_profile_ontology_distribution_tables)
@@ -450,36 +462,14 @@ class TestOBOFunctionalities < Minitest::Test
 			 calc_metadata: false, substitute: false)
 		assert_equal(13.334.fdiv(10).round(4),enrichment_hierarchical2.get_dataset_specifity_index('weigthed').round(4))
 		assert_equal(0,enrichment_hierarchical2.get_dataset_specifity_index('uniq'))
-	end
-
-	def test_onto_levels_from_profiles
-		@hierarchical.add_profile(:A, [:Child2, :Parental], substitute: false) # Add profiles
-		@hierarchical.add_profile(:B, [:Child2, :Parental, :FakeID], substitute: false)
-		@hierarchical.add_profile(:C, [:Child2, :Parental], substitute: false)
-		@hierarchical.add_profile(:D, [:Parental], substitute: false)
- 
-		# Ontology levels
-		assert_equal({1=>[:Parental], 2=>[:Child2]}, @hierarchical.get_ontology_levels_from_profiles)
-		assert_equal({1=>[:Parental, :Parental, :Parental, :Parental], 2=>[:Child2, :Child2, :Child2]}, @hierarchical.get_ontology_levels_from_profiles(false))
-		assert_equal({1=>[:Parental], 2=>[:Child2]}, @hierarchical.get_ontology_levels)
-	end
+    end
 
     ########################################
     ## GENERAL ONTOLOGY METHODS
     ########################################
 
-	def test_import_export_items2
-		@hierarchical.add_profile(:A, [:Child2, :Parental], substitute: false) # Add profiles
-		@hierarchical.add_profile(:B, [:Child2, :Parental, :FakeID], substitute: false)
-		@hierarchical.add_profile(:C, [:Child2, :Parental], substitute: false)
-		@hierarchical.add_profile(:D, [:Parental], substitute: false)
- 
-	
-		# Profiles dictionary
-		@hierarchical.get_items_from_profiles
-		assert_equal({Child2: [:A, :B, :C], Parental: [:A, :B, :C, :D]}, @hierarchical.items)
-		
-		# Handle items
+    def test_IO_items
+    	# Handle items
 		items_rel = {Parental: ['a','b'], Child3: ['c']}
 		items_rel_sym = {Parental: [:a, :b], Child3: [:c]}
 		items_rel_concat = {Parental: [:a,:b,'a','b'], Child3: [:c,'c']}
@@ -494,11 +484,24 @@ class TestOBOFunctionalities < Minitest::Test
 		@hierarchical.load_item_relations_to_terms(items_rel_sym,true,true) # here third must no be relevant
 		assert_equal(items_rel_sym, @hierarchical.items)
 
-	end
+    end
 
-	def test_import_export_items
+	def test_defining_items_from_instance_variable
 		@hierarchical.set_items_from_dict(:is_a)
 		assert_equal({:Child2=>[:Parental]}, @hierarchical.items)
+		@hierarchical.items = {} # Reseting items variable
+
+		@hierarchical.add_profile(:A, [:Child2, :Parental], substitute: false) # Add profiles
+		@hierarchical.add_profile(:B, [:Child2, :Parental, :FakeID], substitute: false)
+		@hierarchical.add_profile(:C, [:Child2, :Parental], substitute: false)
+		@hierarchical.add_profile(:D, [:Parental], substitute: false)
+		# Profiles dictionary
+		@hierarchical.get_items_from_profiles
+		assert_equal({Child2: [:A, :B, :C], Parental: [:A, :B, :C, :D]}, @hierarchical.items)
+	end
+
+	def test_defining_instance_variables_from_items
+		@hierarchical.set_items_from_dict(:is_a)
 		@hierarchical.get_profiles_from_items
 		assert_equal({:Parental=>[:Child2]},@hierarchical.profiles)
 	end
