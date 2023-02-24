@@ -389,7 +389,7 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal(1, @hierarchical.get_profile_length_at_percentile(0, increasing_sort: true))
 		assert_equal(2, @hierarchical.get_profile_length_at_percentile(2.fdiv(4 - 1) * 100, increasing_sort: true))
 		assert_equal(2, @hierarchical.get_profile_length_at_percentile(3.fdiv(4 - 1) * 100, increasing_sort: true))
-		assert_equal(2, @hierarchical.get_profile_length_at_percentile(4.fdiv(4 - 1) * 100, increasing_sort: true))
+		assert_equal(1, @hierarchical.get_profile_length_at_percentile(4.fdiv(5 - 1) * 100, increasing_sort: false))
 
     end
 

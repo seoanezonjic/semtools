@@ -1357,13 +1357,10 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
     # +increasing_sort+:: flag to indicate if sizes order must be increasing. Default: false
     # ===== Returns 
     # values assigned to percentile asked
-    def get_profile_length_at_percentile(perc=50, increasing_sort: false) # FRED: wrapper (analizando posible discordancia) Ojear el cohort
-        prof_lengths = self.get_profiles_sizes.sort
-        prof_lengths.reverse! if !increasing_sort
-        n_profiles = prof_lengths.length 
-        percentile_index = ((perc * (n_profiles - 1)).fdiv(100) - 0.5).round # Take length which not overpass percentile selected
-        percentile_index = 0 if percentile_index < 0 # Special case (caused by literal calc)
-        return prof_lengths[percentile_index]
+    def get_profile_length_at_percentile(perc=50, increasing_sort: false) 
+        prof_lengths = self.get_profiles_sizes
+        percentile_profile = prof_lengths.get_quantiles(perc.fdiv(100), decreasing_sort = !increasing_sort)
+        return percentile_profile
     end
 
     # IC data
