@@ -1314,7 +1314,7 @@ attr_accessor :terms, :ancestors_index, :descendants_index, :alternatives_index,
       stats = Hash.new(0)
       data = get_profiles_sizes
       stats[:average] = data.sum().fdiv(data.size)
-      sum_devs = data.sum{|element| (element - stats[:avg]) ** 2}
+      sum_devs = data.sum{|element| (element - stats[:average]) ** 2}
       stats[:variance] = sum_devs.fdiv(data.size)
       stats[:standardDeviation] = stats[:variance] ** 0.5
       stats[:max] = data.max

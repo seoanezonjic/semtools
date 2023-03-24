@@ -382,8 +382,8 @@ class TestOBOFunctionalities < Minitest::Test
 		assert_equal([2, 2, 2, 1], @hierarchical.get_profiles_sizes) # Check metadata
 		assert_equal(7.fdiv(4).round(4), @hierarchical.get_profiles_mean_size)
 		assert_equal({:average=>1.75, 
-					  :variance=>3.25,
-					  :standardDeviation=>Math.sqrt(3.25), 
+					  :variance=>0.1875,
+					  :standardDeviation=>Math.sqrt(0.1875), 
 					  :max=>2, :min=>1, :count=>4, :countNonZero=>4, 
 					  :q1=>1.5, :median=>2.0, :q3=>2.0}, @hierarchical.profile_stats)
 		assert_equal(1, @hierarchical.get_profile_length_at_percentile(0, increasing_sort: true))
