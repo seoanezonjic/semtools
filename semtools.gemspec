@@ -9,8 +9,8 @@ Gem::Specification.new do |spec|
   spec.authors       = ["seoanezonjic", "fmjabato"]
   spec.email         = ["seoanezonjic@hotmail.com", "fmjabato@gmail.com"]
 
-  spec.summary       = %q{DEPRECATED PROJECT. MIGRATED TO PYTHON: https://github.com/seoanezonjic/py_semtools. Gem to handle semantic based calculations in text and defined ontologies as GO or HPO.}
-  spec.description   = %q{This gem allows to perform ontology based operations and calculation of Semantic similarity and information coefficient using different implementations.}
+  spec.summary       = %q{Gem to handle semantic based calculations in text and defined ontologies as GO or HPO.}
+  spec.description   = %q{DEPRECATED PROJECT. MIGRATED TO PYTHON: https://github.com/seoanezonjic/py_semtools. This gem allows to perform ontology based operations and calculation of Semantic similarity and information coefficient using different implementations.}
   spec.homepage      = "https://github.com/seoanezonjic/semtools"
   spec.license       = "MIT"
 
